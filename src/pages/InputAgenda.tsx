@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   DAFTAR_KELAS,
-  DAFTAR_JAM_PELAJARAN,
+  getScheduleSlotsForDate,
   type KelasOption,
   type AgendaKBM,
   type Siswa,
@@ -15,6 +15,7 @@ import {
   getDaftarMapel,
   simpanAgenda,
   checkGuruKelas,
+  getRekapAgenda,
 } from '../services/agendaService';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -230,17 +231,98 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
     );
   };
 
+  // Auto-fetch existing agenda di database untuk kelas & tanggal terpilih
+  const [existingAgendaId, setExistingAgendaId] = useState<string | null>(editData?.header.id || null);
+
+  const refreshAgendaFromDb = useCallback(async () => {
+    if (editData) return;
+    try {
+      const existing: FullAgenda[] = await getRekapAgenda({ kelas, tanggal });
+      if (existing && existing.length > 0) {
+        const first = existing[0];
+        setExistingAgendaId(first.header.id);
+
+        const slots = getScheduleSlotsForDate(tanggal);
+        const existingJams = first.kbm.map((k) => k.jam_ke);
+        const nextEmptySlot = slots.find((s) => !existingJams.includes(s.jam_ke) && !s.is_break);
+
+        const rowsFromDb: AgendaKBM[] = first.kbm.map((k: AgendaKBM) => ({
+          id: k.id,
+          jam_ke: k.jam_ke,
+          nama_guru: k.nama_guru,
+          mapel: k.mapel,
+          materi: k.materi,
+          tugas_pr: k.tugas_pr || '',
+          is_badal: Boolean(k.is_badal),
+          is_saved_db: true,
+        }));
+
+        if (nextEmptySlot) {
+          rowsFromDb.push({
+            id: undefined,
+            jam_ke: nextEmptySlot.jam_ke,
+            nama_guru: activeTeacherName || '',
+            mapel: '',
+            materi: '',
+            tugas_pr: '',
+            is_badal: false,
+            is_saved_db: false,
+          });
+        }
+
+        setKbmRows(rowsFromDb);
+        setAbsensiList(
+          first.absensi.map((a) => ({
+            siswa_id: a.siswa_id,
+            status: a.status,
+          }))
+        );
+        if (first.kejadian && first.kejadian.length > 0) {
+          setUraianKejadian(first.kejadian[0].uraian_kejadian);
+        }
+      } else {
+        setExistingAgendaId(null);
+        const slots = getScheduleSlotsForDate(tanggal);
+        const firstKbmSlot = slots.find((s) => !s.is_break) || slots[0];
+        setKbmRows([
+          {
+            jam_ke: firstKbmSlot.jam_ke,
+            nama_guru: activeTeacherName || '',
+            mapel: '',
+            materi: '',
+            tugas_pr: '',
+            is_badal: false,
+          },
+        ]);
+      }
+    } catch (err) {
+      console.warn('Gagal cek agenda eksisting:', err);
+    }
+  }, [kelas, tanggal, editData, activeTeacherName]);
+
+  useEffect(() => {
+    refreshAgendaFromDb();
+  }, [refreshAgendaFromDb]);
+
+  // Dapatkan daftar slot jadwal sesuai hari (Senin-Kamis vs Jumat)
+  const scheduleSlots = getScheduleSlotsForDate(tanggal);
+
+  // Hanya slot KBM (bukan break) yang bisa dipilih
+  const kbmSlots = scheduleSlots.filter((s) => !s.is_break);
+
   const handleAddKbmRow = () => {
-    // Cari pasangan jam berikutnya yang belum terpakai
-    const standardPairs = ['1-2', '3-4', '5-6', '7-8', '9-10', '11-12', '13-14'];
     const usedJams = kbmRows.map((r) => r.jam_ke);
-    const nextJam = standardPairs.find((p) => !usedJams.includes(p)) || `${kbmRows.length * 2 + 1}-${kbmRows.length * 2 + 2}`;
+    const availableSlot = kbmSlots.find((s) => !usedJams.includes(s.jam_ke));
+    if (!availableSlot) {
+      showToast('info', 'Semua jam pelajaran sudah terisi.');
+      return;
+    }
 
     const defaultGuru = activeTeacherName || (daftarGuru.length > 0 ? daftarGuru[0].nama_guru : '');
     setKbmRows([
       ...kbmRows,
       {
-        jam_ke: nextJam,
+        jam_ke: availableSlot.jam_ke,
         nama_guru: defaultGuru,
         mapel: '',
         materi: '',
@@ -260,19 +342,44 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
 
   const handleKbmChange = (index: number, field: keyof AgendaKBM, value: any) => {
     const updated = [...kbmRows];
-    if (field === 'jam_ke' && value === 'Istirahat') {
-      updated[index] = {
-        ...updated[index],
-        jam_ke: value,
-        nama_guru: '-',
-        mapel: updated[index].mapel || 'ISTIRAHAT',
-        materi: updated[index].materi || 'Istirahat',
-        is_badal: false,
-      };
-    } else {
-      updated[index] = { ...updated[index], [field]: value };
-    }
+    updated[index] = { ...updated[index], [field]: value };
     setKbmRows(updated);
+  };
+
+  // Helper: urutkan kbmRows sesuai posisi slot jadwal, sisipkan pemisah istirahat
+  const getOrderedRowsWithBreaks = () => {
+    // Urutkan baris berdasarkan posisi di scheduleSlots
+    const sorted = [...kbmRows].sort((a, b) => {
+      const idxA = scheduleSlots.findIndex((s) => s.jam_ke === a.jam_ke);
+      const idxB = scheduleSlots.findIndex((s) => s.jam_ke === b.jam_ke);
+      return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
+    });
+
+    // Sisipkan break separator di posisi yang tepat
+    const result: Array<{ type: 'kbm'; row: AgendaKBM; originalIdx: number } | { type: 'break'; label: string }> = [];
+    const breakSlots = scheduleSlots.filter((s) => s.is_break);
+
+    for (const row of sorted) {
+      const rowSlotIdx = scheduleSlots.findIndex((s) => s.jam_ke === row.jam_ke);
+      // Cek apakah ada break yang harus disisipkan sebelum baris ini
+      for (const brk of breakSlots) {
+        const brkIdx = scheduleSlots.findIndex((s) => s.jam_ke === brk.jam_ke);
+        if (brkIdx < rowSlotIdx && !result.some((r) => r.type === 'break' && r.label === brk.label)) {
+          // Pastikan ada baris sebelum break ini
+          const hasRowBefore = sorted.some((r) => {
+            const ri = scheduleSlots.findIndex((s) => s.jam_ke === r.jam_ke);
+            return ri < brkIdx;
+          });
+          if (hasRowBefore) {
+            result.push({ type: 'break', label: brk.label });
+          }
+        }
+      }
+      const originalIdx = kbmRows.indexOf(row);
+      result.push({ type: 'kbm', row, originalIdx });
+    }
+
+    return result;
   };
 
   const handleAddAbsensi = () => {
@@ -312,6 +419,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
       return;
     }
 
+    // Validasi hanya baris KBM (bukan break)
     const invalidKbm = kbmRows.some(
       (r) => !r.jam_ke.trim() || !r.mapel.trim() || !r.materi.trim()
     );
@@ -323,15 +431,17 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
     setIsSubmitting(true);
     try {
       await simpanAgenda({
-        agendaId: editData?.header.id,
+        agendaId: existingAgendaId || editData?.header.id,
         sekolah: 'SDIT AS-SYIFA',
         kelas,
         tanggal,
-        kbm: kbmRows.map((r) => ({
-          ...r,
-          nama_guru: r.nama_guru || activeTeacherName || '-',
-          is_badal: Boolean(r.is_badal || isBadalChecked),
-        })),
+        kbm: kbmRows
+          .filter((r) => !scheduleSlots.some((s) => s.is_break && s.jam_ke === r.jam_ke))
+          .map((r) => ({
+            ...r,
+            nama_guru: r.nama_guru || activeTeacherName || '-',
+            is_badal: Boolean(r.is_badal || isBadalChecked),
+          })),
         absensi: absensiList,
         uraian_kejadian: uraianKejadian,
       });
@@ -348,28 +458,9 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
           : `Agenda ${kelas} tanggal ${tanggal} berhasil disimpan.`
       );
 
-      const defaultGuru = activeTeacherName || (daftarGuru.length > 0 ? daftarGuru[0].nama_guru : '');
-      setKbmRows([
-        {
-          jam_ke: '1-2',
-          nama_guru: defaultGuru,
-          mapel: '',
-          materi: '',
-          tugas_pr: '',
-          is_badal: false,
-        },
-        {
-          jam_ke: '3-4',
-          nama_guru: defaultGuru,
-          mapel: '',
-          materi: '',
-          tugas_pr: '',
-          is_badal: false,
-        },
-      ]);
-      setAbsensiList([]);
-      setUraianKejadian('');
+      // Soft-refresh: muat ulang data dari DB agar baris baru langsung terkunci
       setIsBadalChecked(false);
+      await refreshAgendaFromDb();
 
       onSuccess();
     } catch (err: any) {
@@ -520,31 +611,89 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {kbmRows.map((row, idx) => {
-                  const isBreak = row.jam_ke === 'Istirahat' || row.jam_ke === 'Isoma';
+                {getOrderedRowsWithBreaks().map((item, renderIdx) => {
+                  if (item.type === 'break') {
+                    // Visual Break Separator — tidak masuk database
+                    return (
+                      <tr key={`break-${renderIdx}`} className="bg-amber-50/60">
+                        <td colSpan={6} className="py-1.5 px-3 text-center">
+                          <span className="text-[11px] font-semibold text-amber-700 tracking-wide">
+                            ☕ {item.label}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  const { row, originalIdx: idx } = item;
+                  const isLocked = Boolean(row.is_saved_db && activeTeacherName !== 'Administrator');
+
+                  if (isLocked) {
+                    return (
+                      <tr key={idx} className="bg-slate-50/80 text-slate-800">
+                        <td className="p-2 border-r border-slate-200 font-bold text-center">
+                          <span className="px-2 py-0.5 bg-slate-200 text-slate-800 rounded">
+                            {row.jam_ke}
+                          </span>
+                        </td>
+                        <td className="p-2 border-r border-slate-200 font-semibold">
+                          <div className="flex items-center gap-1.5">
+                            <span>{row.nama_guru}</span>
+                            {row.is_badal && (
+                              <span className="px-1.5 py-0.2 text-[9px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-300">
+                                Badal
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-2 border-r border-slate-200 font-bold text-slate-700">
+                          {row.mapel}
+                        </td>
+                        <td className="p-2 border-r border-slate-200 text-slate-800 whitespace-pre-wrap">
+                          {row.materi}
+                        </td>
+                        <td className="p-2 border-r border-slate-200 text-slate-600">
+                          {row.tugas_pr || '-'}
+                        </td>
+                        <td className="p-2 text-center text-slate-400">
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            Tersimpan
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  // Baris Input Baru / Editable
                   return (
-                    <tr key={idx} className={isBreak ? 'bg-slate-50' : 'bg-white'}>
+                    <tr key={idx} className="bg-white">
                       <td className="p-1.5 border-r border-slate-200">
                         <select
                           required
                           value={row.jam_ke}
                           onChange={(e) => handleKbmChange(idx, 'jam_ke', e.target.value)}
-                          className="w-full px-2 py-1 text-xs rounded border border-slate-200 bg-white font-bold focus:outline-none focus:ring-1 focus:ring-slate-400"
+                          className="w-full px-2 py-1 text-xs rounded border border-slate-200 font-bold focus:outline-none focus:ring-1 focus:ring-slate-400 bg-white text-slate-800"
                         >
-                          {DAFTAR_JAM_PELAJARAN.map((j) => (
-                            <option key={j} value={j}>
-                              {j}
-                            </option>
-                          ))}
-                          {!DAFTAR_JAM_PELAJARAN.includes(row.jam_ke) && row.jam_ke && (
+                          {kbmSlots.map((s) => {
+                            const isUsedByOtherRow = kbmRows.some(
+                              (otherRow, otherIdx) =>
+                                otherIdx !== idx && otherRow.jam_ke === s.jam_ke
+                            );
+                            if (isUsedByOtherRow) return null;
+
+                            return (
+                              <option key={s.jam_ke} value={s.jam_ke}>
+                                {s.label}
+                              </option>
+                            );
+                          })}
+                          {!kbmSlots.some((s) => s.jam_ke === row.jam_ke) && row.jam_ke && (
                             <option value={row.jam_ke}>{row.jam_ke}</option>
                           )}
                         </select>
                       </td>
                       <td className="p-1.5 border-r border-slate-200">
-                        {isBreak ? (
-                          <span className="text-xs text-slate-400 px-2">-</span>
-                        ) : activeTeacherName && activeTeacherName !== 'Administrator' ? (
+                        {activeTeacherName && activeTeacherName !== 'Administrator' ? (
                           <div className="space-y-1">
                             <div className="px-2 py-1 text-xs font-semibold text-slate-800 bg-slate-100/80 rounded border border-slate-200">
                               {activeTeacherName}
@@ -649,12 +798,46 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
 
           {/* Mobile Clean Form Rows */}
           <div className="md:hidden divide-y divide-slate-200 border border-slate-200 rounded-md">
-            {kbmRows.map((row, idx) => {
-              const isBreak = row.jam_ke === 'Istirahat' || row.jam_ke === 'Isoma';
+            {getOrderedRowsWithBreaks().map((item, renderIdx) => {
+              if (item.type === 'break') {
+                return (
+                  <div key={`break-${renderIdx}`} className="py-2 px-3 bg-amber-50/60 text-center">
+                    <span className="text-[11px] font-semibold text-amber-700 tracking-wide">
+                      ☕ {item.label}
+                    </span>
+                  </div>
+                );
+              }
+
+              const { row, originalIdx: idx } = item;
+              const isLocked = Boolean(row.is_saved_db && activeTeacherName !== 'Administrator');
+
+              if (isLocked) {
+                return (
+                  <div key={idx} className="p-3 bg-slate-50/90 space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs px-2 py-0.5 bg-slate-200 text-slate-800 rounded">
+                        {row.jam_ke}
+                      </span>
+                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        Tersimpan
+                      </span>
+                    </div>
+                    <p className="font-semibold text-slate-800">
+                      {row.nama_guru} &bull; <span className="text-slate-600 font-normal">{row.mapel}</span>
+                    </p>
+                    <p className="text-slate-700 whitespace-pre-wrap">{row.materi}</p>
+                    {row.tugas_pr && (
+                      <p className="text-slate-500 text-[11px]">Tugas: {row.tugas_pr}</p>
+                    )}
+                  </div>
+                );
+              }
+
               return (
                 <div
                   key={idx}
-                  className={`p-3 space-y-2 text-xs ${isBreak ? 'bg-slate-50' : 'bg-white'}`}
+                  className="p-3 space-y-2 text-xs bg-white"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -663,14 +846,22 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                         required
                         value={row.jam_ke}
                         onChange={(e) => handleKbmChange(idx, 'jam_ke', e.target.value)}
-                        className="w-24 px-2 py-1 rounded border border-slate-300 bg-white font-bold text-xs focus:outline-none focus:ring-1 focus:ring-slate-500"
+                        className="w-36 px-2 py-1 rounded border border-slate-300 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-slate-500 bg-white text-slate-800"
                       >
-                        {DAFTAR_JAM_PELAJARAN.map((j) => (
-                          <option key={j} value={j}>
-                            {j}
-                          </option>
-                        ))}
-                        {!DAFTAR_JAM_PELAJARAN.includes(row.jam_ke) && row.jam_ke && (
+                        {kbmSlots.map((s) => {
+                          const isUsedByOtherRow = kbmRows.some(
+                            (otherRow, otherIdx) =>
+                              otherIdx !== idx && otherRow.jam_ke === s.jam_ke
+                          );
+                          if (isUsedByOtherRow) return null;
+
+                          return (
+                            <option key={s.jam_ke} value={s.jam_ke}>
+                              {s.label}
+                            </option>
+                          );
+                        })}
+                        {!kbmSlots.some((s) => s.jam_ke === row.jam_ke) && row.jam_ke && (
                           <option value={row.jam_ke}>{row.jam_ke}</option>
                         )}
                       </select>
@@ -684,104 +875,102 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                     </button>
                   </div>
 
-                  {!isBreak && (
-                    <div className="space-y-2 pt-1">
+                  <div className="space-y-2 pt-1">
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-0.5">
+                        Guru Pengajar
+                      </label>
+                      {activeTeacherName && activeTeacherName !== 'Administrator' ? (
+                        <div className="flex items-center justify-between px-2.5 py-1.5 rounded border border-slate-200 bg-slate-100/80 font-semibold text-slate-800 text-xs">
+                          <span>{activeTeacherName}</span>
+                          {row.is_badal && (
+                            <span className="inline-block px-1.5 py-0.2 text-[9px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-300">
+                              Badal
+                            </span>
+                          )}
+                        </div>
+                      ) : daftarGuru.length > 0 ? (
+                        <select
+                          value={row.nama_guru || activeTeacherName || ''}
+                          onChange={(e) => handleKbmChange(idx, 'nama_guru', e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded border border-slate-300 bg-white font-medium focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs"
+                        >
+                          <option value="">-- Pilih Guru --</option>
+                          {daftarGuru.map((g) => (
+                            <option key={g.id} value={g.nama_guru}>
+                              {g.nama_guru}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          placeholder="Nama Guru"
+                          value={row.nama_guru || activeTeacherName || ''}
+                          onChange={(e) => handleKbmChange(idx, 'nama_guru', e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs"
+                        />
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="block text-[11px] text-slate-500 mb-0.5">
-                          Guru Pengajar
+                          Mata Pelajaran
                         </label>
-                        {activeTeacherName && activeTeacherName !== 'Administrator' ? (
-                          <div className="flex items-center justify-between px-2.5 py-1.5 rounded border border-slate-200 bg-slate-100/80 font-semibold text-slate-800 text-xs">
-                            <span>{activeTeacherName}</span>
-                            {row.is_badal && (
-                              <span className="inline-block px-1.5 py-0.2 text-[9px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-300">
-                                Badal
-                              </span>
-                            )}
-                          </div>
-                        ) : daftarGuru.length > 0 ? (
+                        {daftarMapel.length > 0 ? (
                           <select
-                            value={row.nama_guru || activeTeacherName || ''}
-                            onChange={(e) => handleKbmChange(idx, 'nama_guru', e.target.value)}
-                            className="w-full px-2.5 py-1.5 rounded border border-slate-300 bg-white font-medium focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs"
+                            required
+                            value={row.mapel}
+                            onChange={(e) => handleKbmChange(idx, 'mapel', e.target.value)}
+                            className="w-full px-2 py-1.5 rounded border border-slate-300 bg-white font-semibold focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs"
                           >
-                            <option value="">-- Pilih Guru --</option>
-                            {daftarGuru.map((g) => (
-                              <option key={g.id} value={g.nama_guru}>
-                                {g.nama_guru}
+                            <option value="">-- Pilih Mapel --</option>
+                            {daftarMapel.map((m) => (
+                              <option key={m.id} value={m.nama_mapel}>
+                                {m.nama_mapel}
                               </option>
                             ))}
                           </select>
                         ) : (
                           <input
                             type="text"
-                            placeholder="Nama Guru"
-                            value={row.nama_guru || activeTeacherName || ''}
-                            onChange={(e) => handleKbmChange(idx, 'nama_guru', e.target.value)}
-                            className="w-full px-2.5 py-1.5 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs"
+                            required
+                            placeholder="Mapel"
+                            value={row.mapel}
+                            onChange={(e) => handleKbmChange(idx, 'mapel', e.target.value)}
+                            className="w-full px-2.5 py-1.5 rounded border border-slate-300 font-medium focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs"
                           />
                         )}
                       </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-[11px] text-slate-500 mb-0.5">
-                            Mata Pelajaran
-                          </label>
-                          {daftarMapel.length > 0 ? (
-                            <select
-                              required
-                              value={row.mapel}
-                              onChange={(e) => handleKbmChange(idx, 'mapel', e.target.value)}
-                              className="w-full px-2 py-1.5 rounded border border-slate-300 bg-white font-semibold focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs"
-                            >
-                              <option value="">-- Pilih Mapel --</option>
-                              {daftarMapel.map((m) => (
-                                <option key={m.id} value={m.nama_mapel}>
-                                  {m.nama_mapel}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <input
-                              type="text"
-                              required
-                              placeholder="Mapel"
-                              value={row.mapel}
-                              onChange={(e) => handleKbmChange(idx, 'mapel', e.target.value)}
-                              className="w-full px-2.5 py-1.5 rounded border border-slate-300 font-medium focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs"
-                            />
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-[11px] text-slate-500 mb-0.5">
-                            Tugas / PR (Opsional)
-                          </label>
-                          <textarea
-                            rows={2}
-                            placeholder="Catatan tugas/PR..."
-                            value={row.tugas_pr || ''}
-                            onChange={(e) => handleKbmChange(idx, 'tugas_pr', e.target.value)}
-                            className="w-full p-2.5 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs resize-y"
-                          />
-                        </div>
-                      </div>
-
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
-                          Materi / Bahasan Pembelajaran
+                        <label className="block text-[11px] text-slate-500 mb-0.5">
+                          Tugas / PR (Opsional)
                         </label>
                         <textarea
-                          rows={3}
-                          required
-                          placeholder="Tuliskan uraian materi pokok pembelajaran secara lengkap..."
-                          value={row.materi}
-                          onChange={(e) => handleKbmChange(idx, 'materi', e.target.value)}
+                          rows={2}
+                          placeholder="Catatan tugas/PR..."
+                          value={row.tugas_pr || ''}
+                          onChange={(e) => handleKbmChange(idx, 'tugas_pr', e.target.value)}
                           className="w-full p-2.5 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs resize-y"
                         />
                       </div>
                     </div>
-                  )}
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                        Materi / Bahasan Pembelajaran
+                      </label>
+                      <textarea
+                        rows={3}
+                        required
+                        placeholder="Tuliskan uraian materi pokok pembelajaran secara lengkap..."
+                        value={row.materi}
+                        onChange={(e) => handleKbmChange(idx, 'materi', e.target.value)}
+                        className="w-full p-2.5 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs resize-y"
+                      />
+                    </div>
+                  </div>
                 </div>
               );
             })}

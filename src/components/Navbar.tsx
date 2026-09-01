@@ -29,7 +29,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     <>
       {/* Top Header (Clean Minimal Mobile & Desktop) */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs no-print">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-13 sm:h-16">
             {/* Logo / Brand */}
             <div className="flex items-center gap-2.5">

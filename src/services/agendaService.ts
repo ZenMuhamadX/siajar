@@ -269,6 +269,8 @@ export async function simpanAgenda(payload: SimpanAgendaPayload): Promise<{ id: 
 export async function getRekapAgenda(filters?: {
   kelas?: string;
   tanggal?: string;
+  startDate?: string;
+  endDate?: string;
   nama_guru?: string;
 }): Promise<FullAgenda[]> {
   let query = supabase
@@ -290,6 +292,12 @@ export async function getRekapAgenda(filters?: {
   }
   if (filters?.tanggal) {
     query = query.eq('tanggal', filters.tanggal);
+  }
+  if (filters?.startDate) {
+    query = query.gte('tanggal', filters.startDate);
+  }
+  if (filters?.endDate) {
+    query = query.lte('tanggal', filters.endDate);
   }
 
   const { data, error } = await query;

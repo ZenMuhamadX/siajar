@@ -9,12 +9,47 @@ export const DAFTAR_KELAS: KelasOption[] = [
   'KELAS 6',
 ];
 
+// Slot Jam Senin - Kamis (Total 14 Jam dengan 2x Istirahat di Jam 5 & Jam 10)
+export const SLOTS_SENIN_KAMIS = [
+  { jam_ke: '1-2', is_break: false, label: 'Jam 1-2' },
+  { jam_ke: '3-4', is_break: false, label: 'Jam 3-4' },
+  { jam_ke: '5', is_break: true, label: 'Jam 5 (Istirahat)' },
+  { jam_ke: '6-7', is_break: false, label: 'Jam 6-7' },
+  { jam_ke: '8-9', is_break: false, label: 'Jam 8-9' },
+  { jam_ke: '10', is_break: true, label: 'Jam 10 (Istirahat / Isoma)' },
+  { jam_ke: '11-12', is_break: false, label: 'Jam 11-12' },
+  { jam_ke: '13-14', is_break: false, label: 'Jam 13-14' },
+];
+
+// Slot Jam Jumat (Total 10 Jam dengan Istirahat Jam 5 & Jam 8 Sholat Jumat, lalu Jam 9-10 Pramuka)
+export const SLOTS_JUMAT = [
+  { jam_ke: '1-2', is_break: false, label: 'Jam 1-2' },
+  { jam_ke: '3-4', is_break: false, label: 'Jam 3-4' },
+  { jam_ke: '5', is_break: true, label: 'Jam 5 (Istirahat)' },
+  { jam_ke: '6-7', is_break: false, label: 'Jam 6-7' },
+  { jam_ke: '8', is_break: true, label: 'Jam 8 (Istirahat Sholat Jumat)' },
+  { jam_ke: '9-10', is_break: false, label: 'Jam 9-10 (Pramuka / KBM)' },
+];
+
+export function getScheduleSlotsForDate(dateStr: string) {
+  try {
+    const d = new Date(dateStr + 'T00:00:00');
+    const day = d.getDay(); // 5 = Friday
+    return day === 5 ? SLOTS_JUMAT : SLOTS_SENIN_KAMIS;
+  } catch {
+    return SLOTS_SENIN_KAMIS;
+  }
+}
+
 export const DAFTAR_JAM_PELAJARAN: string[] = [
   '1-2',
   '3-4',
-  '5-6',
-  '7-8',
+  '5',
+  '6-7',
+  '8-9',
+  '8',
   '9-10',
+  '10',
   '11-12',
   '13-14',
   'Istirahat',
@@ -63,6 +98,7 @@ export interface AgendaKBM {
   materi: string;
   tugas_pr?: string;
   is_badal?: boolean;
+  is_saved_db?: boolean;
 }
 
 export interface AgendaAbsensi {
