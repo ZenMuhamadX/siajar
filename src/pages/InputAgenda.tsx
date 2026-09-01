@@ -884,7 +884,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
         {/* Footer / Submit */}
         <div className="p-4 sm:p-6 bg-slate-50/60 flex items-center justify-between gap-4">
           <span className="text-xs text-slate-500">
-            Periksa data sebelum disimpan ke database!
+            Periksa data sebelum disimpan ke server
           </span>
           <button
             type="submit"

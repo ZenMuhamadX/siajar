@@ -13,9 +13,9 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Shared Universal PIN for Teachers (can be overridden via env)
-export const UNIVERSAL_TEACHER_PIN = import.meta.env.VITE_TEACHER_PIN || '1234';
+export const UNIVERSAL_TEACHER_PIN = import.meta.env.VITE_TEACHER_PIN;
 // Superuser / Admin PIN (can be overridden via env)
-export const ADMIN_PIN = import.meta.env.VITE_ADMIN_PIN || 'admin123';
+export const ADMIN_PIN = import.meta.env.VITE_ADMIN_PIN
 
 const STORAGE_KEY_TEACHER = 'active_teacher_name';
 const STORAGE_KEY_IS_ADMIN = 'is_admin_session';

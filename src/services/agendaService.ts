@@ -344,3 +344,17 @@ export async function kirimKotakSaran(saran: Omit<KotakSaran, 'id' | 'created_at
   ]);
   if (error) throw error;
 }
+
+export async function getDaftarKotakSaran(): Promise<KotakSaran[]> {
+  const { data, error } = await supabase
+    .from('kotak_saran')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function deleteKotakSaran(id: string): Promise<void> {
+  const { error } = await supabase.from('kotak_saran').delete().eq('id', id);
+  if (error) throw error;
+}

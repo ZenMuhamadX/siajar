@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getDaftarGuru } from '../services/agendaService';
 import type { Guru } from '../types';
-import { BookOpen, LogIn, Lock, User, AlertCircle, Loader2, Shield } from 'lucide-react';
+import { LogIn, Lock, User, AlertCircle, Loader2, Shield } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const { loginAsTeacher, loginAsAdmin } = useAuth();
@@ -62,9 +62,11 @@ export const LoginPage: React.FC = () => {
         {/* Brand Card */}
         <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-6">
           <div className="text-center space-y-2">
-            <div className="w-14 h-14 bg-emerald-600 text-white rounded-2xl flex items-center justify-center mx-auto shadow-sm">
-              <BookOpen className="w-7 h-7" />
-            </div>
+            <img
+              src="/logo.png"
+              alt="Logo Lembaga"
+              className="w-16 h-16 mx-auto object-contain drop-shadow-sm"
+            />
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
               SDIT AS-SYIFA
             </h1>
@@ -118,7 +120,7 @@ export const LoginPage: React.FC = () => {
             {mode === 'teacher' ? (
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Pilih Nama Anda
+                  Masuk sebagai
                 </label>
                 <div className="relative">
                   <select
@@ -150,13 +152,13 @@ export const LoginPage: React.FC = () => {
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                {mode === 'teacher' ? 'PIN Sekolah' : 'PIN Admin'}
+                Sandi
               </label>
               <div className="relative">
                 <input
                   type="password"
                   required
-                  placeholder={mode === 'teacher' ? 'Masukkan PIN (Default: 1234)' : 'Masukkan PIN Admin'}
+                  placeholder="Masukan Sandi"
                   value={pin}
                   onChange={(e) => setPin(e.target.value)}
                   className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:bg-white transition ${

@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  BookOpen,
   LogOut,
   ShieldCheck,
   User as UserIcon,
@@ -34,9 +33,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center justify-between h-13 sm:h-16">
             {/* Logo / Brand */}
             <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded bg-emerald-700 flex items-center justify-center text-white font-bold">
-                <BookOpen className="w-4 h-4" />
-              </div>
+              <img
+                src="/logo.png"
+                alt="Logo SDIT AS-SYIFA"
+                className="w-8 h-8 sm:w-9 sm:h-9 object-contain rounded-lg shadow-xs"
+              />
               <div>
                 <h1 className="font-bold text-slate-900 leading-tight text-xs sm:text-base">
                   SDIT AS-SYIFA
