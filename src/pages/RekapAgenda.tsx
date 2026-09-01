@@ -216,23 +216,23 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
           </div>
         </div>
 
-        {/* Filter Controls Row */}
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          {/* Periode Tab Buttons */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-medium">
+        {/* Filter Controls Row (Responsive Mobile Grid / Desktop Flex) */}
+        <div className="space-y-2.5 text-xs">
+          {/* Periode Tab Buttons (Horizontal scrollable / wrap in mobile) */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-medium overflow-x-auto no-scrollbar">
             <button
               onClick={() => setPeriodeType('30_hari')}
-              className={`px-2.5 py-1 rounded transition ${
+              className={`px-2.5 py-1 rounded whitespace-nowrap transition text-[11px] sm:text-xs ${
                 periodeType === '30_hari'
                   ? 'bg-white text-slate-900 font-bold shadow-xs'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              30 Hari Terakhir
+              30 Hari
             </button>
             <button
               onClick={() => setPeriodeType('bulan_ini')}
-              className={`px-2.5 py-1 rounded transition ${
+              className={`px-2.5 py-1 rounded whitespace-nowrap transition text-[11px] sm:text-xs ${
                 periodeType === 'bulan_ini'
                   ? 'bg-white text-slate-900 font-bold shadow-xs'
                   : 'text-slate-500 hover:text-slate-800'
@@ -242,7 +242,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
             </button>
             <button
               onClick={() => setPeriodeType('harian')}
-              className={`px-2.5 py-1 rounded transition ${
+              className={`px-2.5 py-1 rounded whitespace-nowrap transition text-[11px] sm:text-xs ${
                 periodeType === 'harian'
                   ? 'bg-white text-slate-900 font-bold shadow-xs'
                   : 'text-slate-500 hover:text-slate-800'
@@ -252,7 +252,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
             </button>
             <button
               onClick={() => setPeriodeType('custom')}
-              className={`px-2.5 py-1 rounded transition ${
+              className={`px-2.5 py-1 rounded whitespace-nowrap transition text-[11px] sm:text-xs ${
                 periodeType === 'custom'
                   ? 'bg-white text-slate-900 font-bold shadow-xs'
                   : 'text-slate-500 hover:text-slate-800'
@@ -262,71 +262,74 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
             </button>
           </div>
 
-          {/* Conditional Date Input: Harian */}
-          {periodeType === 'harian' && (
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
-              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-              <input
-                type="date"
-                value={selectedTanggal}
-                onChange={(e) => setSelectedTanggal(e.target.value)}
-                className="bg-transparent font-medium text-slate-800 focus:outline-none"
-              />
+          {/* Conditional Date Input & Dropdown Selectors */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:flex md:flex-wrap md:items-center gap-2">
+            {/* Conditional Date Input: Harian */}
+            {periodeType === 'harian' && (
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 w-full sm:w-auto">
+                <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <input
+                  type="date"
+                  value={selectedTanggal}
+                  onChange={(e) => setSelectedTanggal(e.target.value)}
+                  className="bg-transparent font-medium text-slate-800 focus:outline-none w-full text-xs"
+                />
+              </div>
+            )}
+
+            {/* Conditional Date Input: Custom Range */}
+            {periodeType === 'custom' && (
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 w-full sm:w-auto">
+                <span className="text-slate-400 text-[10px] shrink-0">Dari:</span>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="bg-transparent font-medium text-slate-800 focus:outline-none text-xs w-full"
+                />
+                <span className="text-slate-400 text-[10px] shrink-0">S.d:</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="bg-transparent font-medium text-slate-800 focus:outline-none text-xs w-full"
+                />
+              </div>
+            )}
+
+            {/* Filter Guru */}
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
+              <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <select
+                value={selectedGuru}
+                onChange={(e) => setSelectedGuru(e.target.value)}
+                className="bg-transparent font-medium text-slate-800 focus:outline-none w-full text-xs"
+              >
+                <option value="SEMUA">Semua Guru</option>
+                {daftarGuru.map((g) => (
+                  <option key={g.id} value={g.nama_guru}>
+                    {g.nama_guru}
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
 
-          {/* Conditional Date Input: Custom Range */}
-          {periodeType === 'custom' && (
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
-              <span className="text-slate-400 text-[10px]">Dari:</span>
-              <input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
-                className="bg-transparent font-medium text-slate-800 focus:outline-none"
-              />
-              <span className="text-slate-400 text-[10px]">S.d:</span>
-              <input
-                type="date"
-                value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
-                className="bg-transparent font-medium text-slate-800 focus:outline-none"
-              />
+            {/* Filter Kelas */}
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
+              <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <select
+                value={selectedKelas}
+                onChange={(e) => setSelectedKelas(e.target.value)}
+                className="bg-transparent font-medium text-slate-800 focus:outline-none w-full text-xs"
+              >
+                <option value="SEMUA">Semua Kelas</option>
+                {DAFTAR_KELAS.map((k) => (
+                  <option key={k} value={k}>
+                    {k}
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
-
-          {/* Filter Guru */}
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
-            <User className="w-3.5 h-3.5 text-slate-400" />
-            <select
-              value={selectedGuru}
-              onChange={(e) => setSelectedGuru(e.target.value)}
-              className="bg-transparent font-medium text-slate-800 focus:outline-none"
-            >
-              <option value="SEMUA">Semua Guru</option>
-              {daftarGuru.map((g) => (
-                <option key={g.id} value={g.nama_guru}>
-                  {g.nama_guru}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Filter Kelas */}
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
-            <Filter className="w-3.5 h-3.5 text-slate-400" />
-            <select
-              value={selectedKelas}
-              onChange={(e) => setSelectedKelas(e.target.value)}
-              className="bg-transparent font-medium text-slate-800 focus:outline-none"
-            >
-              <option value="SEMUA">Semua Kelas</option>
-              {DAFTAR_KELAS.map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
-            </select>
           </div>
         </div>
       </div>
@@ -442,9 +445,55 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
                 </div>
               </div>
 
-              {/* Tabel KBM */}
+              {/* KBM Section: Responsive Dual-View (Mobile Card List + Desktop Table) */}
               <div className="p-3 sm:p-4 space-y-3">
-                <div className="overflow-x-auto border border-slate-200 rounded print:border-black print:rounded-none">
+                {/* 1. Mobile KBM Timeline View (no-print) */}
+                <div className="sm:hidden space-y-2 no-print">
+                  {agenda.kbm && agenda.kbm.length > 0 ? (
+                    agenda.kbm.map((k, kIdx) => (
+                      <div
+                        key={kIdx}
+                        className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span className="px-2 py-0.5 bg-slate-800 text-white font-bold text-[10px] rounded">
+                            Jam {k.jam_ke}
+                          </span>
+                          <span className="font-bold text-slate-800 text-[11px] truncate">
+                            {k.mapel}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-600 font-medium">
+                          <span>Guru: {k.nama_guru || '-'}</span>
+                          {k.is_badal && (
+                            <span className="px-1 py-0.2 text-[9px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-300">
+                              Badal
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="pt-1 border-t border-slate-200/80">
+                          <p className="text-[11px] text-slate-700 leading-snug whitespace-pre-wrap">
+                            <span className="font-semibold text-slate-600">Materi: </span>
+                            {k.materi}
+                          </p>
+                          {k.tugas_pr && (
+                            <p className="text-[10px] text-slate-500 mt-1">
+                              <span className="font-semibold text-slate-600">Tugas: </span>
+                              {k.tugas_pr}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-center py-2 text-slate-400 text-xs">Tidak ada data KBM.</p>
+                  )}
+                </div>
+
+                {/* 2. Desktop & Print Table View */}
+                <div className="hidden sm:block overflow-x-auto border border-slate-200 rounded print:block print:border-black print:rounded-none">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold print:border-b print:border-black print:bg-slate-50">
@@ -506,7 +555,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   {/* Ketidakhadiran */}
                   <div className="border border-slate-200 rounded p-2.5 bg-slate-50/40 print:bg-white print:border-black">
-                    <p className="font-bold text-slate-700 mb-1">
+                    <p className="font-bold text-slate-700 mb-1 text-[11px] sm:text-xs">
                       Ketidakhadiran Siswa ({agenda.absensi?.length || 0})
                     </p>
                     {agenda.absensi && agenda.absensi.length > 0 ? (
@@ -514,7 +563,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
                         {agenda.absensi.map((ab, abIdx) => (
                           <span
                             key={abIdx}
-                            className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[11px] text-slate-800"
+                            className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] sm:text-[11px] text-slate-800"
                           >
                             {ab.nama_siswa || ab.siswa?.nama_siswa} ({ab.status})
                           </span>
@@ -527,7 +576,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
 
                   {/* Catatan Kejadian */}
                   <div className="border border-slate-200 rounded p-2.5 bg-slate-50/40 print:bg-white print:border-black">
-                    <p className="font-bold text-slate-700 mb-1">Catatan Kejadian</p>
+                    <p className="font-bold text-slate-700 mb-1 text-[11px] sm:text-xs">Catatan Kejadian</p>
                     {agenda.kejadian && agenda.kejadian.length > 0 ? (
                       <p className="text-[11px] text-slate-700 leading-normal">
                         {agenda.kejadian[0].uraian_kejadian}

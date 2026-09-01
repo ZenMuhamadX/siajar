@@ -28,13 +28,13 @@
 
 /* Page content fade-in */
 @keyframes fade-in-up {
-  from {
+  0% {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(6px) scale(0.995);
   }
-  to {
+  100% {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -52,25 +52,25 @@
 
 /* Gentle scale for login card */
 @keyframes scale-in {
-  from {
+  0% {
     opacity: 0;
-    transform: scale(0.97);
+    transform: scale(0.98);
   }
-  to {
+  100% {
     opacity: 1;
     transform: scale(1);
   }
 }
 
-/* Apply fade-in to main content area */
+/* Apply smooth subtle entrance to main content area & dashboard cards */
 main {
-  animation: fade-in-up 0.35s ease-out both;
+  animation: fade-in-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Login card entrance */
 main + footer,
 .min-h-screen > .max-w-md {
-  animation: scale-in 0.3s ease-out both;
+  animation: scale-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Toast items slide in */

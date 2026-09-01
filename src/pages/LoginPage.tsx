@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getDaftarGuru } from '../services/agendaService';
 import type { Guru } from '../types';
-import { LogIn, Lock, User, AlertCircle, Loader2, Shield } from 'lucide-react';
+import { LogIn, Lock, User, AlertCircle, Loader2, Shield, Eye, EyeOff } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const { loginAsTeacher, loginAsAdmin } = useAuth();
@@ -10,6 +10,7 @@ export const LoginPage: React.FC = () => {
   const [daftarGuru, setDaftarGuru] = useState<Guru[]>([]);
   const [selectedGuru, setSelectedGuru] = useState('');
   const [pin, setPin] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoadingGuru, setIsLoadingGuru] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -105,7 +106,7 @@ export const LoginPage: React.FC = () => {
               }`}
             >
               <Shield className="w-3.5 h-3.5" />
-              <span>Admin / Superuser</span>
+              <span>Admin</span>
             </button>
           </div>
 
@@ -156,16 +157,28 @@ export const LoginPage: React.FC = () => {
               </label>
               <div className="relative">
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   placeholder="Masukan Sandi"
                   value={pin}
                   onChange={(e) => setPin(e.target.value)}
-                  className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:bg-white transition ${
+                  className={`w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:bg-white transition ${
                     mode === 'admin' ? 'focus:ring-purple-500' : 'focus:ring-emerald-500'
                   }`}
                 />
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-2.5 p-0.5 text-slate-400 hover:text-slate-600 focus:outline-none transition rounded"
+                  title={showPassword ? 'Sembunyikan Sandi' : 'Lihat Sandi'}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
               </div>
             </div>
 
