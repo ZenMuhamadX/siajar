@@ -24,6 +24,120 @@
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
 
+/* ── Subtle Animations ── */
+
+/* Page content fade-in */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Toast slide-in from right */
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Gentle scale for login card */
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Apply fade-in to main content area */
+main {
+  animation: fade-in-up 0.35s ease-out both;
+}
+
+/* Login card entrance */
+main + footer,
+.min-h-screen > .max-w-md {
+  animation: scale-in 0.3s ease-out both;
+}
+
+/* Toast items slide in */
+.fixed.bottom-4 > div {
+  animation: slide-in-right 0.3s ease-out both;
+}
+
+/* Smooth transitions on interactive cards/sections */
+form,
+.rounded-3xl,
+.rounded-2xl,
+.rounded-xl {
+  transition: box-shadow 0.2s ease;
+}
+
+/* Gentle lift on hover for card-like containers (only bordered ones) */
+.border.rounded-xl:hover,
+.border.rounded-2xl:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* Smooth focus transitions on all inputs */
+input,
+select,
+textarea {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+/* Button press feedback */
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+button {
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+/* Pointer cursor on all clickable elements */
+button,
+a,
+select,
+label[for],
+[role="button"],
+summary,
+input[type="checkbox"],
+input[type="radio"],
+input[type="submit"],
+input[type="file"] {
+  cursor: pointer;
+}
+
+/* Bottom nav active indicator dot */
+nav.fixed.bottom-0 button {
+  position: relative;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 @media print {
   body {
     background-color: white !important;
@@ -48,5 +162,11 @@
   .page-break {
     page-break-inside: avoid;
     break-inside: avoid;
+  }
+
+  /* Disable animations on print */
+  * {
+    animation: none !important;
+    transition: none !important;
   }
 }

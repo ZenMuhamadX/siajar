@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   DAFTAR_KELAS,
+  DAFTAR_JAM_PELAJARAN,
   type KelasOption,
   type AgendaKBM,
   type Siswa,
@@ -230,45 +231,21 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
   };
 
   const handleAddKbmRow = () => {
-    const nextJam = kbmRows.length + 1;
+    // Cari pasangan jam berikutnya yang belum terpakai
+    const standardPairs = ['1-2', '3-4', '5-6', '7-8', '9-10', '11-12', '13-14'];
+    const usedJams = kbmRows.map((r) => r.jam_ke);
+    const nextJam = standardPairs.find((p) => !usedJams.includes(p)) || `${kbmRows.length * 2 + 1}-${kbmRows.length * 2 + 2}`;
+
     const defaultGuru = activeTeacherName || (daftarGuru.length > 0 ? daftarGuru[0].nama_guru : '');
     setKbmRows([
       ...kbmRows,
       {
-        jam_ke: `${nextJam}`,
+        jam_ke: nextJam,
         nama_guru: defaultGuru,
         mapel: '',
         materi: '',
         tugas_pr: '',
         is_badal: isBadalChecked,
-      },
-    ]);
-  };
-
-  const handleInsertIstirahat = () => {
-    setKbmRows([
-      ...kbmRows,
-      {
-        jam_ke: 'Istirahat',
-        nama_guru: '-',
-        mapel: 'ISTIRAHAT',
-        materi: 'Istirahat / Snack time',
-        tugas_pr: '',
-        is_badal: false,
-      },
-    ]);
-  };
-
-  const handleInsertIsoma = () => {
-    setKbmRows([
-      ...kbmRows,
-      {
-        jam_ke: 'Isoma',
-        nama_guru: '-',
-        mapel: 'ISOMA',
-        materi: 'Istirahat, Sholat & Makan Siang',
-        tugas_pr: '',
-        is_badal: false,
       },
     ]);
   };
@@ -283,7 +260,18 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
 
   const handleKbmChange = (index: number, field: keyof AgendaKBM, value: any) => {
     const updated = [...kbmRows];
-    updated[index] = { ...updated[index], [field]: value };
+    if (field === 'jam_ke' && value === 'Istirahat') {
+      updated[index] = {
+        ...updated[index],
+        jam_ke: value,
+        nama_guru: '-',
+        mapel: updated[index].mapel || 'ISTIRAHAT',
+        materi: updated[index].materi || 'Istirahat',
+        is_badal: false,
+      };
+    } else {
+      updated[index] = { ...updated[index], [field]: value };
+    }
     setKbmRows(updated);
   };
 
@@ -516,22 +504,6 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
               I. Kegiatan Belajar Mengajar (KBM)
             </h3>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleInsertIstirahat}
-                className="text-xs px-2.5 py-1 text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded font-medium transition"
-              >
-                + Istirahat
-              </button>
-              <button
-                type="button"
-                onClick={handleInsertIsoma}
-                className="text-xs px-2.5 py-1 text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded font-medium transition"
-              >
-                + Isoma
-              </button>
-            </div>
           </div>
 
           {/* Desktop Table View */}
@@ -553,17 +525,36 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                   return (
                     <tr key={idx} className={isBreak ? 'bg-slate-50' : 'bg-white'}>
                       <td className="p-1.5 border-r border-slate-200">
-                        <input
-                          type="text"
+                        <select
                           required
                           value={row.jam_ke}
                           onChange={(e) => handleKbmChange(idx, 'jam_ke', e.target.value)}
-                          className="w-full px-2 py-1 text-xs rounded border border-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-400 font-medium"
-                        />
+                          className="w-full px-2 py-1 text-xs rounded border border-slate-200 bg-white font-bold focus:outline-none focus:ring-1 focus:ring-slate-400"
+                        >
+                          {DAFTAR_JAM_PELAJARAN.map((j) => (
+                            <option key={j} value={j}>
+                              {j}
+                            </option>
+                          ))}
+                          {!DAFTAR_JAM_PELAJARAN.includes(row.jam_ke) && row.jam_ke && (
+                            <option value={row.jam_ke}>{row.jam_ke}</option>
+                          )}
+                        </select>
                       </td>
                       <td className="p-1.5 border-r border-slate-200">
                         {isBreak ? (
                           <span className="text-xs text-slate-400 px-2">-</span>
+                        ) : activeTeacherName && activeTeacherName !== 'Administrator' ? (
+                          <div className="space-y-1">
+                            <div className="px-2 py-1 text-xs font-semibold text-slate-800 bg-slate-100/80 rounded border border-slate-200">
+                              {activeTeacherName}
+                            </div>
+                            {row.is_badal && (
+                              <span className="inline-block px-1.5 py-0.2 text-[9px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-300">
+                                Badal
+                              </span>
+                            )}
+                          </div>
                         ) : daftarGuru.length > 0 ? (
                           <div className="space-y-1">
                             <select
@@ -621,22 +612,22 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                         )}
                       </td>
                       <td className="p-1.5 border-r border-slate-200">
-                        <input
-                          type="text"
+                        <textarea
+                          rows={2}
                           required
-                          placeholder="Materi pokok pembelajaran"
+                          placeholder="Materi pokok pembelajaran..."
                           value={row.materi}
                           onChange={(e) => handleKbmChange(idx, 'materi', e.target.value)}
-                          className="w-full px-2 py-1 text-xs rounded border border-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                          className="w-full p-1.5 text-xs rounded border border-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-400 resize-y min-h-[52px]"
                         />
                       </td>
                       <td className="p-1.5 border-r border-slate-200">
-                        <input
-                          type="text"
-                          placeholder="Tugas/PR"
+                        <textarea
+                          rows={2}
+                          placeholder="Tugas/PR (Opsional)"
                           value={row.tugas_pr || ''}
                           onChange={(e) => handleKbmChange(idx, 'tugas_pr', e.target.value)}
-                          className="w-full px-2 py-1 text-xs rounded border border-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                          className="w-full p-1.5 text-xs rounded border border-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-400 resize-y min-h-[52px]"
                         />
                       </td>
                       <td className="p-1.5 text-center">
@@ -668,14 +659,21 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-slate-700 text-xs">Jam Ke:</span>
-                      <input
-                        type="text"
-                        inputMode="numeric"
+                      <select
                         required
                         value={row.jam_ke}
                         onChange={(e) => handleKbmChange(idx, 'jam_ke', e.target.value)}
-                        className="w-20 px-2 py-1 rounded border border-slate-300 font-bold focus:outline-none focus:ring-1 focus:ring-slate-500"
-                      />
+                        className="w-24 px-2 py-1 rounded border border-slate-300 bg-white font-bold text-xs focus:outline-none focus:ring-1 focus:ring-slate-500"
+                      >
+                        {DAFTAR_JAM_PELAJARAN.map((j) => (
+                          <option key={j} value={j}>
+                            {j}
+                          </option>
+                        ))}
+                        {!DAFTAR_JAM_PELAJARAN.includes(row.jam_ke) && row.jam_ke && (
+                          <option value={row.jam_ke}>{row.jam_ke}</option>
+                        )}
+                      </select>
                     </div>
                     <button
                       type="button"
@@ -690,9 +688,18 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                     <div className="space-y-2 pt-1">
                       <div>
                         <label className="block text-[11px] text-slate-500 mb-0.5">
-                          Guru Pengampu
+                          Guru Pengajar
                         </label>
-                        {daftarGuru.length > 0 ? (
+                        {activeTeacherName && activeTeacherName !== 'Administrator' ? (
+                          <div className="flex items-center justify-between px-2.5 py-1.5 rounded border border-slate-200 bg-slate-100/80 font-semibold text-slate-800 text-xs">
+                            <span>{activeTeacherName}</span>
+                            {row.is_badal && (
+                              <span className="inline-block px-1.5 py-0.2 text-[9px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-300">
+                                Badal
+                              </span>
+                            )}
+                          </div>
+                        ) : daftarGuru.length > 0 ? (
                           <select
                             value={row.nama_guru || activeTeacherName || ''}
                             onChange={(e) => handleKbmChange(idx, 'nama_guru', e.target.value)}
@@ -748,29 +755,29 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                         </div>
                         <div>
                           <label className="block text-[11px] text-slate-500 mb-0.5">
-                            Tugas / PR
+                            Tugas / PR (Opsional)
                           </label>
-                          <input
-                            type="text"
-                            placeholder="Opsional"
+                          <textarea
+                            rows={2}
+                            placeholder="Catatan tugas/PR..."
                             value={row.tugas_pr || ''}
                             onChange={(e) => handleKbmChange(idx, 'tugas_pr', e.target.value)}
-                            className="w-full px-2.5 py-1.5 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs"
+                            className="w-full p-2.5 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs resize-y"
                           />
                         </div>
                       </div>
 
                       <div>
-                        <label className="block text-[11px] text-slate-500 mb-0.5">
-                          Materi Pembelajaran
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                          Materi / Bahasan Pembelajaran
                         </label>
-                        <input
-                          type="text"
+                        <textarea
+                          rows={3}
                           required
-                          placeholder="Materi pokok..."
+                          placeholder="Tuliskan uraian materi pokok pembelajaran secara lengkap..."
                           value={row.materi}
                           onChange={(e) => handleKbmChange(idx, 'materi', e.target.value)}
-                          className="w-full px-2.5 py-1.5 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs"
+                          className="w-full p-2.5 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs resize-y"
                         />
                       </div>
                     </div>
@@ -795,10 +802,10 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                II. Presensi (Siswa Tidak Hadir)
+                II. Siswa Tidak Hadir
               </h3>
               <p className="text-[11px] text-slate-500">
-                Secara default seluruh siswa dianggap HADIR. Hanya catat siswa yang berhalangan hadir.
+                Catat siswa yang tidak hadir.
               </p>
             </div>
             <button
@@ -807,13 +814,13 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
               className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded font-medium transition flex items-center gap-1"
             >
               <Plus className="w-3.5 h-3.5" />
-              Tambah Siswa
+              Tambah
             </button>
           </div>
 
           {absensiList.length === 0 ? (
             <div className="py-3 px-4 rounded border border-slate-200 bg-slate-50 text-xs text-slate-600">
-              ✓ Seluruh siswa hadir lengkap (Nihil ketidakhadiran)
+              ✓ Seluruh siswa hadir lengkap
             </div>
           ) : (
             <div className="border border-slate-200 rounded divide-y divide-slate-200 text-xs">
@@ -863,7 +870,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
         {/* Section 3: Catatan Kejadian Khusus */}
         <div className={`p-4 sm:p-6 border-b border-slate-200 ${isFormDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-            III. Catatan Kejadian Khusus (Opsional)
+            III. Catatan Kejadian (Opsional)
           </h3>
           <textarea
             rows={3}
@@ -877,7 +884,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
         {/* Footer / Submit */}
         <div className="p-4 sm:p-6 bg-slate-50/60 flex items-center justify-between gap-4">
           <span className="text-xs text-slate-500">
-            Periksa data sebelum menyimpan ke database.
+            Periksa data sebelum disimpan ke database!
           </span>
           <button
             type="submit"
@@ -892,7 +899,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
             ) : (
               <>
                 <Save className="w-3.5 h-3.5" />
-                <span>{editData ? 'Simpan Perubahan' : 'Simpan Agenda'}</span>
+                <span>{editData ? 'Simpan Perubahan' : 'Simpan'}</span>
               </>
             )}
           </button>

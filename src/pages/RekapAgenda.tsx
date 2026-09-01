@@ -428,7 +428,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast }) => {
                     <p className="font-bold underline">( ........................................ )</p>
                   </div>
                   <div>
-                    <p>Guru Pengampu,</p>
+                    <p>Guru Pengajar,</p>
                     <p className="font-semibold">{activeTeacherName || agenda.header.kelas}</p>
                     <div className="h-16" />
                     <p className="font-bold underline">( {activeTeacherName || '........................................'} )</p>
