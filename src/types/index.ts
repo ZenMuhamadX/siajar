@@ -22,6 +22,12 @@ export interface Guru {
   created_at?: string;
 }
 
+export interface MataPelajaran {
+  id: string;
+  nama_mapel: string;
+  created_at?: string;
+}
+
 export interface GuruKelas {
   id: string;
   nama_guru: string;

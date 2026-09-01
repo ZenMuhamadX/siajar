@@ -5,11 +5,13 @@ import {
   type AgendaKBM,
   type Siswa,
   type Guru,
+  type MataPelajaran,
   type FullAgenda,
 } from '../types';
 import {
   getDaftarSiswa,
   getDaftarGuru,
+  getDaftarMapel,
   simpanAgenda,
   checkGuruKelas,
 } from '../services/agendaService';
@@ -128,6 +130,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
 
   const [siswaKelas, setSiswaKelas] = useState<Siswa[]>([]);
   const [daftarGuru, setDaftarGuru] = useState<Guru[]>([]);
+  const [daftarMapel, setDaftarMapel] = useState<MataPelajaran[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draftSaved, setDraftSaved] = useState(!!draft.current && !editData);
 
@@ -154,17 +157,21 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
     };
   }, [triggerDraftSave]);
 
-  // Load Guru list
+  // Load Guru & Mapel list
   useEffect(() => {
-    async function loadGuru() {
+    async function loadMasterData() {
       try {
-        const guruData = await getDaftarGuru();
+        const [guruData, mapelData] = await Promise.all([
+          getDaftarGuru(),
+          getDaftarMapel(),
+        ]);
         setDaftarGuru(guruData);
+        setDaftarMapel(mapelData);
       } catch (err) {
-        console.warn('Gagal memuat data guru:', err);
+        console.warn('Gagal memuat data master:', err);
       }
     }
-    loadGuru();
+    loadMasterData();
   }, []);
 
   // Check Guru Kelas validation
@@ -389,7 +396,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
     !isGuruResmiKelas && !isBadalChecked && activeTeacherName !== 'Administrator';
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto pb-16 md:pb-0">
       {/* Edit Mode Alert */}
       {editData && (
         <div className="mb-4 p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3 text-xs text-amber-900">
@@ -471,17 +478,20 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
             </div>
           </div>
 
-          {/* Validasi Guru Kelas & Switch Guru Badal */}
+          {/* Validasi Guru Kelas & Konfirmasi Menggantikan Guru (Badal) */}
           {!isValidatingGuru && !isGuruResmiKelas && activeTeacherName !== 'Administrator' && (
-            <div className="mt-3.5 p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
-              <div className="flex items-start gap-2 text-xs text-amber-800">
+            <div className="mt-3.5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl space-y-2.5">
+              <div className="flex items-start gap-2.5 text-xs text-amber-900">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-bold">Pemberitahuan Penugasan:</span> Anda tercatat bukan guru pengampu resmi untuk <strong>{kelas}</strong>.
+                  <p className="font-bold">Perhatian: Anda tidak tercatat mengajar di {kelas}.</p>
+                  <p className="text-amber-800 text-[11px] mt-0.5">
+                    Apakah Anda mengajar untuk menggantikan guru yang berhalangan hadir / tidak masuk?
+                  </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
+              <div className="flex items-center gap-2 pt-1 border-t border-amber-200/70">
                 <input
                   type="checkbox"
                   id="badal-switch"
@@ -491,9 +501,9 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                 />
                 <label
                   htmlFor="badal-switch"
-                  className="text-xs font-bold text-amber-900 cursor-pointer"
+                  className="text-xs font-bold text-amber-950 cursor-pointer select-none"
                 >
-                  Saya Mengajar Sebagai Guru Pengganti (Badal)
+                  Ya, saya menggantikan guru yang berhalangan masuk (Guru Badal)
                 </label>
               </div>
             </div>
@@ -585,14 +595,30 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                         )}
                       </td>
                       <td className="p-1.5 border-r border-slate-200">
-                        <input
-                          type="text"
-                          required
-                          placeholder="Mata Pelajaran"
-                          value={row.mapel}
-                          onChange={(e) => handleKbmChange(idx, 'mapel', e.target.value)}
-                          className="w-full px-2 py-1 text-xs rounded border border-slate-200 font-medium focus:outline-none focus:ring-1 focus:ring-slate-400"
-                        />
+                        {daftarMapel.length > 0 ? (
+                          <select
+                            required
+                            value={row.mapel}
+                            onChange={(e) => handleKbmChange(idx, 'mapel', e.target.value)}
+                            className="w-full px-2 py-1 text-xs rounded border border-slate-200 bg-white font-semibold focus:outline-none focus:ring-1 focus:ring-slate-400"
+                          >
+                            <option value="">-- Pilih Mapel --</option>
+                            {daftarMapel.map((m) => (
+                              <option key={m.id} value={m.nama_mapel}>
+                                {m.nama_mapel}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            required
+                            placeholder="Mata Pelajaran"
+                            value={row.mapel}
+                            onChange={(e) => handleKbmChange(idx, 'mapel', e.target.value)}
+                            className="w-full px-2 py-1 text-xs rounded border border-slate-200 font-medium focus:outline-none focus:ring-1 focus:ring-slate-400"
+                          />
+                        )}
                       </td>
                       <td className="p-1.5 border-r border-slate-200">
                         <input
@@ -695,14 +721,30 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                           <label className="block text-[11px] text-slate-500 mb-0.5">
                             Mata Pelajaran
                           </label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="Mapel"
-                            value={row.mapel}
-                            onChange={(e) => handleKbmChange(idx, 'mapel', e.target.value)}
-                            className="w-full px-2.5 py-1.5 rounded border border-slate-300 font-medium focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs"
-                          />
+                          {daftarMapel.length > 0 ? (
+                            <select
+                              required
+                              value={row.mapel}
+                              onChange={(e) => handleKbmChange(idx, 'mapel', e.target.value)}
+                              className="w-full px-2 py-1.5 rounded border border-slate-300 bg-white font-semibold focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs"
+                            >
+                              <option value="">-- Pilih Mapel --</option>
+                              {daftarMapel.map((m) => (
+                                <option key={m.id} value={m.nama_mapel}>
+                                  {m.nama_mapel}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              required
+                              placeholder="Mapel"
+                              value={row.mapel}
+                              onChange={(e) => handleKbmChange(idx, 'mapel', e.target.value)}
+                              className="w-full px-2.5 py-1.5 rounded border border-slate-300 font-medium focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs"
+                            />
+                          )}
                         </div>
                         <div>
                           <label className="block text-[11px] text-slate-500 mb-0.5">

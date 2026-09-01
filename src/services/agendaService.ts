@@ -1,5 +1,13 @@
 import { supabase } from '../lib/supabase';
-import type { Siswa, Guru, GuruKelas, FullAgenda, AgendaKBM, KotakSaran } from '../types';
+import type {
+  Siswa,
+  Guru,
+  MataPelajaran,
+  GuruKelas,
+  FullAgenda,
+  AgendaKBM,
+  KotakSaran,
+} from '../types';
 
 // ----------------- SISWA SERVICES -----------------
 export async function getDaftarSiswa(kelas?: string): Promise<Siswa[]> {
@@ -45,26 +53,93 @@ export async function getDaftarGuru(): Promise<Guru[]> {
   return data || [];
 }
 
-export async function addGuru(nama: string): Promise<Guru> {
+export async function addGuru(nama: string, kelasList?: string[]): Promise<Guru> {
   const { data, error } = await supabase
     .from('guru')
     .insert([{ nama_guru: nama.trim() }])
     .select()
     .single();
   if (error) throw error;
+
+  if (kelasList && kelasList.length > 0) {
+    const rows = kelasList.map((k) => ({
+      nama_guru: nama.trim(),
+      kelas: k,
+    }));
+    await supabase.from('guru_kelas').insert(rows);
+  }
+
   return data;
 }
 
-export async function updateGuru(id: string, nama: string): Promise<void> {
+export async function updateGuru(
+  id: string,
+  namaLama: string,
+  namaBaru: string,
+  kelasList?: string[]
+): Promise<void> {
   const { error } = await supabase
     .from('guru')
-    .update({ nama_guru: nama.trim() })
+    .update({ nama_guru: namaBaru.trim() })
+    .eq('id', id);
+  if (error) throw error;
+
+  // Sync guru_kelas
+  await supabase.from('guru_kelas').delete().eq('nama_guru', namaLama.trim());
+  if (kelasList && kelasList.length > 0) {
+    const rows = kelasList.map((k) => ({
+      nama_guru: namaBaru.trim(),
+      kelas: k,
+    }));
+    await supabase.from('guru_kelas').insert(rows);
+  }
+}
+
+export async function deleteGuru(id: string, nama: string): Promise<void> {
+  const { error } = await supabase.from('guru').delete().eq('id', id);
+  if (error) throw error;
+
+  // Hapus relasi kelas
+  await supabase.from('guru_kelas').delete().eq('nama_guru', nama.trim());
+}
+
+// ----------------- MATA PELAJARAN SERVICES -----------------
+export async function getDaftarMapel(): Promise<MataPelajaran[]> {
+  try {
+    const { data, error } = await supabase
+      .from('mapel')
+      .select('*')
+      .order('nama_mapel', { ascending: true });
+    if (error) {
+      console.warn('Gagal ambil data mapel (fallback):', error.message);
+      return [];
+    }
+    return data || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export async function addMapel(namaMapel: string): Promise<MataPelajaran> {
+  const { data, error } = await supabase
+    .from('mapel')
+    .insert([{ nama_mapel: namaMapel.trim() }])
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateMapel(id: string, namaMapel: string): Promise<void> {
+  const { error } = await supabase
+    .from('mapel')
+    .update({ nama_mapel: namaMapel.trim() })
     .eq('id', id);
   if (error) throw error;
 }
 
-export async function deleteGuru(id: string): Promise<void> {
-  const { error } = await supabase.from('guru').delete().eq('id', id);
+export async function deleteMapel(id: string): Promise<void> {
+  const { error } = await supabase.from('mapel').delete().eq('id', id);
   if (error) throw error;
 }
 
@@ -75,11 +150,24 @@ export async function getDaftarGuruKelas(): Promise<GuruKelas[]> {
     .select('*')
     .order('kelas', { ascending: true });
   if (error) {
-    // If table doesn't exist yet, return empty list gracefully
     console.warn('guru_kelas check fallback:', error.message);
     return [];
   }
   return data || [];
+}
+
+export async function getKelasByGuru(namaGuru: string): Promise<string[]> {
+  if (!namaGuru) return [];
+  try {
+    const { data, error } = await supabase
+      .from('guru_kelas')
+      .select('kelas')
+      .eq('nama_guru', namaGuru.trim());
+    if (error) return [];
+    return (data || []).map((d) => d.kelas);
+  } catch (e) {
+    return [];
+  }
 }
 
 export async function checkGuruKelas(namaGuru: string, kelas: string): Promise<boolean> {
@@ -94,13 +182,11 @@ export async function checkGuruKelas(namaGuru: string, kelas: string): Promise<b
 
     if (error) {
       console.warn('Gagal cek guru_kelas:', error.message);
-      return true; // Fallback allow if table not yet populated/created
+      return true;
     }
 
-    // Check if there are any assignments recorded in the table at all
     const { count } = await supabase.from('guru_kelas').select('*', { count: 'exact', head: true });
     if (count === 0 || count === null) {
-      // If table is empty, allow all as normal assignment
       return true;
     }
 
@@ -112,7 +198,7 @@ export async function checkGuruKelas(namaGuru: string, kelas: string): Promise<b
 
 // ----------------- AGENDA SERVICES -----------------
 export interface SimpanAgendaPayload {
-  agendaId?: string; // Optional for update
+  agendaId?: string;
   sekolah?: string;
   kelas: string;
   tanggal: string;
@@ -127,19 +213,16 @@ export async function simpanAgenda(payload: SimpanAgendaPayload): Promise<{ id: 
   let currentAgendaId = agendaId;
 
   if (currentAgendaId) {
-    // 1. Update existing header
     const { error: headerErr } = await supabase
       .from('agenda_header')
       .update({ sekolah, kelas, tanggal })
       .eq('id', currentAgendaId);
     if (headerErr) throw headerErr;
 
-    // 2. Delete existing child records
     await supabase.from('agenda_kbm').delete().eq('agenda_id', currentAgendaId);
     await supabase.from('agenda_absensi').delete().eq('agenda_id', currentAgendaId);
     await supabase.from('agenda_kejadian').delete().eq('agenda_id', currentAgendaId);
   } else {
-    // 1. Insert header
     const { data: headerData, error: headerErr } = await supabase
       .from('agenda_header')
       .insert([{ sekolah, kelas, tanggal }])
@@ -149,7 +232,6 @@ export async function simpanAgenda(payload: SimpanAgendaPayload): Promise<{ id: 
     currentAgendaId = headerData.id;
   }
 
-  // 2. Insert KBM rows
   if (kbm.length > 0 && currentAgendaId) {
     const kbmRows = kbm.map((item) => ({
       agenda_id: currentAgendaId,
@@ -164,7 +246,6 @@ export async function simpanAgenda(payload: SimpanAgendaPayload): Promise<{ id: 
     if (kbmErr) throw kbmErr;
   }
 
-  // 3. Insert Absensi rows
   if (absensi.length > 0 && currentAgendaId) {
     const absensiRows = absensi.map((a) => ({
       agenda_id: currentAgendaId,
@@ -175,7 +256,6 @@ export async function simpanAgenda(payload: SimpanAgendaPayload): Promise<{ id: 
     if (absensiErr) throw absensiErr;
   }
 
-  // 4. Insert Kejadian if present
   if (uraian_kejadian && uraian_kejadian.trim() && currentAgendaId) {
     const { error: kejadianErr } = await supabase
       .from('agenda_kejadian')
@@ -237,7 +317,6 @@ export async function getRekapAgenda(filters?: {
     kejadian: item.agenda_kejadian || [],
   }));
 
-  // Filter based on nama_guru if specified (only include agendas that have KBM rows for this teacher)
   if (filters?.nama_guru && filters.nama_guru !== 'Administrator') {
     const teacherName = filters.nama_guru.trim();
     results = results.filter((agenda) =>

@@ -3,7 +3,6 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Navbar, type MainViewType } from './components/Navbar';
 import { InputAgenda } from './pages/InputAgenda';
 import { RiwayatAgenda } from './pages/RiwayatAgenda';
-import { RekapAgenda } from './pages/RekapAgenda';
 import { DevPanel } from './pages/DevPanel';
 import { LoginPage } from './pages/LoginPage';
 import { KotakSaranModal } from './components/KotakSaranModal';
@@ -89,10 +88,6 @@ function MainApp() {
             onEditAgenda={handleStartEditAgenda}
             showToast={showToast}
           />
-        )}
-
-        {activeView === 'absensi' && (
-          <RekapAgenda showToast={showToast} />
         )}
 
         {activeView === 'dev' && (

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import type { Guru } from '../types';
+import { DAFTAR_KELAS, type Guru } from '../types';
 import {
   getDaftarGuru,
   addGuru,
   updateGuru,
   deleteGuru,
+  getDaftarGuruKelas,
 } from '../services/agendaService';
 import {
   UserCheck,
@@ -22,17 +23,31 @@ interface DataGuruProps {
 
 export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
   const [guruList, setGuruList] = useState<Guru[]>([]);
+  const [guruKelasMap, setGuruKelasMap] = useState<Record<string, string[]>>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Form states for Add / Edit
   const [namaInput, setNamaInput] = useState<string>('');
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedKelas, setSelectedKelas] = useState<string[]>([]);
+  const [editingGuru, setEditingGuru] = useState<Guru | null>(null);
 
   const fetchGuru = async () => {
     setIsLoading(true);
     try {
-      const data = await getDaftarGuru();
-      setGuruList(data);
+      const [dataG, dataGK] = await Promise.all([
+        getDaftarGuru(),
+        getDaftarGuruKelas(),
+      ]);
+      setGuruList(dataG);
+
+      const mapping: Record<string, string[]> = {};
+      dataGK.forEach((item) => {
+        if (!mapping[item.nama_guru]) {
+          mapping[item.nama_guru] = [];
+        }
+        mapping[item.nama_guru].push(item.kelas);
+      });
+      setGuruKelasMap(mapping);
     } catch (err) {
       console.error(err);
       showToast('error', 'Gagal memuat data guru.');
@@ -45,6 +60,22 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
     fetchGuru();
   }, []);
 
+  const handleToggleKelas = (kelasName: string) => {
+    setSelectedKelas((prev) =>
+      prev.includes(kelasName)
+        ? prev.filter((k) => k !== kelasName)
+        : [...prev, kelasName]
+    );
+  };
+
+  const handleSelectAllKelas = () => {
+    if (selectedKelas.length === DAFTAR_KELAS.length) {
+      setSelectedKelas([]);
+    } else {
+      setSelectedKelas([...DAFTAR_KELAS]);
+    }
+  };
+
   const handleSaveGuru = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!namaInput.trim()) {
@@ -53,15 +84,24 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
     }
 
     try {
-      if (editingId) {
-        await updateGuru(editingId, namaInput);
-        showToast('success', 'Data guru berhasil diperbarui.');
-        setEditingId(null);
+      if (editingGuru) {
+        await updateGuru(
+          editingGuru.id,
+          editingGuru.nama_guru,
+          namaInput,
+          selectedKelas
+        );
+        showToast('success', 'Data guru dan penugasan kelas berhasil diperbarui.');
+        setEditingGuru(null);
       } else {
-        await addGuru(namaInput);
-        showToast('success', `Guru ${namaInput} berhasil ditambahkan.`);
+        await addGuru(namaInput, selectedKelas);
+        showToast(
+          'success',
+          `Guru ${namaInput} berhasil ditambahkan (${selectedKelas.length} kelas penugasan).`
+        );
       }
       setNamaInput('');
+      setSelectedKelas([]);
       fetchGuru();
     } catch (err: any) {
       showToast('error', 'Gagal menyimpan data guru. ' + (err?.message || ''));
@@ -69,20 +109,22 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
   };
 
   const handleEditClick = (guru: Guru) => {
-    setEditingId(guru.id);
+    setEditingGuru(guru);
     setNamaInput(guru.nama_guru);
+    setSelectedKelas(guruKelasMap[guru.nama_guru] || []);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleCancelEdit = () => {
-    setEditingId(null);
+    setEditingGuru(null);
     setNamaInput('');
+    setSelectedKelas([]);
   };
 
   const handleDelete = async (id: string, nama: string) => {
     if (confirm(`Yakin ingin menghapus data guru "${nama}"?`)) {
       try {
-        await deleteGuru(id);
+        await deleteGuru(id, nama);
         showToast('success', `Guru ${nama} berhasil dihapus.`);
         fetchGuru();
       } catch (err) {
@@ -101,20 +143,23 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
           </div>
           <div>
             <h2 className="text-xl font-bold text-slate-900">
-              {editingId ? 'Edit Data Guru' : 'Kelola Data Guru'}
+              {editingGuru ? 'Edit Data Guru & Kelas' : 'Kelola Data Guru & Penugasan Kelas'}
             </h2>
             <p className="text-xs text-slate-500">
-              Daftar guru akan otomatis muncul sebagai pilihan dropdown saat pengisian jadwal KBM
+              Atur daftar guru beserta penugasan kelas yang diajar
             </p>
           </div>
         </div>
 
-        <form onSubmit={handleSaveGuru} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+        <form
+          onSubmit={handleSaveGuru}
+          className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3.5"
+        >
           <div className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-            {editingId ? (
+            {editingGuru ? (
               <>
                 <Edit2 className="w-3.5 h-3.5 text-amber-600" />
-                <span>Perbarui Nama Guru</span>
+                <span>Perbarui Data Guru & Penugasan</span>
               </>
             ) : (
               <>
@@ -128,32 +173,78 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
             <label className="block text-[11px] font-semibold text-slate-600 mb-1">
               Nama Lengkap Guru (beserta gelar jika ada)
             </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                required
-                placeholder="Contoh: Ustadz Abdullah, S.Pd.I / Ustadzah Fatimah, S.Pd"
-                value={namaInput}
-                onChange={(e) => setNamaInput(e.target.value)}
-                className="flex-1 px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
-              />
+            <input
+              type="text"
+              required
+              placeholder="Contoh: Ustadz Abdullah, S.Pd.I / Ustadzah Fatimah, S.Pd"
+              value={namaInput}
+              onChange={(e) => setNamaInput(e.target.value)}
+              className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
+            />
+          </div>
+
+          {/* Penugasan Kelas (Checkbox) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-[11px] font-semibold text-slate-600">
+                Penugasan Mengajar di Kelas:
+              </label>
               <button
-                type="submit"
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-xs shadow-xs transition flex items-center gap-1.5 shrink-0"
+                type="button"
+                onClick={handleSelectAllKelas}
+                className="text-[11px] text-purple-600 hover:text-purple-800 font-semibold underline"
               >
-                <Check className="w-3.5 h-3.5" />
-                {editingId ? 'Simpan' : 'Tambah Guru'}
+                {selectedKelas.length === DAFTAR_KELAS.length
+                  ? 'Batal Pilih Semua'
+                  : 'Pilih Semua Kelas'}
               </button>
-              {editingId && (
-                <button
-                  type="button"
-                  onClick={handleCancelEdit}
-                  className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg text-xs transition"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
             </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-white p-3 border border-slate-200 rounded-xl">
+              {DAFTAR_KELAS.map((k) => {
+                const isChecked = selectedKelas.includes(k);
+                return (
+                  <label
+                    key={k}
+                    className={`flex items-center gap-2 p-2 rounded-lg border text-xs font-semibold cursor-pointer transition select-none ${
+                      isChecked
+                        ? 'bg-purple-50 border-purple-300 text-purple-900'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => handleToggleKelas(k)}
+                      className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer"
+                    />
+                    <span>{k}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">
+              Jika guru mengajar di kelas selain yang dicentang, sistem akan memvalidasi opsi "Guru Badal".
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+            {editingGuru && (
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg text-xs transition"
+              >
+                <X className="w-3.5 h-3.5 inline mr-1" />
+                Batal
+              </button>
+            )}
+            <button
+              type="submit"
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-xs shadow-xs transition flex items-center gap-1.5"
+            >
+              <Check className="w-3.5 h-3.5" />
+              {editingGuru ? 'Simpan Perubahan' : 'Tambah Guru'}
+            </button>
           </div>
         </form>
       </div>
@@ -163,7 +254,7 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
             <UserCheck className="w-4 h-4 text-purple-600" />
-            Daftar Guru Pengampu
+            Daftar Guru & Penugasan Kelas
             <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full">
               {guruList.length} Guru
             </span>
@@ -188,44 +279,66 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
               <thead>
                 <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                   <th className="py-2.5 px-3 w-12 text-center">No</th>
-                  <th className="py-2.5 px-3">Nama Guru Pengampu</th>
+                  <th className="py-2.5 px-3 w-48">Nama Guru</th>
+                  <th className="py-2.5 px-3">Kelas yang Diajar</th>
                   <th className="py-2.5 px-3 w-24 text-center">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {guruList.map((guru, idx) => (
-                  <tr
-                    key={guru.id}
-                    className={`hover:bg-slate-50/70 transition ${
-                      editingId === guru.id ? 'bg-amber-50/80 font-medium' : ''
-                    }`}
-                  >
-                    <td className="py-2.5 px-3 text-center text-slate-400 font-medium">
-                      {idx + 1}
-                    </td>
-                    <td className="py-2.5 px-3 font-semibold text-slate-800">
-                      {guru.nama_guru}
-                    </td>
-                    <td className="py-2.5 px-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => handleEditClick(guru)}
-                          className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition"
-                          title="Edit"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(guru.id, guru.nama_guru)}
-                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
-                          title="Hapus"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {guruList.map((guru, idx) => {
+                  const kelasList = guruKelasMap[guru.nama_guru] || [];
+                  return (
+                    <tr
+                      key={guru.id}
+                      className={`hover:bg-slate-50/70 transition ${
+                        editingGuru?.id === guru.id ? 'bg-amber-50/80 font-medium' : ''
+                      }`}
+                    >
+                      <td className="py-2.5 px-3 text-center text-slate-400 font-medium">
+                        {idx + 1}
+                      </td>
+                      <td className="py-2.5 px-3 font-semibold text-slate-800">
+                        {guru.nama_guru}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        {kelasList.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {kelasList.map((k) => (
+                              <span
+                                key={k}
+                                className="px-2 py-0.5 bg-purple-50 text-purple-800 font-bold rounded-md border border-purple-200 text-[10px]"
+                              >
+                                {k}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 italic text-[11px]">
+                            Belum diatur kelas
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => handleEditClick(guru)}
+                            className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition"
+                            title="Edit"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(guru.id, guru.nama_guru)}
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
+                            title="Hapus"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

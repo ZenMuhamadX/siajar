@@ -2,14 +2,22 @@ import React, { useState } from 'react';
 import { RekapAgenda } from './RekapAgenda';
 import { DataSiswa } from './DataSiswa';
 import { DataGuru } from './DataGuru';
-import { ArrowLeft, Database, Users, GraduationCap, FileSpreadsheet } from 'lucide-react';
+import { DataMapel } from './DataMapel';
+import {
+  ArrowLeft,
+  Database,
+  Users,
+  GraduationCap,
+  FileSpreadsheet,
+  BookOpen,
+} from 'lucide-react';
 
 interface DevPanelProps {
   onBackToApp: () => void;
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
 }
 
-type DevSubTab = 'rekap' | 'siswa' | 'guru';
+type DevSubTab = 'rekap' | 'siswa' | 'guru' | 'mapel';
 
 export const DevPanel: React.FC<DevPanelProps> = ({ onBackToApp, showToast }) => {
   const [subTab, setSubTab] = useState<DevSubTab>('rekap');
@@ -39,7 +47,7 @@ export const DevPanel: React.FC<DevPanelProps> = ({ onBackToApp, showToast }) =>
         </div>
 
         {/* Basic Tab Selector */}
-        <div className="flex items-center bg-slate-800 p-1 rounded border border-slate-700 text-xs">
+        <div className="flex flex-wrap items-center bg-slate-800 p-1 rounded border border-slate-700 text-xs">
           <button
             onClick={() => setSubTab('rekap')}
             className={`px-3 py-1.5 rounded font-medium transition flex items-center gap-1.5 ${
@@ -49,7 +57,7 @@ export const DevPanel: React.FC<DevPanelProps> = ({ onBackToApp, showToast }) =>
             }`}
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
-            Rekap Agenda
+            Rekap
           </button>
 
           <button
@@ -61,7 +69,7 @@ export const DevPanel: React.FC<DevPanelProps> = ({ onBackToApp, showToast }) =>
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            Data Siswa
+            Siswa
           </button>
 
           <button
@@ -73,7 +81,19 @@ export const DevPanel: React.FC<DevPanelProps> = ({ onBackToApp, showToast }) =>
             }`}
           >
             <GraduationCap className="w-3.5 h-3.5" />
-            Data Guru
+            Guru
+          </button>
+
+          <button
+            onClick={() => setSubTab('mapel')}
+            className={`px-3 py-1.5 rounded font-medium transition flex items-center gap-1.5 ${
+              subTab === 'mapel'
+                ? 'bg-emerald-600 text-white font-bold'
+                : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            Mata Pelajaran
           </button>
         </div>
       </div>
@@ -83,6 +103,7 @@ export const DevPanel: React.FC<DevPanelProps> = ({ onBackToApp, showToast }) =>
         {subTab === 'rekap' && <RekapAgenda showToast={showToast} />}
         {subTab === 'siswa' && <DataSiswa showToast={showToast} />}
         {subTab === 'guru' && <DataGuru showToast={showToast} />}
+        {subTab === 'mapel' && <DataMapel showToast={showToast} />}
       </div>
     </div>
   );

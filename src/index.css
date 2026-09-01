@@ -8,6 +8,15 @@
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+
+  /* Mencegah iOS Safari & Chrome Mobile auto-zoom saat fokus ke input/select/textarea */
+  @media screen and (max-width: 768px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
 }
 
 /* Safe area for iOS floating bottom bar */
