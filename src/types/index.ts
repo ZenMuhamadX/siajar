@@ -116,11 +116,24 @@ export interface AgendaKejadian {
   uraian_kejadian: string;
 }
 
+export interface AgendaEvidence {
+  id?: string;
+  agenda_id?: string;
+  storage_path: string;
+  file_name?: string;
+  file_size?: number;
+  mime_type?: string;
+  uploaded_at?: string;
+  created_at?: string;
+  signedUrl?: string;
+}
+
 export interface FullAgenda {
   header: AgendaHeader;
   kbm: AgendaKBM[];
   absensi: (AgendaAbsensi & { siswa?: Siswa })[];
   kejadian: AgendaKejadian[];
+  evidence?: AgendaEvidence | null;
 }
 
 export type KotakSaranKategori = 'Fasilitas' | 'Kurikulum' | 'Aplikasi' | 'Lainnya';

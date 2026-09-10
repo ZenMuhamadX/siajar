@@ -282,7 +282,8 @@ export async function getRekapAgenda(filters?: {
         *,
         siswa:siswa_id (*)
       ),
-      agenda_kejadian (*)
+      agenda_kejadian (*),
+      agenda_evidence (*)
     `)
     .order('tanggal', { ascending: false })
     .order('created_at', { ascending: false });
@@ -303,27 +304,45 @@ export async function getRekapAgenda(filters?: {
   const { data, error } = await query;
   if (error) throw error;
 
-  let results: FullAgenda[] = (data || []).map((item: any) => ({
-    header: {
-      id: item.id,
-      sekolah: item.sekolah,
-      kelas: item.kelas,
-      tanggal: item.tanggal,
-      created_at: item.created_at,
-    },
-    kbm: (item.agenda_kbm || []).sort((a: any, b: any) =>
-      a.jam_ke.localeCompare(b.jam_ke, undefined, { numeric: true })
-    ),
-    absensi: (item.agenda_absensi || []).map((ab: any) => ({
-      id: ab.id,
-      agenda_id: ab.agenda_id,
-      siswa_id: ab.siswa_id,
-      status: ab.status,
-      siswa: ab.siswa,
-      nama_siswa: ab.siswa?.nama_siswa || '',
-    })),
-    kejadian: item.agenda_kejadian || [],
-  }));
+  let results: FullAgenda[] = (data || []).map((item: any) => {
+    const rawEvidence = Array.isArray(item.agenda_evidence)
+      ? item.agenda_evidence[0]
+      : item.agenda_evidence;
+
+    return {
+      header: {
+        id: item.id,
+        sekolah: item.sekolah,
+        kelas: item.kelas,
+        tanggal: item.tanggal,
+        created_at: item.created_at,
+      },
+      kbm: (item.agenda_kbm || []).sort((a: any, b: any) =>
+        a.jam_ke.localeCompare(b.jam_ke, undefined, { numeric: true })
+      ),
+      absensi: (item.agenda_absensi || []).map((ab: any) => ({
+        id: ab.id,
+        agenda_id: ab.agenda_id,
+        siswa_id: ab.siswa_id,
+        status: ab.status,
+        siswa: ab.siswa,
+        nama_siswa: ab.siswa?.nama_siswa || '',
+      })),
+      kejadian: item.agenda_kejadian || [],
+      evidence: rawEvidence
+        ? {
+            id: rawEvidence.id,
+            agenda_id: rawEvidence.agenda_id,
+            storage_path: rawEvidence.storage_path,
+            file_name: rawEvidence.file_name,
+            file_size: rawEvidence.file_size,
+            mime_type: rawEvidence.mime_type,
+            uploaded_at: rawEvidence.uploaded_at,
+            created_at: rawEvidence.created_at,
+          }
+        : null,
+    };
+  });
 
   if (filters?.nama_guru && filters.nama_guru !== 'Administrator') {
     const teacherName = filters.nama_guru.trim();
@@ -336,6 +355,22 @@ export async function getRekapAgenda(filters?: {
 }
 
 export async function deleteAgenda(agendaId: string): Promise<void> {
+  // Cek jika ada bukti foto terkait, hapus file dari Supabase Storage
+  try {
+    const { data: evidence } = await supabase
+      .from('agenda_evidence')
+      .select('storage_path')
+      .eq('agenda_id', agendaId)
+      .maybeSingle();
+
+    if (evidence?.storage_path) {
+      await supabase.storage.from('agenda-evidence').remove([evidence.storage_path]);
+      console.log(`[Evidence] Cleaned up storage on agenda delete: ${evidence.storage_path}`);
+    }
+  } catch (cleanErr: any) {
+    console.warn('Gagal membersihkan evidence storage saat delete agenda:', cleanErr?.message);
+  }
+
   const { error } = await supabase.from('agenda_header').delete().eq('id', agendaId);
   if (error) throw error;
 }

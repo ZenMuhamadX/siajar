@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getRekapAgenda, deleteAgenda } from '../services/agendaService';
+import { getEvidenceSignedUrl } from '../services/evidenceService';
+import { PhotoLightboxModal } from '../components/PhotoLightboxModal';
 import type { FullAgenda } from '../types';
-import { Edit2, Trash2, RefreshCw } from 'lucide-react';
+import { Edit2, Trash2, RefreshCw, Camera, Eye } from 'lucide-react';
 
 interface RiwayatAgendaProps {
   onEditAgenda: (agenda: FullAgenda) => void;
@@ -17,6 +19,13 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
   const [agendas, setAgendas] = useState<FullAgenda[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Lightbox Modal State
+  const [activePhoto, setActivePhoto] = useState<{
+    url: string;
+    uploadedAt?: string;
+    title: string;
+  } | null>(null);
+
   const todayStr = new Date().toISOString().split('T')[0];
 
   const fetchRiwayat = async () => {
@@ -25,7 +34,25 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
       const data = await getRekapAgenda({
         nama_guru: activeTeacherName || undefined,
       });
-      setAgendas(data);
+
+      // Load signed URL untuk agenda yang memiliki bukti foto
+      const withSignedUrls = await Promise.all(
+        data.map(async (item) => {
+          if (item.evidence?.storage_path) {
+            const url = await getEvidenceSignedUrl(item.evidence.storage_path);
+            return {
+              ...item,
+              evidence: {
+                ...item.evidence,
+                signedUrl: url || undefined,
+              },
+            };
+          }
+          return item;
+        })
+      );
+
+      setAgendas(withSignedUrls);
     } catch (err) {
       console.error(err);
       showToast('error', 'Gagal memuat riwayat agenda.');
@@ -212,6 +239,72 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                     })}
                   </div>
 
+                  {/* Bukti Foto Mengajar (Mobile View) */}
+                  <div className="pt-2 border-t border-slate-100 text-xs">
+                    {agenda.evidence ? (
+                      <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {agenda.evidence.signedUrl ? (
+                            <img
+                              src={agenda.evidence.signedUrl}
+                              alt="Bukti Foto"
+                              className="w-12 h-12 rounded-lg object-cover border border-slate-300 shadow-2xs shrink-0 cursor-pointer hover:opacity-90 transition"
+                              onClick={() =>
+                                setActivePhoto({
+                                  url: agenda.evidence!.signedUrl!,
+                                  uploadedAt: agenda.evidence!.uploaded_at,
+                                  title: `Bukti Foto Mengajar - ${agenda.header.kelas}`,
+                                })
+                              }
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-lg bg-slate-200 flex items-center justify-center shrink-0 text-slate-400">
+                              <Camera className="w-5 h-5" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="font-bold text-slate-800 text-[11px] truncate flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                              <span>Bukti foto tersedia</span>
+                            </p>
+                            {agenda.evidence.uploaded_at && (
+                              <p className="text-[10px] text-slate-500 mt-0.5">
+                                Diunggah{' '}
+                                {new Date(agenda.evidence.uploaded_at).toLocaleDateString('id-ID', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  day: 'numeric',
+                                  month: 'short',
+                                })}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {agenda.evidence.signedUrl && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setActivePhoto({
+                                url: agenda.evidence!.signedUrl!,
+                                uploadedAt: agenda.evidence!.uploaded_at,
+                                title: `Bukti Foto Mengajar - ${agenda.header.kelas}`,
+                              })
+                            }
+                            className="px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold rounded-lg text-[11px] flex items-center gap-1 shrink-0 transition"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-slate-600" />
+                            <span>Lihat</span>
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-2 bg-slate-50/60 border border-slate-200/70 rounded-lg text-[11px] text-slate-400 italic">
+                        Bukti foto belum tersedia
+                      </div>
+                    )}
+                  </div>
+
                   {/* Absensi & Kejadian Note */}
                   <div className="space-y-2 pt-1 border-t border-slate-100 text-xs">
                     <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
@@ -309,6 +402,67 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                     </table>
                   </div>
 
+                  {/* Bukti Foto Mengajar (Desktop) */}
+                  {agenda.evidence && (
+                    <div className="p-2.5 bg-slate-50 border border-slate-200 rounded flex items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-3">
+                        {agenda.evidence.signedUrl ? (
+                          <img
+                            src={agenda.evidence.signedUrl}
+                            alt="Bukti Foto"
+                            className="w-12 h-12 rounded object-cover border border-slate-300 shadow-2xs cursor-pointer hover:opacity-90 transition shrink-0"
+                            onClick={() =>
+                              setActivePhoto({
+                                url: agenda.evidence!.signedUrl!,
+                                uploadedAt: agenda.evidence!.uploaded_at,
+                                title: `Bukti Foto Mengajar - ${agenda.header.kelas}`,
+                              })
+                            }
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded bg-slate-200 flex items-center justify-center shrink-0 text-slate-400">
+                            <Camera className="w-5 h-5" />
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                            <span>Bukti Foto Mengajar Tersedia</span>
+                          </p>
+                          {agenda.evidence.uploaded_at && (
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              Diunggah:{' '}
+                              {new Date(agenda.evidence.uploaded_at).toLocaleDateString('id-ID', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
+                              })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {agenda.evidence.signedUrl && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setActivePhoto({
+                              url: agenda.evidence!.signedUrl!,
+                              uploadedAt: agenda.evidence!.uploaded_at,
+                              title: `Bukti Foto Mengajar - ${agenda.header.kelas}`,
+                            })
+                          }
+                          className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold rounded text-xs flex items-center gap-1.5 transition"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-slate-600" />
+                          <span>Buka Foto</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   {/* Absensi & Kejadian Note (Desktop) */}
                   <div className="flex flex-col sm:flex-row gap-2.5 text-xs">
                     <div className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded">
@@ -350,6 +504,15 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
           })}
         </div>
       )}
+
+      {/* Lightbox Modal */}
+      <PhotoLightboxModal
+        isOpen={!!activePhoto}
+        onClose={() => setActivePhoto(null)}
+        imageUrl={activePhoto?.url}
+        uploadedAt={activePhoto?.uploadedAt}
+        title={activePhoto?.title}
+      />
     </div>
   );
 };

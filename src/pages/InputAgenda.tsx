@@ -17,6 +17,13 @@ import {
   checkGuruKelas,
   getRekapAgenda,
 } from '../services/agendaService';
+import {
+  uploadAgendaEvidence,
+  deleteAgendaEvidence,
+  getEvidenceSignedUrl,
+} from '../services/evidenceService';
+import { PhotoLightboxModal } from '../components/PhotoLightboxModal';
+import type { AgendaEvidence } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Plus,
@@ -28,6 +35,10 @@ import {
   RotateCcw,
   UserCheck,
   X,
+  Camera,
+  Image as ImageIcon,
+  Eye,
+  RefreshCw,
 } from 'lucide-react';
 
 const DRAFT_KEY = 'sdit_agenda_draft';
@@ -242,6 +253,46 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
     );
   };
 
+  // Evidence Photo States
+  const [existingEvidence, setExistingEvidence] = useState<AgendaEvidence | null>(
+    editData?.evidence || null
+  );
+  const [selectedPhotoFile, setSelectedPhotoFile] = useState<File | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const [isDeleteEvidencePending, setIsDeleteEvidencePending] = useState(false);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+
+  // File input refs untuk memisahkan Ambil Foto (Kamera) & Galeri
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  // Load signed URL untuk existing evidence jika ada
+  useEffect(() => {
+    let isMounted = true;
+    async function loadSignedUrl() {
+      if (existingEvidence?.storage_path && !existingEvidence.signedUrl) {
+        const url = await getEvidenceSignedUrl(existingEvidence.storage_path);
+        if (isMounted && url) {
+          setExistingEvidence((prev) => (prev ? { ...prev, signedUrl: url } : null));
+        }
+      }
+    }
+    loadSignedUrl();
+    return () => {
+      isMounted = false;
+    };
+  }, [existingEvidence?.storage_path]);
+
+  // Update existing evidence jika editData berubah
+  useEffect(() => {
+    if (editData) {
+      setExistingEvidence(editData.evidence || null);
+      setSelectedPhotoFile(null);
+      setPhotoPreviewUrl(null);
+      setIsDeleteEvidencePending(false);
+    }
+  }, [editData]);
+
   // Auto-fetch existing agenda di database untuk kelas & tanggal terpilih
   const [existingAgendaId, setExistingAgendaId] = useState<string | null>(editData?.header.id || null);
 
@@ -252,6 +303,10 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
       if (existing && existing.length > 0) {
         const first = existing[0];
         setExistingAgendaId(first.header.id);
+        setExistingEvidence(first.evidence || null);
+        setSelectedPhotoFile(null);
+        setPhotoPreviewUrl(null);
+        setIsDeleteEvidencePending(false);
 
         const slots = getScheduleSlotsForDate(tanggal);
         const existingJams = first.kbm.map((k) => k.jam_ke);
@@ -293,6 +348,11 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
         }
       } else {
         setExistingAgendaId(null);
+        setExistingEvidence(null);
+        setSelectedPhotoFile(null);
+        setPhotoPreviewUrl(null);
+        setIsDeleteEvidencePending(false);
+
         const slots = getScheduleSlotsForDate(tanggal);
         const firstKbmSlot = slots.find((s) => !s.is_break) || slots[0];
         setKbmRows([
@@ -441,7 +501,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
 
     setIsSubmitting(true);
     try {
-      await simpanAgenda({
+      const saveResult = await simpanAgenda({
         agendaId: existingAgendaId || editData?.header.id,
         sekolah: 'SDIT AS-SYIFA',
         kelas,
@@ -457,17 +517,53 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
         uraian_kejadian: uraianKejadian,
       });
 
+      const savedAgendaId = saveResult.id;
+      let photoUploadError = false;
+
+      // Handle Evidence Upload jika user memilih foto baru
+      if (selectedPhotoFile && savedAgendaId) {
+        try {
+          await uploadAgendaEvidence({
+            agendaId: savedAgendaId,
+            file: selectedPhotoFile,
+            tanggal,
+            oldStoragePath: existingEvidence?.storage_path,
+          });
+        } catch (photoErr: any) {
+          console.error('Evidence upload error:', photoErr);
+          photoUploadError = true;
+          showToast(
+            'error',
+            'Agenda tersimpan, tetapi foto gagal diunggah. Silakan coba unggah lagi via menu Edit.'
+          );
+        }
+      } else if (isDeleteEvidencePending && existingEvidence && savedAgendaId) {
+        // Handle Evidence Delete jika user menghapus foto
+        try {
+          await deleteAgendaEvidence(savedAgendaId, existingEvidence.storage_path);
+        } catch (deleteErr: any) {
+          console.warn('Gagal menghapus evidence:', deleteErr);
+        }
+      }
+
       if (!editData) {
         clearDraft();
         setDraftSaved(false);
       }
 
-      showToast(
-        'success',
-        editData
-          ? `Koreksi agenda ${kelas} tanggal ${tanggal} berhasil disimpan.`
-          : `Agenda ${kelas} tanggal ${tanggal} berhasil disimpan.`
-      );
+      if (!photoUploadError) {
+        showToast(
+          'success',
+          editData
+            ? `Koreksi agenda ${kelas} tanggal ${tanggal} berhasil disimpan.`
+            : `Agenda ${kelas} tanggal ${tanggal} berhasil disimpan.`
+        );
+      }
+
+      // Reset file selection states
+      setSelectedPhotoFile(null);
+      setPhotoPreviewUrl(null);
+      setIsDeleteEvidencePending(false);
 
       // Soft-refresh: muat ulang data dari DB agar baris baru langsung terkunci
       setIsBadalChecked(false);
@@ -1227,6 +1323,199 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
             </p>
           )}
         </div>
+
+        {/* Section 4: Bukti Foto Mengajar (Opsional) */}
+        <div className={`p-4 sm:p-6 border-b border-slate-200 ${isFormDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  IV. Bukti Foto Mengajar
+                </h3>
+                <span className="text-[10px] font-semibold px-2 py-0.5 bg-slate-100 text-slate-600 rounded">
+                  Opsional
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Tambahkan satu foto yang mewakili kegiatan pembelajaran hari ini.
+              </p>
+            </div>
+          </div>
+
+          {/* Hidden File Inputs: Camera & Gallery */}
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                setSelectedPhotoFile(file);
+                setPhotoPreviewUrl(URL.createObjectURL(file));
+                setIsDeleteEvidencePending(false);
+              }
+              e.target.value = '';
+            }}
+          />
+
+          <input
+            ref={galleryInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                setSelectedPhotoFile(file);
+                setPhotoPreviewUrl(URL.createObjectURL(file));
+                setIsDeleteEvidencePending(false);
+              }
+              e.target.value = '';
+            }}
+          />
+
+          {/* Render State Foto: Preview Foto / Existing Foto / Tombol Pilih Foto */}
+          {photoPreviewUrl || (existingEvidence && !isDeleteEvidencePending) ? (
+            <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+              <div className="relative rounded-lg overflow-hidden bg-slate-900 flex items-center justify-center max-h-64 sm:max-h-72 border border-slate-300 shadow-xs">
+                <img
+                  src={photoPreviewUrl || existingEvidence?.signedUrl || ''}
+                  alt="Bukti Mengajar"
+                  className="w-full h-auto max-h-64 sm:max-h-72 object-contain cursor-pointer hover:opacity-95 transition"
+                  onClick={() => setIsLightboxOpen(true)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsLightboxOpen(true)}
+                  className="absolute bottom-2 right-2 px-2.5 py-1 bg-slate-900/80 hover:bg-slate-900 text-white text-[11px] font-medium rounded-md backdrop-blur-xs flex items-center gap-1 transition"
+                  title="Lihat ukuran penuh"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Perbesar</span>
+                </button>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div className="text-slate-600">
+                  {selectedPhotoFile ? (
+                    <span className="font-semibold text-emerald-700">
+                      ✓ Foto baru dipilih ({selectedPhotoFile.name})
+                    </span>
+                  ) : existingEvidence?.uploaded_at ? (
+                    <span className="text-slate-500">
+                      Tersimpan &bull; Diunggah:{' '}
+                      <strong>
+                        {new Date(existingEvidence.uploaded_at).toLocaleDateString('id-ID', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </strong>
+                    </span>
+                  ) : (
+                    <span className="text-slate-500">Bukti foto aktif</span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative inline-flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => galleryInputRef.current?.click()}
+                      className="px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold rounded-lg flex items-center gap-1.5 transition text-xs"
+                    >
+                      <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Ganti Foto</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="px-2 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg flex items-center justify-center transition sm:hidden"
+                      title="Ambil Foto Kamera"
+                    >
+                      <Camera className="w-3.5 h-3.5 text-slate-600" />
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm('Hapus bukti foto mengajar ini?')) {
+                        if (selectedPhotoFile) {
+                          setSelectedPhotoFile(null);
+                          setPhotoPreviewUrl(null);
+                        } else if (existingEvidence) {
+                          setIsDeleteEvidencePending(true);
+                        }
+                      }
+                    }}
+                    className="px-2.5 py-1.5 bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-semibold rounded-lg flex items-center gap-1 transition text-xs"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Hapus</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 p-4 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50 flex flex-col sm:flex-row items-center justify-center gap-2.5 sm:gap-3 text-center sm:text-left">
+              <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+                <Camera className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-semibold text-slate-700">Belum ada foto kegiatan</p>
+                <p className="text-[11px] text-slate-400">
+                  Ambil langsung dengan kamera ponsel atau pilih dari galeri.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="flex-1 sm:flex-initial px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition"
+                >
+                  <Camera className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>Ambil Foto</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => galleryInputRef.current?.click()}
+                  className="flex-1 sm:flex-initial px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition"
+                >
+                  <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Pilih Galeri</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Notifikasi jika penghapusan foto tertunda sebelum simpan */}
+          {isDeleteEvidencePending && (
+            <div className="mt-2.5 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center justify-between">
+              <span>Foto akan dihapus permanen saat agenda disimpan.</span>
+              <button
+                type="button"
+                onClick={() => setIsDeleteEvidencePending(false)}
+                className="text-amber-900 font-bold underline ml-2"
+              >
+                Batal Hapus
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Modal Lightbox untuk Perbesar Foto */}
+        <PhotoLightboxModal
+          isOpen={isLightboxOpen}
+          onClose={() => setIsLightboxOpen(false)}
+          imageUrl={photoPreviewUrl || existingEvidence?.signedUrl}
+          uploadedAt={existingEvidence?.uploaded_at}
+          title={`Bukti Foto Mengajar - ${kelas}`}
+        />
 
         {/* Desktop Save Bar (>= md) */}
         <div className="hidden md:flex p-4 sm:p-6 bg-slate-50/70 items-center justify-between gap-4">
