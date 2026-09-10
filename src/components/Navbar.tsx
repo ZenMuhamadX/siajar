@@ -129,13 +129,13 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </header>
 
-      {/* Bottom Navigation Bar for Mobile (Thumb-Friendly, Fixed Bottom) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-lg px-2 py-1.5 flex items-center justify-around no-print">
+      {/* Bottom Navigation Bar for Mobile (Thumb-Friendly, Fixed Bottom with iOS safe-area support) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xs border-t border-slate-200 shadow-lg px-2 pt-1.5 safe-bottom flex items-center justify-around no-print">
         <button
           onClick={() => onToggleView('agenda')}
-          className={`flex-1 flex flex-col items-center justify-center py-1 rounded-lg transition ${
+          className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition min-h-[44px] ${
             currentView === 'agenda'
-              ? 'text-emerald-700 font-bold'
+              ? 'text-emerald-700 font-bold bg-emerald-50/50'
               : 'text-slate-500 hover:text-slate-800'
           }`}
         >
@@ -145,9 +145,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         <button
           onClick={() => onToggleView('riwayat')}
-          className={`flex-1 flex flex-col items-center justify-center py-1 rounded-lg transition ${
+          className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition min-h-[44px] ${
             currentView === 'riwayat'
-              ? 'text-emerald-700 font-bold'
+              ? 'text-emerald-700 font-bold bg-emerald-50/50'
               : 'text-slate-500 hover:text-slate-800'
           }`}
         >
@@ -157,7 +157,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         <button
           onClick={onOpenKotakSaran}
-          className="flex-1 flex flex-col items-center justify-center py-1 rounded-lg text-slate-500 hover:text-slate-800 transition"
+          className="flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg text-slate-500 hover:text-slate-800 transition min-h-[44px]"
         >
           <MessageSquarePlus className="w-5 h-5 mb-0.5" />
           <span className="text-[10px]">Saran</span>

@@ -26,6 +26,8 @@ import {
   Loader2,
   AlertTriangle,
   RotateCcw,
+  UserCheck,
+  X,
 } from 'lucide-react';
 
 const DRAFT_KEY = 'sdit_agenda_draft';
@@ -135,6 +137,15 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
   const [daftarMapel, setDaftarMapel] = useState<MataPelajaran[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draftSaved, setDraftSaved] = useState(!!draft.current && !editData);
+
+  // Mobile state UX
+  const [expandedPrRows, setExpandedPrRows] = useState<Record<number, boolean>>({});
+  const [showKejadian, setShowKejadian] = useState<boolean>(() => {
+    return Boolean(
+      (editData?.kejadian?.[0]?.uraian_kejadian && editData.kejadian[0].uraian_kejadian.trim()) ||
+        (draft.current?.uraianKejadian && draft.current.uraianKejadian.trim())
+    );
+  });
 
   // Status Guru Pengampu vs Badal
   const [isGuruResmiKelas, setIsGuruResmiKelas] = useState<boolean>(true);
@@ -475,7 +486,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
     !isGuruResmiKelas && !isBadalChecked && activeTeacherName !== 'Administrator';
 
   return (
-    <div className="max-w-4xl mx-auto pb-16 md:pb-0">
+    <div className="max-w-4xl mx-auto pb-28 md:pb-6">
       {/* Edit Mode Alert */}
       {editData && (
         <div className="mb-4 p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3 text-xs text-amber-900">
@@ -490,7 +501,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
             <button
               type="button"
               onClick={onCancelEdit}
-              className="px-2.5 py-1 bg-white border border-amber-300 rounded font-semibold text-amber-800 hover:bg-amber-100 transition"
+              className="px-2.5 py-1 bg-white border border-amber-300 rounded-md font-semibold text-amber-800 hover:bg-amber-100 transition"
             >
               Batal Koreksi
             </button>
@@ -501,36 +512,36 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
       {/* Unified Single Sheet / Form Container */}
       <form
         onSubmit={handleSubmit}
-        className="bg-white border border-slate-300 rounded-lg shadow-xs overflow-hidden"
+        className="bg-white border border-slate-200 sm:border-slate-300 rounded-2xl sm:rounded-xl shadow-xs overflow-hidden"
       >
-        {/* Form Header */}
-        <div className="p-4 sm:p-6 border-b border-slate-200 bg-slate-50/60">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        {/* Form Header (Mobile-First) */}
+        <div className="p-4 sm:p-6 border-b border-slate-200 bg-slate-50/70">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-4">
             <div>
-              <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-                {editData ? 'Koreksi Jurnal Agenda Kelas' : 'Jurnal & Agenda Kelas'}
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                {editData ? 'Koreksi Jurnal Agenda Kelas' : 'Isi Agenda Kelas'}
               </h2>
-              <p className="text-xs text-slate-500">
-                SDIT AS-SYIFA &bull; Guru Aktif: <strong>{activeTeacherName || 'Guru'}</strong>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Guru: <strong className="text-slate-700">{activeTeacherName || 'Guru'}</strong>
               </p>
             </div>
             {draftSaved && !editData && (
-              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Draft tersimpan otomatis</span>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-full text-[11px] font-medium self-start sm:self-auto">
+                <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>Draft otomatis tersimpan</span>
               </div>
             )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Tingkat Kelas
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Pilih Kelas
               </label>
               <select
                 value={kelas}
                 onChange={(e) => setKelas(e.target.value as KelasOption)}
-                className="w-full px-3 py-2 text-sm font-semibold rounded-md border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500 focus:border-slate-500"
+                className="w-full px-3.5 py-2.5 sm:py-2 text-sm font-semibold rounded-xl sm:rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
               >
                 {DAFTAR_KELAS.map((k) => (
                   <option key={k} value={k}>
@@ -541,7 +552,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Tanggal Pelaksanaan
               </label>
               <input
@@ -549,17 +560,17 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                 max={todayStr}
                 value={tanggal}
                 onChange={(e) => setTanggal(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-md border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500 focus:border-slate-500"
+                className="w-full px-3.5 py-2.5 sm:py-2 text-sm rounded-xl sm:rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
               />
-              <span className="text-[10px] text-slate-400 mt-0.5 block">
-                Otomatis hari ini ({todayStr}). Dapat dipilih manual untuk agenda susulan lalu.
+              <span className="text-[11px] text-slate-500 mt-1 block">
+                {tanggal === todayStr ? 'Hari ini' : 'Agenda tanggal lalu'}
               </span>
             </div>
           </div>
 
           {/* Validasi Guru Kelas & Konfirmasi Menggantikan Guru (Badal) */}
           {!isValidatingGuru && !isGuruResmiKelas && activeTeacherName !== 'Administrator' && (
-            <div className="mt-3.5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl space-y-2.5">
+            <div className="mt-3.5 p-3.5 bg-amber-50/90 border border-amber-200 rounded-xl space-y-2.5">
               <div className="flex items-start gap-2.5 text-xs text-amber-900">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
@@ -592,12 +603,17 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
         {/* Section 1: Kegiatan Belajar Mengajar (KBM) */}
         <div className={`p-4 sm:p-6 border-b border-slate-200 ${isFormDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              I. Kegiatan Belajar Mengajar (KBM)
-            </h3>
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                I. Kegiatan Belajar Mengajar (KBM)
+              </h3>
+              <p className="text-[11px] text-slate-500 hidden sm:block">
+                Isi materi pokok untuk setiap jam pelajaran hari ini
+              </p>
+            </div>
           </div>
 
-          {/* Desktop Table View */}
+          {/* Desktop Table View (>= md) */}
           <div className="hidden md:block overflow-x-auto border border-slate-200 rounded-md">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
@@ -613,7 +629,6 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
               <tbody className="divide-y divide-slate-200">
                 {getOrderedRowsWithBreaks().map((item, renderIdx) => {
                   if (item.type === 'break') {
-                    // Visual Break Separator — tidak masuk database
                     return (
                       <tr key={`break-${renderIdx}`} className="bg-amber-50/60">
                         <td colSpan={6} className="py-1.5 px-3 text-center">
@@ -664,7 +679,6 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                     );
                   }
 
-                  // Baris Input Baru / Editable
                   return (
                     <tr key={idx} className="bg-white">
                       <td className="p-1.5 border-r border-slate-200">
@@ -796,13 +810,16 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
             </table>
           </div>
 
-          {/* Mobile Clean Form Rows */}
-          <div className="md:hidden divide-y divide-slate-200 border border-slate-200 rounded-md">
+          {/* Mobile-First Touch-Friendly Cards (< md) */}
+          <div className="md:hidden space-y-3">
             {getOrderedRowsWithBreaks().map((item, renderIdx) => {
               if (item.type === 'break') {
                 return (
-                  <div key={`break-${renderIdx}`} className="py-2 px-3 bg-amber-50/60 text-center">
-                    <span className="text-[11px] font-semibold text-amber-700 tracking-wide">
+                  <div
+                    key={`break-${renderIdx}`}
+                    className="py-2 px-3 bg-amber-50/80 border border-amber-200/70 rounded-xl text-center flex items-center justify-center gap-1.5"
+                  >
+                    <span className="text-xs font-semibold text-amber-800">
                       ☕ {item.label}
                     </span>
                   </div>
@@ -811,24 +828,45 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
 
               const { row, originalIdx: idx } = item;
               const isLocked = Boolean(row.is_saved_db && activeTeacherName !== 'Administrator');
+              const isPrOpen = Boolean(expandedPrRows[idx] || (row.tugas_pr && row.tugas_pr.trim() !== ''));
 
               if (isLocked) {
                 return (
-                  <div key={idx} className="p-3 bg-slate-50/90 space-y-1.5 text-xs">
+                  <div
+                    key={idx}
+                    className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs"
+                  >
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs px-2 py-0.5 bg-slate-200 text-slate-800 rounded">
-                        {row.jam_ke}
-                      </span>
-                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-xs px-2.5 py-1 bg-slate-200 text-slate-800 rounded-md">
+                          Jam {row.jam_ke}
+                        </span>
+                        <span className="font-bold text-slate-800 text-xs">
+                          {row.mapel}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                         Tersimpan
                       </span>
                     </div>
-                    <p className="font-semibold text-slate-800">
-                      {row.nama_guru} &bull; <span className="text-slate-600 font-normal">{row.mapel}</span>
-                    </p>
-                    <p className="text-slate-700 whitespace-pre-wrap">{row.materi}</p>
+
+                    <div className="text-slate-600 text-[11px] flex items-center gap-1.5">
+                      <span>{row.nama_guru}</span>
+                      {row.is_badal && (
+                        <span className="px-1.5 py-0.2 text-[9px] font-bold bg-amber-100 text-amber-800 rounded">
+                          Badal
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="p-2.5 bg-white rounded-lg border border-slate-200 text-slate-800 text-xs whitespace-pre-wrap leading-relaxed">
+                      {row.materi}
+                    </div>
+
                     {row.tugas_pr && (
-                      <p className="text-slate-500 text-[11px]">Tugas: {row.tugas_pr}</p>
+                      <div className="text-[11px] text-slate-600 bg-amber-50/70 border border-amber-200/60 rounded-md p-2">
+                        <strong>Tugas/PR:</strong> {row.tugas_pr}
+                      </div>
                     )}
                   </div>
                 );
@@ -837,16 +875,19 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
               return (
                 <div
                   key={idx}
-                  className="p-3 space-y-2 text-xs bg-white"
+                  className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-xs space-y-3"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-slate-700 text-xs">Jam Ke:</span>
+                  {/* Card Header: Slot Selector & Action */}
+                  <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+                    <div className="flex items-center gap-2 flex-1">
+                      <label className="text-[11px] font-bold text-slate-500 uppercase shrink-0">
+                        Jam:
+                      </label>
                       <select
                         required
                         value={row.jam_ke}
                         onChange={(e) => handleKbmChange(idx, 'jam_ke', e.target.value)}
-                        className="w-36 px-2 py-1 rounded border border-slate-300 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-slate-500 bg-white text-slate-800"
+                        className="flex-1 max-w-[170px] px-2.5 py-1.5 rounded-lg border border-slate-300 font-bold text-xs bg-slate-50 focus:bg-white text-slate-800 focus:ring-2 focus:ring-emerald-600 focus:outline-none"
                       >
                         {kbmSlots.map((s) => {
                           const isUsedByOtherRow = kbmRows.some(
@@ -866,34 +907,61 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                         )}
                       </select>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveKbmRow(idx)}
-                      className="text-xs text-rose-600 hover:text-rose-800 font-medium px-2 py-1"
-                    >
-                      Hapus
-                    </button>
+
+                    {kbmRows.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveKbmRow(idx)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition"
+                        title="Hapus jam ini"
+                      >
+                        <Trash2 className="w-4 h-4 text-rose-500" />
+                      </button>
+                    )}
                   </div>
 
-                  <div className="space-y-2 pt-1">
+                  {/* Field Mata Pelajaran */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Mata Pelajaran
+                    </label>
+                    {daftarMapel.length > 0 ? (
+                      <select
+                        required
+                        value={row.mapel}
+                        onChange={(e) => handleKbmChange(idx, 'mapel', e.target.value)}
+                        className="w-full px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                      >
+                        <option value="">-- Pilih Mata Pelajaran --</option>
+                        {daftarMapel.map((m) => (
+                          <option key={m.id} value={m.nama_mapel}>
+                            {m.nama_mapel}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        required
+                        placeholder="Contoh: Matematika, Tematik..."
+                        value={row.mapel}
+                        onChange={(e) => handleKbmChange(idx, 'mapel', e.target.value)}
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                      />
+                    )}
+                  </div>
+
+                  {/* Field Guru (Hanya jika admin atau guru non-default) */}
+                  {(!activeTeacherName || activeTeacherName === 'Administrator') && (
                     <div>
-                      <label className="block text-[11px] text-slate-500 mb-0.5">
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
                         Guru Pengajar
                       </label>
-                      {activeTeacherName && activeTeacherName !== 'Administrator' ? (
-                        <div className="flex items-center justify-between px-2.5 py-1.5 rounded border border-slate-200 bg-slate-100/80 font-semibold text-slate-800 text-xs">
-                          <span>{activeTeacherName}</span>
-                          {row.is_badal && (
-                            <span className="inline-block px-1.5 py-0.2 text-[9px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-300">
-                              Badal
-                            </span>
-                          )}
-                        </div>
-                      ) : daftarGuru.length > 0 ? (
+                      {daftarGuru.length > 0 ? (
                         <select
                           value={row.nama_guru || activeTeacherName || ''}
                           onChange={(e) => handleKbmChange(idx, 'nama_guru', e.target.value)}
-                          className="w-full px-2.5 py-1.5 rounded border border-slate-300 bg-white font-medium focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs"
+                          className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600"
                         >
                           <option value="">-- Pilih Guru --</option>
                           {daftarGuru.map((g) => (
@@ -908,68 +976,66 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                           placeholder="Nama Guru"
                           value={row.nama_guru || activeTeacherName || ''}
                           onChange={(e) => handleKbmChange(idx, 'nama_guru', e.target.value)}
-                          className="w-full px-2.5 py-1.5 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs"
+                          className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-600"
                         />
                       )}
                     </div>
+                  )}
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-0.5">
-                          Mata Pelajaran
-                        </label>
-                        {daftarMapel.length > 0 ? (
-                          <select
-                            required
-                            value={row.mapel}
-                            onChange={(e) => handleKbmChange(idx, 'mapel', e.target.value)}
-                            className="w-full px-2 py-1.5 rounded border border-slate-300 bg-white font-semibold focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs"
+                  {/* Field Materi Pokok */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Materi Pembelajaran
+                    </label>
+                    <textarea
+                      rows={3}
+                      required
+                      placeholder="Tulis ringkasan materi pokok pembelajaran..."
+                      value={row.materi}
+                      onChange={(e) => handleKbmChange(idx, 'materi', e.target.value)}
+                      className="w-full p-2.5 rounded-lg border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600 leading-relaxed resize-y"
+                    />
+                  </div>
+
+                  {/* Field Tugas / PR Collapsible */}
+                  <div className="pt-1">
+                    {!isPrOpen ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedPrRows((prev) => ({ ...prev, [idx]: true }))
+                        }
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 py-1"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Tambahkan Tugas / PR</span>
+                      </button>
+                    ) : (
+                      <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-bold text-slate-700">
+                            Tugas / PR
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleKbmChange(idx, 'tugas_pr', '');
+                              setExpandedPrRows((prev) => ({ ...prev, [idx]: false }));
+                            }}
+                            className="text-[11px] text-slate-400 hover:text-rose-600 font-medium flex items-center gap-0.5"
                           >
-                            <option value="">-- Pilih Mapel --</option>
-                            {daftarMapel.map((m) => (
-                              <option key={m.id} value={m.nama_mapel}>
-                                {m.nama_mapel}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input
-                            type="text"
-                            required
-                            placeholder="Mapel"
-                            value={row.mapel}
-                            onChange={(e) => handleKbmChange(idx, 'mapel', e.target.value)}
-                            className="w-full px-2.5 py-1.5 rounded border border-slate-300 font-medium focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs"
-                          />
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-0.5">
-                          Tugas / PR (Opsional)
-                        </label>
-                        <textarea
-                          rows={2}
-                          placeholder="Catatan tugas/PR..."
+                            <X className="w-3 h-3" /> Tutup
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Contoh: Latihan hal 42 nomor 1-5..."
                           value={row.tugas_pr || ''}
                           onChange={(e) => handleKbmChange(idx, 'tugas_pr', e.target.value)}
-                          className="w-full p-2.5 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs resize-y"
+                          className="w-full px-2.5 py-1.5 text-xs rounded-md border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
                         />
                       </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
-                        Materi / Bahasan Pembelajaran
-                      </label>
-                      <textarea
-                        rows={3}
-                        required
-                        placeholder="Tuliskan uraian materi pokok pembelajaran secara lengkap..."
-                        value={row.materi}
-                        onChange={(e) => handleKbmChange(idx, 'materi', e.target.value)}
-                        className="w-full p-2.5 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs resize-y"
-                      />
-                    </div>
+                    )}
                   </div>
                 </div>
               );
@@ -979,106 +1045,198 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
           <button
             type="button"
             onClick={handleAddKbmRow}
-            className="mt-3 w-full py-2 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded flex items-center justify-center gap-1.5 transition"
+            className="mt-3.5 w-full py-2.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-xl flex items-center justify-center gap-2 transition active:scale-[0.99]"
           >
-            <Plus className="w-3.5 h-3.5" />
-            Tambah Baris Jam Pelajaran
+            <Plus className="w-4 h-4 text-slate-600" />
+            <span>Tambah Jam Pelajaran</span>
           </button>
         </div>
 
         {/* Section 2: Absensi (Siswa Tidak Hadir) */}
         <div className={`p-4 sm:p-6 border-b border-slate-200 ${isFormDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
             <div>
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                II. Siswa Tidak Hadir
+                II. Kehadiran Siswa
               </h3>
               <p className="text-[11px] text-slate-500">
-                Catat siswa yang tidak hadir.
+                {absensiList.length === 0
+                  ? 'Semua siswa hadir (nihil tidak hadir).'
+                  : `${absensiList.length} siswa tercatat tidak hadir.`}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={handleAddAbsensi}
-              className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded font-medium transition flex items-center gap-1"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Tambah
-            </button>
+
+            {/* Quick summary chip */}
+            <div className="flex items-center gap-1.5 text-[11px]">
+              <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 font-bold rounded-md border border-emerald-200">
+                {Math.max(0, siswaKelas.length - absensiList.length)} Hadir
+              </span>
+              <span className="px-2 py-0.5 bg-blue-50 text-blue-800 font-semibold rounded-md border border-blue-200">
+                {absensiList.filter((a) => a.status === 'S').length} Sakit
+              </span>
+              <span className="px-2 py-0.5 bg-amber-50 text-amber-800 font-semibold rounded-md border border-amber-200">
+                {absensiList.filter((a) => a.status === 'I').length} Izin
+              </span>
+              <span className="px-2 py-0.5 bg-rose-50 text-rose-800 font-semibold rounded-md border border-rose-200">
+                {absensiList.filter((a) => a.status === 'A').length} Alpha
+              </span>
+            </div>
           </div>
 
           {absensiList.length === 0 ? (
-            <div className="py-3 px-4 rounded border border-slate-200 bg-slate-50 text-xs text-slate-600">
-              ✓ Seluruh siswa hadir lengkap
+            <div className="py-3 px-4 rounded-xl border border-emerald-200 bg-emerald-50/50 text-xs text-emerald-800 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Seluruh siswa hadir lengkap ({siswaKelas.length} siswa)</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddAbsensi}
+                className="text-xs font-bold text-emerald-700 underline shrink-0 hover:text-emerald-900"
+              >
+                + Catat Absen
+              </button>
             </div>
           ) : (
-            <div className="border border-slate-200 rounded divide-y divide-slate-200 text-xs">
-              {absensiList.map((item, idx) => (
-                <div key={idx} className="p-2 sm:p-2.5 flex items-center gap-2 bg-white">
-                  <span className="text-slate-400 font-medium w-5 text-center">{idx + 1}.</span>
-                  <div className="flex-1">
-                    <select
-                      value={item.siswa_id}
-                      onChange={(e) => handleAbsensiChange(idx, 'siswa_id', e.target.value)}
-                      className="w-full px-2 py-1.5 rounded border border-slate-300 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-slate-500 font-medium"
-                    >
-                      {siswaKelas.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.nama_siswa}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="w-28">
-                    <select
-                      value={item.status}
-                      onChange={(e) =>
-                        handleAbsensiChange(idx, 'status', e.target.value as 'S' | 'I' | 'A')
-                      }
-                      className="w-full px-2 py-1.5 rounded border border-slate-300 text-xs font-semibold bg-white focus:outline-none focus:ring-1 focus:ring-slate-500"
-                    >
-                      <option value="S">Sakit (S)</option>
-                      <option value="I">Izin (I)</option>
-                      <option value="A">Alpha (A)</option>
-                    </select>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveAbsensi(idx)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 rounded transition"
-                    title="Hapus"
+            <div className="space-y-2">
+              <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 overflow-hidden">
+                {absensiList.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="p-2.5 sm:p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
+                    <div className="flex items-center gap-2 flex-1">
+                      <span className="text-slate-400 font-bold text-xs w-4 text-center">
+                        {idx + 1}.
+                      </span>
+                      <select
+                        value={item.siswa_id}
+                        onChange={(e) => handleAbsensiChange(idx, 'siswa_id', e.target.value)}
+                        className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 font-medium"
+                      >
+                        {siswaKelas.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.nama_siswa}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Touch Segmented Buttons: Sakit (S), Izin (I), Alpha (A) */}
+                    <div className="flex items-center justify-between sm:justify-end gap-2 pl-6 sm:pl-0">
+                      <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 text-xs font-bold">
+                        <button
+                          type="button"
+                          onClick={() => handleAbsensiChange(idx, 'status', 'S')}
+                          className={`px-3 py-1 rounded-md transition ${
+                            item.status === 'S'
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          Sakit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAbsensiChange(idx, 'status', 'I')}
+                          className={`px-3 py-1 rounded-md transition ${
+                            item.status === 'I'
+                              ? 'bg-amber-500 text-white shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          Izin
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAbsensiChange(idx, 'status', 'A')}
+                          className={`px-3 py-1 rounded-md transition ${
+                            item.status === 'A'
+                              ? 'bg-rose-600 text-white shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          Alpha
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAbsensi(idx)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition"
+                        title="Hapus"
+                      >
+                        <Trash2 className="w-4 h-4 text-rose-500" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAddAbsensi}
+                className="w-full py-2 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-xl flex items-center justify-center gap-1.5 transition"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Tambah Siswa Tidak Hadir</span>
+              </button>
             </div>
           )}
         </div>
 
-        {/* Section 3: Catatan Kejadian Khusus */}
+        {/* Section 3: Catatan Kejadian Khusus (Collapsible di HP bila kosong) */}
         <div className={`p-4 sm:p-6 border-b border-slate-200 ${isFormDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-            III. Catatan Kejadian (Opsional)
-          </h3>
-          <textarea
-            rows={3}
-            value={uraianKejadian}
-            onChange={(e) => setUraianKejadian(e.target.value)}
-            placeholder="Catatan kendala kelas, kejadian penting, siswa izin pulang awal, dsb..."
-            className="w-full p-2.5 text-xs rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-500 text-slate-800"
-          />
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+              III. Catatan Kejadian (Opsional)
+            </h3>
+            {!showKejadian && (
+              <button
+                type="button"
+                onClick={() => setShowKejadian(true)}
+                className="text-xs font-semibold text-emerald-700 hover:underline"
+              >
+                + Tambah Catatan
+              </button>
+            )}
+          </div>
+
+          {showKejadian ? (
+            <div className="mt-2.5 space-y-1.5">
+              <textarea
+                rows={3}
+                value={uraianKejadian}
+                onChange={(e) => setUraianKejadian(e.target.value)}
+                placeholder="Catatan kendala kelas, kejadian khusus siswa, dsb..."
+                className="w-full p-3 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-600 text-slate-800 leading-relaxed"
+              />
+              {!uraianKejadian && (
+                <button
+                  type="button"
+                  onClick={() => setShowKejadian(false)}
+                  className="text-[11px] text-slate-400 hover:text-slate-600"
+                >
+                  Tutup / Sembunyikan
+                </button>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400 mt-1 italic">
+              Tidak ada catatan khusus kelas hari ini.
+            </p>
+          )}
         </div>
 
-        {/* Footer / Submit */}
-        <div className="p-4 sm:p-6 bg-slate-50/60 flex items-center justify-between gap-4">
+        {/* Desktop Save Bar (>= md) */}
+        <div className="hidden md:flex p-4 sm:p-6 bg-slate-50/70 items-center justify-between gap-4">
           <span className="text-xs text-slate-500">
-            Periksa data sebelum disimpan ke server
+            Periksa kembali agenda sebelum disimpan ke sistem
           </span>
           <button
             type="submit"
             disabled={isSubmitting || isFormDisabled}
-            className="px-6 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded shadow-xs transition flex items-center gap-2 disabled:opacity-50"
+            className="px-6 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg shadow-xs transition flex items-center gap-2 disabled:opacity-50"
           >
             {isSubmitting ? (
               <>
@@ -1088,12 +1246,40 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
             ) : (
               <>
                 <Save className="w-3.5 h-3.5" />
-                <span>{editData ? 'Simpan Perubahan' : 'Simpan'}</span>
+                <span>{editData ? 'Simpan Perubahan' : 'Simpan Agenda'}</span>
               </>
             )}
           </button>
         </div>
       </form>
+
+      {/* Sticky Mobile Primary Action Bar (< md, tepat di atas bottom nav) */}
+      <div className="md:hidden fixed bottom-14 left-0 right-0 z-30 bg-white/95 backdrop-blur-xs border-t border-slate-200 px-4 py-2.5 shadow-lg no-print">
+        <div className="max-w-md mx-auto flex items-center justify-between gap-3">
+          <div className="text-xs leading-tight">
+            <span className="font-bold text-slate-800">{kelas}</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isSubmitting || isFormDisabled}
+            className="flex-1 max-w-[220px] py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Menyimpan...</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                <span>{editData ? 'Simpan Edit' : 'Simpan Agenda'}</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

@@ -156,8 +156,114 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                   </div>
                 </div>
 
-                {/* Table KBM Sheet Style */}
-                <div className="p-3 sm:p-4 space-y-3">
+                {/* Mobile Card/Timeline View (< md) */}
+                <div className="md:hidden p-3.5 space-y-3">
+                  <div className="space-y-2.5">
+                    {agenda.kbm.map((k, idx) => {
+                      const isBreak = k.jam_ke === 'Istirahat' || k.jam_ke === 'Isoma';
+
+                      if (isBreak) {
+                        return (
+                          <div
+                            key={idx}
+                            className="py-1.5 px-3 bg-amber-50/70 border border-amber-200/60 rounded-lg text-center text-xs font-semibold text-amber-800"
+                          >
+                            ☕ {k.jam_ke}
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={idx}
+                          className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-[11px] px-2 py-0.5 bg-slate-200 text-slate-800 rounded-md">
+                                Jam {k.jam_ke}
+                              </span>
+                              <span className="font-bold text-slate-800 text-xs">
+                                {k.mapel}
+                              </span>
+                            </div>
+                            {k.is_badal && (
+                              <span className="px-1.5 py-0.2 text-[9px] font-bold bg-amber-100 text-amber-800 rounded">
+                                Badal
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="text-slate-500 text-[11px]">
+                            Guru: <span className="text-slate-700 font-medium">{k.nama_guru || '-'}</span>
+                          </div>
+
+                          <div className="p-2 bg-white rounded-lg border border-slate-200/90 text-slate-800 leading-relaxed text-xs">
+                            {k.materi}
+                          </div>
+
+                          {k.tugas_pr && (
+                            <div className="text-[11px] text-slate-600 bg-amber-50/80 border border-amber-200/60 rounded-md p-2">
+                              <strong>Tugas/PR:</strong> {k.tugas_pr}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Absensi & Kejadian Note */}
+                  <div className="space-y-2 pt-1 border-t border-slate-100 text-xs">
+                    <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                      <span className="font-bold text-slate-700 block mb-1 text-[11px] uppercase tracking-wider">
+                        Ketidakhadiran Siswa:
+                      </span>
+                      {agenda.absensi && agenda.absensi.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {agenda.absensi.map((ab, abIdx) => (
+                            <span
+                              key={abIdx}
+                              className="px-2 py-0.5 bg-white border border-slate-200 rounded-md text-[11px] font-medium text-slate-800 flex items-center gap-1"
+                            >
+                              <span>{ab.nama_siswa}</span>
+                              <span
+                                className={`font-bold px-1 rounded text-[10px] ${
+                                  ab.status === 'S'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : ab.status === 'I'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-rose-100 text-rose-800'
+                                }`}
+                              >
+                                {ab.status}
+                              </span>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-emerald-700 font-medium text-[11px]">
+                          ✓ Nihil (Semua siswa hadir)
+                        </span>
+                      )}
+                    </div>
+
+                    {agenda.kejadian &&
+                      agenda.kejadian.length > 0 &&
+                      agenda.kejadian[0].uraian_kejadian && (
+                        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                          <span className="font-bold text-slate-700 block mb-1 text-[11px] uppercase tracking-wider">
+                            Catatan Kejadian:
+                          </span>
+                          <p className="text-slate-700 leading-relaxed text-xs">
+                            {agenda.kejadian[0].uraian_kejadian}
+                          </p>
+                        </div>
+                      )}
+                  </div>
+                </div>
+
+                {/* Table KBM Sheet Style (Desktop >= md) */}
+                <div className="hidden md:block p-3 sm:p-4 space-y-3">
                   <div className="overflow-x-auto border border-slate-200 rounded">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
@@ -203,7 +309,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                     </table>
                   </div>
 
-                  {/* Absensi & Kejadian Note */}
+                  {/* Absensi & Kejadian Note (Desktop) */}
                   <div className="flex flex-col sm:flex-row gap-2.5 text-xs">
                     <div className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded">
                       <span className="font-bold text-slate-700 block mb-0.5">

@@ -105,7 +105,7 @@ function MainApp() {
       )}
 
       {/* Main Content */}
-      <main className={`flex-1 max-w-7xl w-full mx-auto ${activeView === 'dev' ? 'p-2 sm:p-4 lg:p-6 pb-20 md:pb-6' : 'p-3 sm:p-5 lg:p-6 pb-20 md:pb-6'}`}>
+      <main className={`flex-1 max-w-7xl w-full mx-auto ${activeView === 'dev' ? 'p-2 sm:p-4 lg:p-6 pb-20 md:pb-6' : 'p-3 sm:p-5 lg:p-6 pb-24 md:pb-6'}`}>
         {activeView === 'agenda' && (
           <InputAgenda
             editData={editingAgenda}
@@ -141,8 +141,8 @@ function MainApp() {
         )}
       </main>
 
-      {/* Clean Minimal Footer (Disembunyikan di mobile saat admin aktif agar tidak bentrok) */}
-      <footer className={`border-t border-slate-200 bg-white py-3 text-center text-[11px] text-slate-400 no-print mt-auto ${activeView === 'dev' ? 'hidden md:block' : ''}`}>
+      {/* Clean Minimal Footer (Disembunyikan di mobile agar tidak bentrok dengan bottom nav) */}
+      <footer className="border-t border-slate-200 bg-white py-3 text-center text-[11px] text-slate-400 no-print mt-auto hidden md:block">
         SDIT AS-SYIFA &bull; Agenda Kelas &copy; {new Date().getFullYear()}
       </footer>
 
