@@ -146,3 +146,5 @@ export interface KotakSaran {
   is_anonim: boolean;
   created_at?: string;
 }
+
+export * from './schedule';

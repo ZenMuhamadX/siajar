@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   LogOut,
   ShieldCheck,
@@ -7,6 +6,7 @@ import {
   FileEdit,
   History,
   MessageSquarePlus,
+  CalendarDays,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -16,12 +16,14 @@ interface NavbarProps {
   currentView: MainViewType;
   onToggleView: (view: MainViewType) => void;
   onOpenKotakSaran: () => void;
+  onOpenSchedule?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   currentView,
   onToggleView,
   onOpenKotakSaran,
+  onOpenSchedule,
 }) => {
   const { activeTeacherName, isAdmin, signOut } = useAuth();
 
@@ -71,6 +73,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <History className="w-3.5 h-3.5" />
                 <span>Riwayat Agenda</span>
               </button>
+
+              {onOpenSchedule && (
+                <button
+                  onClick={onOpenSchedule}
+                  className="px-2.5 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition"
+                  title="Lihat Jadwal Mengajar Saya"
+                >
+                  <CalendarDays className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Jadwal Saya</span>
+                </button>
+              )}
 
               <button
                 onClick={onOpenKotakSaran}
@@ -154,6 +167,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           <History className={`w-5 h-5 mb-0.5 ${currentView === 'riwayat' ? 'stroke-[2.5]' : ''}`} />
           <span className="text-[10px]">Riwayat</span>
         </button>
+
+        {onOpenSchedule && (
+          <button
+            onClick={onOpenSchedule}
+            className="flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg text-purple-700 hover:text-purple-900 transition min-h-[44px]"
+          >
+            <CalendarDays className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px]">Jadwal</span>
+          </button>
+        )}
 
         <button
           onClick={onOpenKotakSaran}

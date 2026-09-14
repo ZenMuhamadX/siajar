@@ -38,7 +38,6 @@ import {
   Camera,
   Image as ImageIcon,
   Eye,
-  RefreshCw,
 } from 'lucide-react';
 
 const DRAFT_KEY = 'sdit_agenda_draft';

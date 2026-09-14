@@ -6,6 +6,7 @@ import { RiwayatAgenda } from './pages/RiwayatAgenda';
 import { DevPanel } from './pages/DevPanel';
 import { LoginPage } from './pages/LoginPage';
 import { KotakSaranModal } from './components/KotakSaranModal';
+import { TeacherScheduleModal } from './components/TeacherScheduleModal';
 import { ToastContainer, type ToastMessage } from './components/Toast';
 import type { FullAgenda } from './types';
 import {
@@ -16,6 +17,7 @@ import {
   GraduationCap,
   BookOpen,
   MessageSquare,
+  CalendarDays,
 } from 'lucide-react';
 
 function MainApp() {
@@ -23,9 +25,10 @@ function MainApp() {
   const [currentView, setCurrentView] = useState<MainViewType>(() => {
     return window.location.pathname === '/admin' ? 'dev' : 'agenda';
   });
-  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'agenda' | 'rekap' | 'siswa' | 'guru' | 'mapel' | 'saran'>('overview');
+  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'agenda' | 'jadwal' | 'rekap' | 'siswa' | 'guru' | 'mapel' | 'saran'>('overview');
   const [editingAgenda, setEditingAgenda] = useState<FullAgenda | null>(null);
   const [isKotakSaranOpen, setIsKotakSaranOpen] = useState(false);
+  const [isTeacherScheduleOpen, setIsTeacherScheduleOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   // Synchronize browser history / URL path (/admin vs /)
@@ -101,6 +104,7 @@ function MainApp() {
           currentView={activeView}
           onToggleView={handleNavigateView}
           onOpenKotakSaran={() => setIsKotakSaranOpen(true)}
+          onOpenSchedule={() => setIsTeacherScheduleOpen(true)}
         />
       )}
 
@@ -159,6 +163,18 @@ function MainApp() {
           >
             <LayoutDashboard className="w-4 h-4 mb-0.5" />
             <span className="text-[9px]">Ringkas</span>
+          </button>
+
+          <button
+            onClick={() => setAdminSubTab('jadwal')}
+            className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition ${
+              adminSubTab === 'jadwal'
+                ? 'text-purple-400 font-bold bg-slate-800/80'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <CalendarDays className="w-4 h-4 mb-0.5" />
+            <span className="text-[9px]">Jadwal</span>
           </button>
 
           <button
@@ -229,6 +245,13 @@ function MainApp() {
         onClose={() => setIsKotakSaranOpen(false)}
         activeTeacherName={activeTeacherName}
         showToast={showToast}
+      />
+
+      {/* Modal Jadwal Mengajar Guru */}
+      <TeacherScheduleModal
+        isOpen={isTeacherScheduleOpen}
+        onClose={() => setIsTeacherScheduleOpen(false)}
+        teacherName={activeTeacherName || ''}
       />
 
       {/* Toast Notification Container */}

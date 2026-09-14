@@ -5,6 +5,7 @@ import { DataSiswa } from './DataSiswa';
 import { DataGuru } from './DataGuru';
 import { DataMapel } from './DataMapel';
 import { KotakSaranList } from './admin/KotakSaranList';
+import { ScheduleManagement } from './admin/ScheduleManagement';
 import type { FullAgenda } from '../types';
 import {
   LogOut,
@@ -17,6 +18,7 @@ import {
   MessageSquare,
   ArrowLeft,
   ShieldCheck,
+  CalendarDays,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -28,7 +30,7 @@ interface DevPanelProps {
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
 }
 
-export type DevSubTab = 'overview' | 'agenda' | 'rekap' | 'siswa' | 'guru' | 'mapel' | 'saran';
+export type DevSubTab = 'overview' | 'agenda' | 'jadwal' | 'rekap' | 'siswa' | 'guru' | 'mapel' | 'saran';
 
 export const DevPanel: React.FC<DevPanelProps> = ({
   subTab,
@@ -85,6 +87,18 @@ export const DevPanel: React.FC<DevPanelProps> = ({
           >
             <FileEdit className="w-3.5 h-3.5" />
             <span>Isi/Koreksi Agenda</span>
+          </button>
+
+          <button
+            onClick={() => onSubTabChange('jadwal')}
+            className={`px-3 py-1.5 rounded-md font-medium transition flex items-center gap-1.5 ${
+              subTab === 'jadwal'
+                ? 'bg-purple-600 text-white font-bold shadow-xs'
+                : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+            }`}
+          >
+            <CalendarDays className="w-3.5 h-3.5" />
+            <span>Jadwal</span>
           </button>
 
           <button
@@ -158,6 +172,7 @@ export const DevPanel: React.FC<DevPanelProps> = ({
           <span className="text-xs font-bold text-slate-800 capitalize">
             {subTab === 'overview' && 'Ringkasan Dashboard'}
             {subTab === 'agenda' && 'Isi / Koreksi Agenda'}
+            {subTab === 'jadwal' && 'Jadwal Sekolah'}
             {subTab === 'rekap' && 'Rekapitulasi'}
             {subTab === 'siswa' && 'Data Siswa'}
             {subTab === 'guru' && 'Data Guru'}
@@ -211,6 +226,7 @@ export const DevPanel: React.FC<DevPanelProps> = ({
             </button>
           </div>
         )}
+        {subTab === 'jadwal' && <ScheduleManagement showToast={showToast} />}
         {subTab === 'rekap' && (
           <RekapAgenda
             showToast={showToast}
