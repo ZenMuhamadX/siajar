@@ -53,30 +53,20 @@ export async function getDaftarGuru(): Promise<Guru[]> {
   return data || [];
 }
 
-export async function addGuru(nama: string, kelasList?: string[]): Promise<Guru> {
+export async function addGuru(nama: string): Promise<Guru> {
   const { data, error } = await supabase
     .from('guru')
     .insert([{ nama_guru: nama.trim() }])
     .select()
     .single();
   if (error) throw error;
-
-  if (kelasList && kelasList.length > 0) {
-    const rows = kelasList.map((k) => ({
-      nama_guru: nama.trim(),
-      kelas: k,
-    }));
-    await supabase.from('guru_kelas').insert(rows);
-  }
-
   return data;
 }
 
 export async function updateGuru(
   id: string,
   namaLama: string,
-  namaBaru: string,
-  kelasList?: string[]
+  namaBaru: string
 ): Promise<void> {
   const { error } = await supabase
     .from('guru')
@@ -84,14 +74,14 @@ export async function updateGuru(
     .eq('id', id);
   if (error) throw error;
 
-  // Sync guru_kelas
-  await supabase.from('guru_kelas').delete().eq('nama_guru', namaLama.trim());
-  if (kelasList && kelasList.length > 0) {
-    const rows = kelasList.map((k) => ({
-      nama_guru: namaBaru.trim(),
-      kelas: k,
-    }));
-    await supabase.from('guru_kelas').insert(rows);
+  // Sync legacy guru_kelas name if any row remains
+  try {
+    await supabase
+      .from('guru_kelas')
+      .update({ nama_guru: namaBaru.trim() })
+      .eq('nama_guru', namaLama.trim());
+  } catch (err) {
+    // Ignore legacy sync error
   }
 }
 
@@ -99,8 +89,12 @@ export async function deleteGuru(id: string, nama: string): Promise<void> {
   const { error } = await supabase.from('guru').delete().eq('id', id);
   if (error) throw error;
 
-  // Hapus relasi kelas
-  await supabase.from('guru_kelas').delete().eq('nama_guru', nama.trim());
+  // Hapus relasi kelas legacy jika ada
+  try {
+    await supabase.from('guru_kelas').delete().eq('nama_guru', nama.trim());
+  } catch (err) {
+    // Ignore legacy sync error
+  }
 }
 
 // ----------------- MATA PELAJARAN SERVICES -----------------

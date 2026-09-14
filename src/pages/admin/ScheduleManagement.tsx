@@ -17,7 +17,6 @@ import {
   updateSchedule,
   setScheduleStatus,
   deleteSchedule,
-  seedAcademicYearAndReferenceSchedule,
 } from '../../services/scheduleService';
 import { getDaftarGuru, getDaftarMapel } from '../../services/agendaService';
 import { PageHeader } from '../../components/admin/PageHeader';
@@ -33,7 +32,6 @@ import {
   List,
   AlertTriangle,
   RefreshCw,
-  Sparkles,
   CalendarDays,
   Clock,
   BookOpen,
@@ -259,31 +257,31 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
     }
   };
 
-  // Seed reference
-  const handleSeedReference = async () => {
-    if (
-      confirm(
-        'Generate jadwal referensi otomatis 2026/2027 untuk seluruh kelas? Jadwal yang sudah ada tidak akan diduplikasi.'
-      )
-    ) {
-      try {
-        setIsLoading(true);
-        const res = await seedAcademicYearAndReferenceSchedule(
-          teachers.map((t) => t.nama_guru),
-          selectedAYId
-        );
-        showToast(
-          'success',
-          `Sukses mengenerate ${res.createdCount} slot jadwal referensi 2026/2027!`
-        );
-        await loadData();
-      } catch (err: any) {
-        showToast('error', 'Gagal generate referensi: ' + (err?.message || ''));
-      } finally {
-        setIsLoading(false);
-      }
-    }
-  };
+  // // Seed reference
+  // const handleSeedReference = async () => {
+  //   if (
+  //     confirm(
+  //       'Generate jadwal referensi otomatis 2026/2027 untuk seluruh kelas? Jadwal yang sudah ada tidak akan diduplikasi.'
+  //     )
+  //   ) {
+  //     try {
+  //       setIsLoading(true);
+  //       const res = await seedAcademicYearAndReferenceSchedule(
+  //         teachers.map((t) => t.nama_guru),
+  //         selectedAYId
+  //       );
+  //       showToast(
+  //         'success',
+  //         `Sukses mengenerate ${res.createdCount} slot jadwal referensi 2026/2027!`
+  //       );
+  //       await loadData();
+  //     } catch (err: any) {
+  //       showToast('error', 'Gagal generate referensi: ' + (err?.message || ''));
+  //     } finally {
+  //       setIsLoading(false);
+  //     }
+  //   }
+  // };
 
   const filteredSchedules = schedules.filter((s) => {
     if (filterDay !== 'ALL' && s.day !== filterDay) return false;
@@ -301,14 +299,14 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
         description="Kelola jadwal pelajaran mingguan, penugasan guru, dan slot jam pelajaran."
         action={
           <div className="flex items-center gap-2">
-            <button
+            {/* <button
               onClick={handleSeedReference}
               className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-xs"
               title="Generate Jadwal Referensi 2026/2027"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-600" />
               <span className="hidden sm:inline">Seed 2026/2027</span>
-            </button>
+            </button> */}
 
             <button
               onClick={handleOpenCreate}

@@ -398,96 +398,96 @@ export async function deleteSchedule(id: string): Promise<void> {
   saveLocalSchedules(local);
 }
 
-// ---------------------------------------------------------------------------
-// REFERENCE SEEDING (2026/2027)
-// ---------------------------------------------------------------------------
+// // ---------------------------------------------------------------------------
+// // REFERENCE SEEDING (2026/2027)
+// // ---------------------------------------------------------------------------
 
-export async function seedAcademicYearAndReferenceSchedule(
-  teachers: string[],
-  academicYearId?: string
-): Promise<{ academicYear: AcademicYear; createdCount: number }> {
-  // 1. Ensure Academic Year exists
-  let ay: AcademicYear;
-  const existingAYs = await getAcademicYears();
-  let found = existingAYs.find((y) => y.name === '2026/2027');
+// export async function seedAcademicYearAndReferenceSchedule(
+//   teachers: string[],
+//   academicYearId?: string
+// ): Promise<{ academicYear: AcademicYear; createdCount: number }> {
+//   // 1. Ensure Academic Year exists
+//   let ay: AcademicYear;
+//   const existingAYs = await getAcademicYears();
+//   let found = existingAYs.find((y) => y.name === '2026/2027');
 
-  if (!found) {
-    ay = await createAcademicYear({
-      name: '2026/2027',
-      start_date: '2026-07-15',
-      end_date: '2027-06-25',
-      status: 'ACTIVE',
-    });
-  } else {
-    ay = found;
-    if (ay.status !== 'ACTIVE') {
-      await setActiveAcademicYear(ay.id);
-      ay.status = 'ACTIVE';
-    }
-  }
+//   if (!found) {
+//     ay = await createAcademicYear({
+//       name: '2026/2027',
+//       start_date: '2026-07-15',
+//       end_date: '2027-06-25',
+//       status: 'ACTIVE',
+//     });
+//   } else {
+//     ay = found;
+//     if (ay.status !== 'ACTIVE') {
+//       await setActiveAcademicYear(ay.id);
+//       ay.status = 'ACTIVE';
+//     }
+//   }
 
-  const targetAyId = academicYearId || ay.id;
-  const existingSchedules = await getSchedules({ academicYearId: targetAyId });
+//   const targetAyId = academicYearId || ay.id;
+//   const existingSchedules = await getSchedules({ academicYearId: targetAyId });
 
-  // Standard bell schedule Monday - Thursday
-  const standardPeriodsSeninKamis = [
-    { period: 1, start: '07:30', end: '08:05' },
-    { period: 2, start: '08:05', end: '08:40' },
-    { period: 3, start: '08:40', end: '09:15' },
-    { period: 4, start: '09:35', end: '10:10' },
-    { period: 5, start: '10:10', end: '10:45' },
-    { period: 6, start: '10:45', end: '11:20' },
-    { period: 7, start: '11:20', end: '11:55' },
-    { period: 8, start: '12:35', end: '13:05' },
-    { period: 9, start: '13:05', end: '13:35' },
-    { period: 10, start: '13:35', end: '14:10' },
-  ];
+//   // Standard bell schedule Monday - Thursday
+//   const standardPeriodsSeninKamis = [
+//     { period: 1, start: '07:30', end: '08:05' },
+//     { period: 2, start: '08:05', end: '08:40' },
+//     { period: 3, start: '08:40', end: '09:15' },
+//     { period: 4, start: '09:35', end: '10:10' },
+//     { period: 5, start: '10:10', end: '10:45' },
+//     { period: 6, start: '10:45', end: '11:20' },
+//     { period: 7, start: '11:20', end: '11:55' },
+//     { period: 8, start: '12:35', end: '13:05' },
+//     { period: 9, start: '13:05', end: '13:35' },
+//     { period: 10, start: '13:35', end: '14:10' },
+//   ];
 
-  const classes = ['KELAS 1', 'KELAS 2', 'KELAS 3', 'KELAS 4', 'KELAS 5', 'KELAS 6'];
+//   const classes = ['KELAS 1', 'KELAS 2', 'KELAS 3', 'KELAS 4', 'KELAS 5', 'KELAS 6'];
 
-  const defaultTeacherForClass: Record<string, string> = {
-    'KELAS 1': 'Ikfina Khoirun Nisa, S.Pd.',
-    'KELAS 2': 'Dian Kusumawati, S.Pd.',
-    'KELAS 3': 'Eva Trisnawati, S.Pd.',
-    'KELAS 4': 'Siti Nur Arafah, S.Pd.',
-    'KELAS 5': 'Nur Ajizah Romadi, S.Pd.',
-    'KELAS 6': 'Ela Siti Nurlalela, S.Pd.',
-  };
+//   const defaultTeacherForClass: Record<string, string> = {
+//     'KELAS 1': 'Ikfina Khoirun Nisa, S.Pd.',
+//     'KELAS 2': 'Dian Kusumawati, S.Pd.',
+//     'KELAS 3': 'Eva Trisnawati, S.Pd.',
+//     'KELAS 4': 'Siti Nur Arafah, S.Pd.',
+//     'KELAS 5': 'Nur Ajizah Romadi, S.Pd.',
+//     'KELAS 6': 'Ela Siti Nurlalela, S.Pd.',
+//   };
 
-  let count = 0;
+//   let count = 0;
 
-  // Build a standard seed matrix for Monday
-  for (const cls of classes) {
-    const defaultTeacher = defaultTeacherForClass[cls] || teachers[0] || 'Guru SDIT';
-    for (const p of standardPeriodsSeninKamis.slice(0, 5)) {
-      // Check if row exists
-      const exists = existingSchedules.some(
-        (s) => s.day === 'MONDAY' && s.class_id === cls && s.period_number === p.period
-      );
+//   // Build a standard seed matrix for Monday
+//   for (const cls of classes) {
+//     const defaultTeacher = defaultTeacherForClass[cls] || teachers[0] || 'Guru SDIT';
+//     for (const p of standardPeriodsSeninKamis.slice(0, 5)) {
+//       // Check if row exists
+//       const exists = existingSchedules.some(
+//         (s) => s.day === 'MONDAY' && s.class_id === cls && s.period_number === p.period
+//       );
 
-      if (!exists) {
-        const item: Omit<ScheduleItem, 'id' | 'created_at' | 'updated_at'> = {
-          academic_year_id: targetAyId,
-          day: 'MONDAY',
-          period_number: p.period,
-          start_time: p.start,
-          end_time: p.end,
-          class_id: cls,
-          subject_name: p.period % 2 === 0 ? 'Matematika' : 'Bahasa Indonesia',
-          teacher_name: defaultTeacher,
-          status: 'ACTIVE',
-          activity_type: 'KBM',
-        };
+//       if (!exists) {
+//         const item: Omit<ScheduleItem, 'id' | 'created_at' | 'updated_at'> = {
+//           academic_year_id: targetAyId,
+//           day: 'MONDAY',
+//           period_number: p.period,
+//           start_time: p.start,
+//           end_time: p.end,
+//           class_id: cls,
+//           subject_name: p.period % 2 === 0 ? 'Matematika' : 'Bahasa Indonesia',
+//           teacher_name: defaultTeacher,
+//           status: 'ACTIVE',
+//           activity_type: 'KBM',
+//         };
 
-        try {
-          await createSchedule(item);
-          count++;
-        } catch (err) {
-          console.warn(`Skipping seed collision for ${cls} period ${p.period}:`, err);
-        }
-      }
-    }
-  }
+//         try {
+//           await createSchedule(item);
+//           count++;
+//         } catch (err) {
+//           console.warn(`Skipping seed collision for ${cls} period ${p.period}:`, err);
+//         }
+//       }
+//     }
+//   }
 
-  return { academicYear: ay, createdCount: count };
-}
+//   return { academicYear: ay, createdCount: count };
+// }

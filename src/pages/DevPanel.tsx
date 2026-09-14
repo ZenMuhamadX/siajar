@@ -7,6 +7,7 @@ import { RekapAgenda } from './RekapAgenda';
 import { DataSiswa } from './DataSiswa';
 import { DataGuru } from './DataGuru';
 import { DataMapel } from './DataMapel';
+import { HomeroomManagement } from './admin/HomeroomManagement';
 import { KotakSaranList } from './admin/KotakSaranList';
 import { EkskulPage } from './admin/EkskulPage';
 import { PengaturanPage } from './admin/PengaturanPage';
@@ -101,7 +102,10 @@ export const DevPanel: React.FC<DevPanelProps> = ({
       {/* 7. Mapel */}
       {subTab === 'mapel' && <DataMapel showToast={showToast} />}
 
-      {/* 8. Ekstrakurikuler */}
+      {/* 8. Wali Kelas */}
+      {subTab === 'wali_kelas' && <HomeroomManagement showToast={showToast} />}
+
+      {/* 9. Ekstrakurikuler */}
       {subTab === 'ekskul' && <EkskulPage />}
 
       {/* 9. Tahun Ajaran */}

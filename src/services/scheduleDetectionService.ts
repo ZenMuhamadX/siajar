@@ -34,6 +34,8 @@ export function formatCurrentTime(d: Date): string {
   return `${hours}:${minutes}`;
 }
 
+export type SlotStatus = 'UPCOMING' | 'IN_PROGRESS' | 'COMPLETED' | 'OVERDUE';
+
 export interface DetectScheduleResult {
   schedule: ScheduleItem | null;
   allTodaySchedules: ScheduleItem[];
@@ -43,6 +45,241 @@ export interface DetectScheduleResult {
   reason?: 'WEEKEND' | 'NO_ACTIVE_ACADEMIC_YEAR' | 'NO_SCHEDULE_CURRENT_TIME' | 'OK';
 }
 
+export interface TimelineSlot {
+  schedule: ScheduleItem;
+  status: SlotStatus;
+  existingAgenda: FullAgenda | null;
+  hasConflict?: boolean;
+}
+
+export interface TeacherDailyTimelineResult {
+  date: string; // YYYY-MM-DD
+  dayName: string;
+  dayKey: ScheduleDay | null;
+  academicYear: any | null;
+  slots: TimelineSlot[];
+  activeSlot: TimelineSlot | null;
+  conflictDetected: boolean;
+  conflictMessage?: string;
+  reason?: 'WEEKEND' | 'NO_ACTIVE_ACADEMIC_YEAR' | 'NO_SCHEDULES' | 'OK';
+}
+
+/**
+ * Computes slot status based on time, date, and existing agenda.
+ */
+export function computeSlotStatus(
+  slot: ScheduleItem,
+  existingAgenda: FullAgenda | null,
+  targetDateStr: string,
+  now: Date = new Date()
+): SlotStatus {
+  if (existingAgenda) {
+    return 'COMPLETED';
+  }
+
+  const todayStr = now.toISOString().split('T')[0];
+
+  // Future date
+  if (targetDateStr > todayStr) {
+    return 'UPCOMING';
+  }
+
+  // Past date
+  if (targetDateStr < todayStr) {
+    return 'OVERDUE';
+  }
+
+  // Today
+  const currentTimeStr = formatCurrentTime(now);
+  const currentMin = timeToMinutes(currentTimeStr);
+  const startMin = timeToMinutes(slot.start_time);
+  const endMin = timeToMinutes(slot.end_time);
+
+  if (currentMin < startMin) {
+    return 'UPCOMING';
+  }
+  if (currentMin >= startMin && currentMin <= endMin) {
+    return 'IN_PROGRESS';
+  }
+  return 'OVERDUE';
+}
+
+/**
+ * Recomputes slot statuses locally using current time (no DB refetch needed).
+ */
+export function recomputeTimelineSlotStatuses(
+  slots: TimelineSlot[],
+  targetDateStr: string,
+  now: Date = new Date()
+): { slots: TimelineSlot[]; activeSlot: TimelineSlot | null } {
+  const updatedSlots = slots.map((item) => ({
+    ...item,
+    status: computeSlotStatus(item.schedule, item.existingAgenda, targetDateStr, now),
+  }));
+
+  const activeSlot = updatedSlots.find((s) => s.status === 'IN_PROGRESS') || null;
+
+  return {
+    slots: updatedSlots,
+    activeSlot,
+  };
+}
+
+/**
+ * Loads the complete daily schedule timeline for a teacher on a given date.
+ */
+export async function getTeacherDailyTimeline(
+  teacherName: string,
+  targetDate: Date | string,
+  now: Date = new Date()
+): Promise<TeacherDailyTimelineResult> {
+  const targetDateObj = typeof targetDate === 'string' ? new Date(targetDate + 'T00:00:00') : targetDate;
+  const targetDateStr = typeof targetDate === 'string' ? targetDate : targetDate.toISOString().split('T')[0];
+
+  const dayKey = getScheduleDayFromDate(targetDateObj);
+  const dayNameMap: Record<string, string> = {
+    MONDAY: 'Senin',
+    TUESDAY: 'Selasa',
+    WEDNESDAY: 'Rabu',
+    THURSDAY: 'Kamis',
+    FRIDAY: 'Jumat',
+  };
+  const dayName = dayKey ? dayNameMap[dayKey] : 'Akhir Pekan';
+
+  if (!teacherName) {
+    return {
+      date: targetDateStr,
+      dayName,
+      dayKey,
+      academicYear: null,
+      slots: [],
+      activeSlot: null,
+      conflictDetected: false,
+      reason: 'NO_SCHEDULES',
+    };
+  }
+
+  if (!dayKey) {
+    return {
+      date: targetDateStr,
+      dayName,
+      dayKey: null,
+      academicYear: null,
+      slots: [],
+      activeSlot: null,
+      conflictDetected: false,
+      reason: 'WEEKEND',
+    };
+  }
+
+  const academicYears = await getAcademicYears();
+  const activeAY = academicYears.find((ay) => ay.status === 'ACTIVE') || academicYears[0];
+  if (!activeAY) {
+    return {
+      date: targetDateStr,
+      dayName,
+      dayKey,
+      academicYear: null,
+      slots: [],
+      activeSlot: null,
+      conflictDetected: false,
+      reason: 'NO_ACTIVE_ACADEMIC_YEAR',
+    };
+  }
+
+  // Fetch teacher schedules for this day
+  const teacherSchedules = await getSchedules({
+    academicYearId: activeAY.id,
+    day: dayKey,
+    teacherName: teacherName.trim(),
+    status: 'ACTIVE',
+  });
+
+  if (teacherSchedules.length === 0) {
+    return {
+      date: targetDateStr,
+      dayName,
+      dayKey,
+      academicYear: activeAY,
+      slots: [],
+      activeSlot: null,
+      conflictDetected: false,
+      reason: 'NO_SCHEDULES',
+    };
+  }
+
+  // Fetch existing agendas for this date
+  let agendasOnDate: FullAgenda[] = [];
+  try {
+    agendasOnDate = await getRekapAgenda({
+      tanggal: targetDateStr,
+      nama_guru: teacherName.trim(),
+    });
+  } catch (err) {
+    console.warn('Gagal memuat rekap agenda tanggal:', targetDateStr, err);
+  }
+
+  // Check schedule conflicts (overlaps on same day for this teacher)
+  let conflictDetected = false;
+  let conflictMessage: string | undefined;
+
+  for (let i = 0; i < teacherSchedules.length; i++) {
+    for (let j = i + 1; j < teacherSchedules.length; j++) {
+      const s1 = teacherSchedules[i];
+      const s2 = teacherSchedules[j];
+      const start1 = timeToMinutes(s1.start_time);
+      const end1 = timeToMinutes(s1.end_time);
+      const start2 = timeToMinutes(s2.start_time);
+      const end2 = timeToMinutes(s2.end_time);
+
+      if (Math.max(start1, start2) < Math.min(end1, end2)) {
+        conflictDetected = true;
+        conflictMessage = `Terdapat jadwal yang bertabrakan pada waktu ini (${s1.class_id} ${s1.subject_name} & ${s2.class_id} ${s2.subject_name}). Hubungi administrator.`;
+        break;
+      }
+    }
+    if (conflictDetected) break;
+  }
+
+  // Map each schedule to TimelineSlot
+  const rawSlots: TimelineSlot[] = teacherSchedules.map((sch) => {
+    // Find matching agenda
+    const foundAgenda = agendasOnDate.find(
+      (a) =>
+        a.header.schedule_id === sch.id ||
+        (a.header.kelas === sch.class_id &&
+          a.header.tanggal === targetDateStr &&
+          a.kbm.some(
+            (k) =>
+              k.nama_guru.trim().toLowerCase() === teacherName.trim().toLowerCase() &&
+              k.mapel.trim().toLowerCase() === sch.subject_name.trim().toLowerCase()
+          ))
+    ) || null;
+
+    const status = computeSlotStatus(sch, foundAgenda, targetDateStr, now);
+
+    return {
+      schedule: sch,
+      status,
+      existingAgenda: foundAgenda,
+    };
+  });
+
+  const activeSlot = rawSlots.find((s) => s.status === 'IN_PROGRESS') || null;
+
+  return {
+    date: targetDateStr,
+    dayName,
+    dayKey,
+    academicYear: activeAY,
+    slots: rawSlots,
+    activeSlot,
+    conflictDetected,
+    conflictMessage,
+    reason: 'OK',
+  };
+}
+
 /**
  * Detects the active schedule for the logged-in teacher based on current day and time.
  * Rules:
@@ -50,8 +287,7 @@ export interface DetectScheduleResult {
  * 2. Active schedule status only
  * 3. Exact matching: teacher_name = logged-in teacher
  * 4. Day = current day (Monday - Friday)
- * 5. Time range: start_time <= current_time < end_time
- *    (e.g., 08:05–08:40 -> valid from 08:05:00 to 08:39:59. At 08:40:00 next slot activates)
+ * 5. Time range: start_time <= current_time <= end_time
  * 6. Conflict detection: if >1 overlapping schedule found for same teacher, flags conflict!
  * 7. Checks if an agenda has already been created today for this schedule.
  */
@@ -69,9 +305,21 @@ export async function detectCurrentTeacherSchedule(
     };
   }
 
-  // 1. Check day
-  const currentDay = getScheduleDayFromDate(now);
-  if (!currentDay) {
+  const todayStr = now.toISOString().split('T')[0];
+  const timeline = await getTeacherDailyTimeline(teacherName, todayStr, now);
+
+  if (timeline.conflictDetected) {
+    return {
+      schedule: null,
+      allTodaySchedules: timeline.slots.map((s) => s.schedule),
+      existingAgenda: null,
+      conflictDetected: true,
+      conflictMessage: timeline.conflictMessage,
+      reason: 'NO_SCHEDULE_CURRENT_TIME',
+    };
+  }
+
+  if (timeline.reason === 'WEEKEND') {
     return {
       schedule: null,
       allTodaySchedules: [],
@@ -81,10 +329,7 @@ export async function detectCurrentTeacherSchedule(
     };
   }
 
-  // 2. Get active academic year
-  const academicYears = await getAcademicYears();
-  const activeAY = academicYears.find((ay) => ay.status === 'ACTIVE');
-  if (!activeAY) {
+  if (timeline.reason === 'NO_ACTIVE_ACADEMIC_YEAR') {
     return {
       schedule: null,
       allTodaySchedules: [],
@@ -94,77 +339,12 @@ export async function detectCurrentTeacherSchedule(
     };
   }
 
-  // 3. Get all active schedules for teacher on this day
-  const teacherSchedules = await getSchedules({
-    academicYearId: activeAY.id,
-    day: currentDay,
-    teacherName: teacherName.trim(),
-    status: 'ACTIVE',
-  });
-
-  const currentTimeStr = formatCurrentTime(now);
-  const currentMinutes = timeToMinutes(currentTimeStr);
-
-  // Filter overlapping slots: start_time <= current_time < end_time
-  const matchingSchedules = teacherSchedules.filter((slot) => {
-    const startMin = timeToMinutes(slot.start_time);
-    const endMin = timeToMinutes(slot.end_time);
-    return currentMinutes >= startMin && currentMinutes < endMin;
-  });
-
-  // Check conflict: multiple active overlapping schedules for same teacher
-  if (matchingSchedules.length > 1) {
-    const msg = `Terdeteksi ${matchingSchedules.length} jadwal bentrok aktif untuk Anda pada jam ini (${currentTimeStr}): ${matchingSchedules
-      .map((s) => `${s.class_id} - ${s.subject_name} (${s.start_time.slice(0, 5)} - ${s.end_time.slice(0, 5)})`)
-      .join(', ')}.`;
-    console.error('CRITICAL SCHEDULE CONFLICT:', msg);
-    return {
-      schedule: null,
-      allTodaySchedules: teacherSchedules,
-      existingAgenda: null,
-      conflictDetected: true,
-      conflictMessage: msg,
-      reason: 'NO_SCHEDULE_CURRENT_TIME',
-    };
-  }
-
-  const activeSlot = matchingSchedules[0] || null;
-
-  // 4. Check if agenda already created for this schedule today
-  let existingAgenda: FullAgenda | null = null;
-  const todayDateStr = now.toISOString().split('T')[0];
-
-  if (activeSlot) {
-    try {
-      const todayAgendas = await getRekapAgenda({
-        kelas: activeSlot.class_id,
-        tanggal: todayDateStr,
-      });
-
-      // Match by schedule_id or header
-      const found = todayAgendas.find(
-        (a) =>
-          a.header.schedule_id === activeSlot.id ||
-          (a.header.kelas === activeSlot.class_id &&
-            a.header.tanggal === todayDateStr &&
-            a.kbm.some(
-              (k) =>
-                k.nama_guru.trim().toLowerCase() === teacherName.trim().toLowerCase() &&
-                k.mapel.trim().toLowerCase() === activeSlot.subject_name.trim().toLowerCase()
-            ))
-      );
-      if (found) {
-        existingAgenda = found;
-      }
-    } catch (err) {
-      console.warn('Error checking existing agenda for schedule:', err);
-    }
-  }
+  const activeSlot = timeline.activeSlot;
 
   return {
-    schedule: activeSlot,
-    allTodaySchedules: teacherSchedules,
-    existingAgenda,
+    schedule: activeSlot ? activeSlot.schedule : null,
+    allTodaySchedules: timeline.slots.map((s) => s.schedule),
+    existingAgenda: activeSlot ? activeSlot.existingAgenda : null,
     conflictDetected: false,
     reason: activeSlot ? 'OK' : 'NO_SCHEDULE_CURRENT_TIME',
   };

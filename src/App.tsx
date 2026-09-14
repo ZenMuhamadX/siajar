@@ -9,6 +9,7 @@ import { KotakSaranModal } from './components/KotakSaranModal';
 import { TeacherScheduleModal } from './components/TeacherScheduleModal';
 import { ToastContainer, type ToastMessage } from './components/Toast';
 import type { FullAgenda } from './types';
+import type { AdminTab } from './components/admin/AdminLayout';
 import { Loader2 } from 'lucide-react';
 
 function MainApp() {
@@ -16,7 +17,7 @@ function MainApp() {
   const [currentView, setCurrentView] = useState<MainViewType>(() => {
     return window.location.pathname === '/admin' ? 'dev' : 'agenda';
   });
-  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'agenda' | 'jadwal' | 'rekap' | 'siswa' | 'guru' | 'mapel' | 'saran'>('overview');
+  const [adminSubTab, setAdminSubTab] = useState<AdminTab>('overview');
   const [editingAgenda, setEditingAgenda] = useState<FullAgenda | null>(null);
   const [isKotakSaranOpen, setIsKotakSaranOpen] = useState(false);
   const [isTeacherScheduleOpen, setIsTeacherScheduleOpen] = useState(false);

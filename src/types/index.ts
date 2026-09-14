@@ -81,6 +81,16 @@ export interface GuruKelas {
   created_at?: string;
 }
 
+export interface HomeroomAssignment {
+  id: string;
+  academic_year_id: string;
+  class_id: string;
+  teacher_id?: string | null;
+  teacher_name: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface AgendaHeader {
   id: string;
   sekolah: string;
