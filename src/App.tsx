@@ -9,16 +9,7 @@ import { KotakSaranModal } from './components/KotakSaranModal';
 import { TeacherScheduleModal } from './components/TeacherScheduleModal';
 import { ToastContainer, type ToastMessage } from './components/Toast';
 import type { FullAgenda } from './types';
-import {
-  Loader2,
-  LayoutDashboard,
-  FileSpreadsheet,
-  Users,
-  GraduationCap,
-  BookOpen,
-  MessageSquare,
-  CalendarDays,
-} from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 function MainApp() {
   const { activeTeacherName, isAdmin, loading } = useAuth();
@@ -96,20 +87,39 @@ function MainApp() {
   // Non-admin cannot stay in dev view
   const activeView: MainViewType = !isAdmin && currentView === 'dev' ? 'agenda' : currentView;
 
+  if (activeView === 'dev') {
+    return (
+      <>
+        <DevPanel
+          subTab={adminSubTab}
+          onSubTabChange={(tab) => setAdminSubTab(tab as any)}
+          onBackToApp={() => handleNavigateView('agenda')}
+          onStartEditAgenda={(agenda) => {
+            handleStartEditAgenda(agenda);
+            const targetPath = '/';
+            if (window.location.pathname !== targetPath) {
+              window.history.pushState({}, '', targetPath);
+            }
+          }}
+          showToast={showToast}
+        />
+        <ToastContainer toasts={toasts} onDismiss={handleDismissToast} />
+      </>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-100/70 text-slate-800 flex flex-col font-sans">
-      {/* Top Header (Hanya muncul jika BUKAN di panel admin) */}
-      {activeView !== 'dev' && (
-        <Navbar
-          currentView={activeView}
-          onToggleView={handleNavigateView}
-          onOpenKotakSaran={() => setIsKotakSaranOpen(true)}
-          onOpenSchedule={() => setIsTeacherScheduleOpen(true)}
-        />
-      )}
+      {/* Top Header Mode Guru */}
+      <Navbar
+        currentView={activeView}
+        onToggleView={handleNavigateView}
+        onOpenKotakSaran={() => setIsKotakSaranOpen(true)}
+        onOpenSchedule={() => setIsTeacherScheduleOpen(true)}
+      />
 
-      {/* Main Content */}
-      <main className={`flex-1 max-w-7xl w-full mx-auto ${activeView === 'dev' ? 'p-2 sm:p-4 lg:p-6 pb-20 md:pb-6' : 'p-3 sm:p-5 lg:p-6 pb-24 md:pb-6'}`}>
+      {/* Main Content Guru */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 lg:p-6 pb-24 md:pb-6">
         {activeView === 'agenda' && (
           <InputAgenda
             editData={editingAgenda}
@@ -127,117 +137,12 @@ function MainApp() {
             showToast={showToast}
           />
         )}
-
-        {activeView === 'dev' && (
-          <DevPanel
-            subTab={adminSubTab}
-            onSubTabChange={(tab) => setAdminSubTab(tab)}
-            onBackToApp={() => handleNavigateView('agenda')}
-            onStartEditAgenda={(agenda) => {
-              handleStartEditAgenda(agenda);
-              const targetPath = '/';
-              if (window.location.pathname !== targetPath) {
-                window.history.pushState({}, '', targetPath);
-              }
-            }}
-            showToast={showToast}
-          />
-        )}
       </main>
 
-      {/* Clean Minimal Footer (Disembunyikan di mobile agar tidak bentrok dengan bottom nav) */}
+      {/* Clean Minimal Footer Mode Guru */}
       <footer className="border-t border-slate-200 bg-white py-3 text-center text-[11px] text-slate-400 no-print mt-auto hidden md:block">
         SDIT AS-SYIFA &bull; Agenda Kelas &copy; {new Date().getFullYear()}
       </footer>
-
-      {/* Bottom Navigation Bar KHUSUS ADMIN untuk HP / Mobile (Fixed Sticky Bottom Screen) */}
-      {activeView === 'dev' && (
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-slate-900 text-white border-t border-slate-800 shadow-2xl px-1 py-1 flex items-center justify-around no-print">
-          <button
-            onClick={() => setAdminSubTab('overview')}
-            className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition ${
-              adminSubTab === 'overview'
-                ? 'text-purple-400 font-bold bg-slate-800/80'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <LayoutDashboard className="w-4 h-4 mb-0.5" />
-            <span className="text-[9px]">Ringkas</span>
-          </button>
-
-          <button
-            onClick={() => setAdminSubTab('jadwal')}
-            className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition ${
-              adminSubTab === 'jadwal'
-                ? 'text-purple-400 font-bold bg-slate-800/80'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <CalendarDays className="w-4 h-4 mb-0.5" />
-            <span className="text-[9px]">Jadwal</span>
-          </button>
-
-          <button
-            onClick={() => setAdminSubTab('rekap')}
-            className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition ${
-              adminSubTab === 'rekap'
-                ? 'text-purple-400 font-bold bg-slate-800/80'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <FileSpreadsheet className="w-4 h-4 mb-0.5" />
-            <span className="text-[9px]">Rekap</span>
-          </button>
-
-          <button
-            onClick={() => setAdminSubTab('siswa')}
-            className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition ${
-              adminSubTab === 'siswa'
-                ? 'text-purple-400 font-bold bg-slate-800/80'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Users className="w-4 h-4 mb-0.5" />
-            <span className="text-[9px]">Siswa</span>
-          </button>
-
-          <button
-            onClick={() => setAdminSubTab('guru')}
-            className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition ${
-              adminSubTab === 'guru'
-                ? 'text-purple-400 font-bold bg-slate-800/80'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <GraduationCap className="w-4 h-4 mb-0.5" />
-            <span className="text-[9px]">Guru</span>
-          </button>
-
-          <button
-            onClick={() => setAdminSubTab('mapel')}
-            className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition ${
-              adminSubTab === 'mapel'
-                ? 'text-purple-400 font-bold bg-slate-800/80'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <BookOpen className="w-4 h-4 mb-0.5" />
-            <span className="text-[9px]">Mapel</span>
-          </button>
-
-          <button
-            onClick={() => setAdminSubTab('saran')}
-            className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition ${
-              adminSubTab === 'saran'
-                ? 'text-purple-400 font-bold bg-slate-800/80'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <MessageSquare className="w-4 h-4 mb-0.5" />
-            <span className="text-[9px]">Saran</span>
-          </button>
-        </nav>
-      )}
 
       {/* Kotak Saran Modal */}
       <KotakSaranModal

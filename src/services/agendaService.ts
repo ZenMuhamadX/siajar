@@ -199,6 +199,8 @@ export async function checkGuruKelas(namaGuru: string, kelas: string): Promise<b
 // ----------------- AGENDA SERVICES -----------------
 export interface SimpanAgendaPayload {
   agendaId?: string;
+  schedule_id?: string | null;
+  actual_teacher_name?: string | null;
   sekolah?: string;
   kelas: string;
   tanggal: string;
@@ -208,14 +210,28 @@ export interface SimpanAgendaPayload {
 }
 
 export async function simpanAgenda(payload: SimpanAgendaPayload): Promise<{ id: string }> {
-  const { agendaId, sekolah = 'SDIT AS-SYIFA', kelas, tanggal, kbm, absensi, uraian_kejadian } = payload;
+  const {
+    agendaId,
+    schedule_id,
+    actual_teacher_name,
+    sekolah = 'SDIT AS-SYIFA',
+    kelas,
+    tanggal,
+    kbm,
+    absensi,
+    uraian_kejadian,
+  } = payload;
 
   let currentAgendaId = agendaId;
+
+  const headerPayload: any = { sekolah, kelas, tanggal };
+  if (schedule_id !== undefined) headerPayload.schedule_id = schedule_id;
+  if (actual_teacher_name !== undefined) headerPayload.actual_teacher_name = actual_teacher_name;
 
   if (currentAgendaId) {
     const { error: headerErr } = await supabase
       .from('agenda_header')
-      .update({ sekolah, kelas, tanggal })
+      .update(headerPayload)
       .eq('id', currentAgendaId);
     if (headerErr) throw headerErr;
 
@@ -225,7 +241,7 @@ export async function simpanAgenda(payload: SimpanAgendaPayload): Promise<{ id: 
   } else {
     const { data: headerData, error: headerErr } = await supabase
       .from('agenda_header')
-      .insert([{ sekolah, kelas, tanggal }])
+      .insert([headerPayload])
       .select()
       .single();
     if (headerErr) throw headerErr;
@@ -315,6 +331,8 @@ export async function getRekapAgenda(filters?: {
         sekolah: item.sekolah,
         kelas: item.kelas,
         tanggal: item.tanggal,
+        schedule_id: item.schedule_id || null,
+        actual_teacher_name: item.actual_teacher_name || null,
         created_at: item.created_at,
       },
       kbm: (item.agenda_kbm || []).sort((a: any, b: any) =>

@@ -86,6 +86,8 @@ export interface AgendaHeader {
   sekolah: string;
   kelas: string;
   tanggal: string; // YYYY-MM-DD
+  schedule_id?: string | null;
+  actual_teacher_name?: string | null;
   created_at?: string;
 }
 
