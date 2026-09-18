@@ -53,7 +53,7 @@ export const DevPanel: React.FC<DevPanelProps> = ({
 
       {/* 2. Form Agenda Superuser */}
       {subTab === 'agenda' && (
-        <div className="space-y-6 max-w-4xl">
+        <div className="space-y-6">
           <PageHeader
             title="Agenda Pembelajaran"
             description="Entri jurnal harian atau koreksi agenda seluruh kelas oleh administrator."

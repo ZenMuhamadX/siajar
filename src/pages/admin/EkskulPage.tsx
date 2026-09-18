@@ -4,7 +4,7 @@ import { Activity, Sparkles } from 'lucide-react';
 
 export const EkskulPage: React.FC = () => {
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6">
       <PageHeader
         title="Ekstrakurikuler"
         description="Manajemen program ekstrakurikuler sekolah dan pembina kegiatan."

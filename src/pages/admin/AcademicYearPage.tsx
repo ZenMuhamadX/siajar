@@ -119,7 +119,7 @@ export const AcademicYearPage: React.FC<AcademicYearPageProps> = ({ showToast })
   const activeAY = academicYears.find((y) => y.status === 'ACTIVE');
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6">
       <PageHeader
         title="Tahun Ajaran"
         description="Kelola siklus tahun ajaran sekolah dan status aktif untuk pembelajaran."

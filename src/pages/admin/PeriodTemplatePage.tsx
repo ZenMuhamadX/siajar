@@ -203,7 +203,7 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
   const activeCount = templates.filter((t) => t.is_active).length;
 
   return (
-    <div className="space-y-5 max-w-4xl">
+    <div className="space-y-5">
       <PageHeader
         title="Slot Waktu (JP)"
         description="Konfigurasi Jam Pelajaran (JP) per Tahun Ajaran. Waktu JP akan otomatis digunakan saat membuat jadwal."

@@ -156,7 +156,7 @@ export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToas
   const selectedAY = academicYears.find((a) => a.id === selectedAYId);
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6">
       <PageHeader
         title="Penugasan Wali Kelas"
         description="Tetapkan guru yang bertugas sebagai wali kelas untuk setiap tingkat kelas per tahun ajaran."

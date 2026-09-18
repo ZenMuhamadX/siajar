@@ -105,7 +105,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   };
 
   return (
-    <div className="space-y-6 max-w-7xl">
+    <div className="space-y-6">
       <PageHeader
         title="Ringkasan Dashboard"
         description="Pantau kegiatan pembelajaran, status pengisian agenda hari ini, dan data master sekolah."

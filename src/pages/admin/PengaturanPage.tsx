@@ -7,7 +7,7 @@ export const PengaturanPage: React.FC = () => {
   const { activeTeacherName } = useAuth();
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       <PageHeader
         title="Pengaturan"
         description="Konfigurasi sistem SIAJAR dan parameter operasional sekolah."

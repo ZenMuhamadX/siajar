@@ -340,7 +340,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
     });
 
   return (
-    <div className="space-y-5 max-w-7xl">
+    <div className="space-y-5">
       {/* Consistent Page Header */}
       <PageHeader
         title="Jadwal Pembelajaran"
