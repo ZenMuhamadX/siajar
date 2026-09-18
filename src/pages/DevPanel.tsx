@@ -65,7 +65,7 @@ export const DevPanel: React.FC<DevPanelProps> = ({
                 Pengisian Agenda Mengajar
               </h3>
               <p className="text-xs text-slate-500 leading-relaxed">
-                Sebagai Administrator, Anda memiliki otorisasi penuh untuk mengisi, meninjau, ataupun mengoreksi data agenda kelas guru manapun secara langsung melalui form agenda utama.
+                Sebagai Administrator, Anda memiliki otorisasi penuh untuk mengisi, meninjau, ataupun mengoreksi data agenda Pembelajaran guru manapun secara langsung melalui form agenda utama.
               </p>
             </div>
 

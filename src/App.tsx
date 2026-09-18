@@ -142,7 +142,7 @@ function MainApp() {
 
       {/* Clean Minimal Footer Mode Guru */}
       <footer className="border-t border-slate-200 bg-white py-3 text-center text-[11px] text-slate-400 no-print mt-auto hidden md:block">
-        SDIT AS-SYIFA &bull; Agenda Kelas &copy; {new Date().getFullYear()}
+        SDIT AS-SYIFA &bull; Agenda Pembelajaran &copy; {new Date().getFullYear()}
       </footer>
 
       {/* Kotak Saran Modal */}

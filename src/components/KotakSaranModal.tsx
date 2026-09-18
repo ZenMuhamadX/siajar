@@ -88,7 +88,7 @@ export const KotakSaranModal: React.FC<KotakSaranModalProps> = ({
             >
               <option value="Fasilitas">Fasilitas Kelas & Sekolah</option>
               <option value="Kurikulum">Kurikulum & Pembelajaran</option>
-              <option value="Aplikasi">Aplikasi Agenda Kelas</option>
+              <option value="Aplikasi">Aplikasi Agenda Pembelajaran</option>
               <option value="Lainnya">Lainnya</option>
             </select>
           </div>

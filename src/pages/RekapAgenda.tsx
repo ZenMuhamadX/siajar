@@ -234,7 +234,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
           <div>
             <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
               <FileCheck className="w-4 h-4 text-slate-700" />
-              <span>Rekap Agenda Kelas & KBM</span>
+              <span>Rekap Agenda Pembelajaran & KBM</span>
             </h2>
             <p className="text-[11px] text-slate-500 mt-0.5">
               {getPeriodeLabel()} &bull; {agendas.length} sesi agenda ditemukan

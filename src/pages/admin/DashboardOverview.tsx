@@ -197,7 +197,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                     Status Pengisian Agenda Hari Ini
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    {formatDateIndo(todayStr)} &bull; {agendasHariIni.length} agenda kelas dibuat hari ini
+                    {formatDateIndo(todayStr)} &bull; {agendasHariIni.length} agenda pembelajaran dibuat hari ini
                   </p>
                 </div>
                 <button
@@ -271,7 +271,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
               {aktivitasTerbaru.length === 0 ? (
                 <p className="text-xs text-slate-400 italic py-6 text-center">
-                  Belum ada catatan agenda kelas.
+                  Belum ada catatan agenda pembelajaran.
                 </p>
               ) : (
                 <div className="space-y-3">

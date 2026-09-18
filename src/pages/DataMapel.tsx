@@ -104,7 +104,7 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
               {editingMapel ? 'Edit Mata Pelajaran' : 'Kelola Mata Pelajaran'}
             </h2>
             <p className="text-[11px] sm:text-xs text-slate-500">
-              Daftar mata pelajaran yang dapat dipilih guru saat pengisian agenda kelas
+              Daftar mata pelajaran yang dapat dipilih guru saat pengisian agenda Pembelajaran
             </p>
           </div>
         </div>

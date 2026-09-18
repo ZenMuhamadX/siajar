@@ -44,7 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <h1 className="font-bold text-slate-900 leading-tight text-xs sm:text-base">
                   SDIT AS-SYIFA
                 </h1>
-                <p className="text-[10px] sm:text-xs text-slate-500">Agenda Kelas</p>
+                <p className="text-[10px] sm:text-xs text-slate-500">Agenda Pembelajaran</p>
               </div>
             </div>
 

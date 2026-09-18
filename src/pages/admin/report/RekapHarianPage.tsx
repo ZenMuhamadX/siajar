@@ -35,7 +35,7 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
   const [selectedAYId, setSelectedAYId] = useState<string>('');
   const [teachers, setTeachers] = useState<Guru[]>([]);
   const [selectedTeacher, setSelectedTeacher] = useState<string>('SEMUA');
-  const [selectedClass, setSelectedClass] = useState<string>('SEMUA');
+  const [selectedClass, setSelectedClass] = useState<string>('KELAS 1');
   const [subjects, setSubjects] = useState<MataPelajaran[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>('SEMUA');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
@@ -289,7 +289,7 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
                 onChange={(e) => setSelectedClass(e.target.value)}
                 className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 bg-slate-50/50"
               >
-                <option value="SEMUA">Semua Kelas</option>
+                {/* <option value="SEMUA">Semua Kelas</option> */}
                 {DAFTAR_KELAS.map((k) => (
                   <option key={k} value={k}>
                     {k}

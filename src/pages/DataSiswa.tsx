@@ -111,7 +111,7 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
               {editingId ? 'Edit Data Siswa' : 'Kelola Data Siswa'}
             </h2>
             <p className="text-[11px] sm:text-xs text-slate-500">
-              Daftar siswa untuk pengisian absensi jurnal agenda kelas
+              Daftar siswa untuk pengisian absensi jurnal Pembelajaran
             </p>
           </div>
         </div>
