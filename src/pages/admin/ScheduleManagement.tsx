@@ -23,6 +23,8 @@ import { getPeriodTemplates } from '../../services/periodTemplateService';
 import { getDaftarGuru, getDaftarMapel } from '../../services/agendaService';
 import { PageHeader } from '../../components/admin/PageHeader';
 import {
+  CalendarDays,
+  BookOpen,
   Plus,
   Filter,
   CheckCircle2,
@@ -312,13 +314,30 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
   //   }
   // };
 
-  const filteredSchedules = schedules.filter((s) => {
-    if (filterDay !== 'ALL' && s.day !== filterDay) return false;
-    if (filterTeacher !== 'ALL' && s.teacher_name !== filterTeacher) return false;
-    if (filterClass !== 'ALL' && s.class_id !== filterClass) return false;
-    if (filterStatus !== 'ALL' && s.status !== filterStatus) return false;
-    return true;
-  });
+  const DAY_ORDER: Record<string, number> = {
+    MONDAY: 1,
+    TUESDAY: 2,
+    WEDNESDAY: 3,
+    THURSDAY: 4,
+    FRIDAY: 5,
+  };
+
+  const filteredSchedules = schedules
+    .filter((s) => {
+      if (filterDay !== 'ALL' && s.day !== filterDay) return false;
+      if (filterTeacher !== 'ALL' && s.teacher_name !== filterTeacher) return false;
+      if (filterClass !== 'ALL' && s.class_id !== filterClass) return false;
+      if (filterStatus !== 'ALL' && s.status !== filterStatus) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const dayDiff = (DAY_ORDER[a.day] || 99) - (DAY_ORDER[b.day] || 99);
+      if (dayDiff !== 0) return dayDiff;
+      if (a.period_number !== b.period_number) return a.period_number - b.period_number;
+      const timeDiff = a.start_time.localeCompare(b.start_time);
+      if (timeDiff !== 0) return timeDiff;
+      return a.class_id.localeCompare(b.class_id);
+    });
 
   return (
     <div className="space-y-5 max-w-7xl">
@@ -352,7 +371,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
       <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         {/* Left: View Mode Tabs */}
         <div className="flex items-center bg-slate-100/90 p-1 rounded-lg text-xs gap-1 self-start">
-          {/* <button
+          <button
             onClick={() => setViewMode('day')}
             className={`px-3 py-1.5 rounded-md font-semibold transition flex items-center gap-1.5 ${
               viewMode === 'day'
@@ -362,7 +381,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
           >
             <CalendarDays className="w-3.5 h-3.5" />
             <span>Per Hari</span>
-          </button> */}
+          </button>
 
           <button
             onClick={() => setViewMode('teacher')}
@@ -483,7 +502,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
         </div>
       </div>
 
-      {/* Mode 1: PER HARI (DEFAULT)
+      {/* Mode 1: PER HARI (DEFAULT) */}
       {viewMode === 'day' && (
         <div className="space-y-5">
           {SCHEDULE_DAYS.filter((d) => filterDay === 'ALL' || d.key === filterDay).map((dayObj) => {
@@ -581,7 +600,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
             );
           })}
         </div>
-      )} */}
+      )}
 
       {/* Mode 2: PER GURU */}
       {viewMode === 'teacher' && (

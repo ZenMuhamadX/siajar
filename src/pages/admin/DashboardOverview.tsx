@@ -201,10 +201,10 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   </p>
                 </div>
                 <button
-                  onClick={() => onNavigateTab('rekap')}
+                  onClick={() => onNavigateTab('rekap_harian')}
                   className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
                 >
-                  <span>Lihat Rekap</span>
+                  <span>Lihat Rekap Harian</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>

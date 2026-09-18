@@ -56,9 +56,22 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
 
   if (!isOpen) return null;
 
-  const filtered = mySchedules.filter(
-    (s) => selectedDay === 'ALL' || s.day === selectedDay
-  );
+  const DAY_ORDER: Record<string, number> = {
+    MONDAY: 1,
+    TUESDAY: 2,
+    WEDNESDAY: 3,
+    THURSDAY: 4,
+    FRIDAY: 5,
+  };
+
+  const filtered = mySchedules
+    .filter((s) => selectedDay === 'ALL' || s.day === selectedDay)
+    .sort((a, b) => {
+      const dayDiff = (DAY_ORDER[a.day] || 99) - (DAY_ORDER[b.day] || 99);
+      if (dayDiff !== 0) return dayDiff;
+      if (a.period_number !== b.period_number) return a.period_number - b.period_number;
+      return a.start_time.localeCompare(b.start_time);
+    });
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">

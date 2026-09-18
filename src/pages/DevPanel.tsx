@@ -4,6 +4,9 @@ import { DashboardOverview } from './admin/DashboardOverview';
 import { ScheduleManagement } from './admin/ScheduleManagement';
 import { AcademicYearPage } from './admin/AcademicYearPage';
 import { RekapAgenda } from './RekapAgenda';
+import { RekapHarianPage } from './admin/report/RekapHarianPage';
+import { RekapMingguanPage } from './admin/report/RekapMingguanPage';
+import { RekapBulananPage } from './admin/report/RekapBulananPage';
 import { DataSiswa } from './DataSiswa';
 import { DataGuru } from './DataGuru';
 import { DataMapel } from './DataMapel';
@@ -87,7 +90,16 @@ export const DevPanel: React.FC<DevPanelProps> = ({
         />
       )}
 
-      {/* 4. Rekap */}
+      {/* 4. Rekap Harian */}
+      {subTab === 'rekap_harian' && <RekapHarianPage showToast={showToast} />}
+
+      {/* 5. Rekap Mingguan */}
+      {subTab === 'rekap_mingguan' && <RekapMingguanPage showToast={showToast} />}
+
+      {/* 6. Rekap Bulanan */}
+      {subTab === 'rekap_bulanan' && <RekapBulananPage showToast={showToast} />}
+
+      {/* 7. Rekap Log Jurnal Agenda */}
       {subTab === 'rekap' && (
         <RekapAgenda
           showToast={showToast}

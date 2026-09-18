@@ -99,7 +99,7 @@ export function checkScheduleConflict(
         hasConflict: true,
         type: 'TEACHER_CONFLICT',
         conflictingItem: item,
-        message: `Bentrok Guru: Guru ${item.teacher_name} sudah memiliki jadwal di ${item.class_id} (${item.start_time.slice(0, 5)} - ${item.end_time.slice(0, 5)}) pada hari yang sama.`,
+        message: `Bentrok Guru: ${item.teacher_name} sudah memiliki jadwal di ${item.class_id} (${item.start_time.slice(0, 5)} - ${item.end_time.slice(0, 5)}) pada hari yang sama.`,
       };
     }
 

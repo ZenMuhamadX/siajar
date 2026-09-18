@@ -26,6 +26,9 @@ export type AdminTab =
   | 'agenda'
   | 'jadwal'
   | 'rekap'
+  | 'rekap_harian'
+  | 'rekap_mingguan'
+  | 'rekap_bulanan'
   | 'siswa'
   | 'guru'
   | 'mapel'
@@ -61,7 +64,15 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: 'overview', label: 'Ringkasan', icon: LayoutDashboard },
       { id: 'agenda', label: 'Agenda', icon: FileEdit },
-      { id: 'rekap', label: 'Rekap', icon: FileSpreadsheet },
+    ],
+  },
+  {
+    group: 'REKAP & LAPORAN',
+    items: [
+      { id: 'rekap_harian', label: 'Rekap Harian', icon: CalendarDays },
+      { id: 'rekap_mingguan', label: 'Rekap Mingguan', icon: FileSpreadsheet },
+      { id: 'rekap_bulanan', label: 'Rekap Bulanan', icon: BookOpen },
+      { id: 'rekap', label: 'Log Jurnal Agenda', icon: Activity },
     ],
   },
   {
@@ -115,7 +126,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       case 'jadwal':
         return 'Jadwal Sekolah';
       case 'rekap':
-        return 'Rekapitulasi Agenda';
+        return 'Log Jurnal Agenda';
+      case 'rekap_harian':
+        return 'Rekap Harian';
+      case 'rekap_mingguan':
+        return 'Rekap Mingguan';
+      case 'rekap_bulanan':
+        return 'Rekap Bulanan';
       case 'siswa':
         return 'Data Siswa';
       case 'guru':
@@ -153,95 +170,93 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
       {/* LEFT SIDEBAR */}
       <aside
-        className={`fixed md:sticky top-0 bottom-0 left-0 z-50 bg-white border-r border-slate-200 flex flex-col justify-between transition-all duration-200 ease-in-out ${
+        className={`fixed md:sticky top-0 left-0 h-screen z-50 bg-white border-r border-slate-200 flex flex-col transition-all duration-200 ease-in-out no-print ${
           isCollapsed ? 'w-18' : 'w-64'
         } ${
           isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'
         }`}
       >
         {/* Top: Brand / Logo */}
-        <div>
-          <div className="h-16 px-4 border-b border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-2.5 overflow-hidden">
-              <img
-                src="/logo.png"
-                alt="Logo SIAJAR"
-                className="w-8 h-8 object-contain shrink-0 rounded-lg"
-              />
-              {!isCollapsed && (
-                <div className="truncate">
-                  <span className="font-bold text-slate-900 text-sm tracking-tight block leading-tight">
-                    SIAJAR
-                  </span>
-                  <span className="text-[10px] text-slate-400 block leading-tight">
-                    Admin Portal
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Collapse toggle (desktop only) */}
-            <button
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="hidden md:flex p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition"
-              title={isCollapsed ? 'Perluas Sidebar' : 'Ciutkan Sidebar'}
-            >
-              {isCollapsed ? (
-                <ChevronRight className="w-4 h-4" />
-              ) : (
-                <ChevronLeft className="w-4 h-4" />
-              )}
-            </button>
-
-            {/* Close button (mobile only) */}
-            <button
-              onClick={() => setIsMobileOpen(false)}
-              className="md:hidden p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
-            >
-              <X className="w-5 h-5" />
-            </button>
+        <div className="h-16 px-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <img
+              src="/logo.png"
+              alt="Logo SIAJAR"
+              className="w-8 h-8 object-contain shrink-0 rounded-lg"
+            />
+            {!isCollapsed && (
+              <div className="truncate">
+                <span className="font-bold text-slate-900 text-sm tracking-tight block leading-tight">
+                  SIAJAR
+                </span>
+                <span className="text-[10px] text-slate-400 block leading-tight">
+                  Admin Portal
+                </span>
+              </div>
+            )}
           </div>
 
-          {/* Nav groups */}
-          <nav className="p-3 space-y-5 overflow-y-auto max-h-[calc(100vh-140px)]">
-            {NAV_GROUPS.map((grp) => (
-              <div key={grp.group} className="space-y-1">
-                {!isCollapsed && (
-                  <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                    {grp.group}
-                  </p>
-                )}
+          {/* Collapse toggle (desktop only) */}
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="hidden md:flex p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition"
+            title={isCollapsed ? 'Perluas Sidebar' : 'Ciutkan Sidebar'}
+          >
+            {isCollapsed ? (
+              <ChevronRight className="w-4 h-4" />
+            ) : (
+              <ChevronLeft className="w-4 h-4" />
+            )}
+          </button>
 
-                {grp.items.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = activeTab === item.id;
-
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => {
-                        onSelectTab(item.id);
-                        setIsMobileOpen(false);
-                      }}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition ${
-                        isActive
-                          ? 'bg-slate-900 text-white shadow-xs'
-                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                      } ${isCollapsed ? 'justify-center px-0' : ''}`}
-                      title={item.label}
-                    >
-                      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
-                      {!isCollapsed && <span className="truncate">{item.label}</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-          </nav>
+          {/* Close button (mobile only) */}
+          <button
+            onClick={() => setIsMobileOpen(false)}
+            className="md:hidden p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
+        {/* Nav groups */}
+        <nav className="flex-1 p-3 space-y-5 overflow-y-auto min-h-0">
+          {NAV_GROUPS.map((grp) => (
+            <div key={grp.group} className="space-y-1">
+              {!isCollapsed && (
+                <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                  {grp.group}
+                </p>
+              )}
+
+              {grp.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      onSelectTab(item.id);
+                      setIsMobileOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition ${
+                      isActive
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    } ${isCollapsed ? 'justify-center px-0' : ''}`}
+                    title={item.label}
+                  >
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+                    {!isCollapsed && <span className="truncate">{item.label}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+
         {/* Bottom Sidebar: User & Switch / Logout */}
-        <div className="p-3 border-t border-slate-100 bg-slate-50/50 space-y-2">
+        <div className="p-3 border-t border-slate-100 bg-slate-50/50 space-y-2 shrink-0">
           {!isCollapsed ? (
             <div className="flex items-center justify-between px-2 py-1">
               <div className="flex items-center gap-2 overflow-hidden">
@@ -293,7 +308,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       {/* RIGHT CONTENT SHELL (TOP HEADER + MAIN) */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* TOP HEADER */}
-        <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
+        <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 shadow-2xs no-print">
           <div className="flex items-center gap-3">
             {/* Mobile menu trigger */}
             <button
@@ -318,16 +333,16 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
           {/* Right Header: Teacher Mode Switcher */}
           <div className="flex items-center gap-2 sm:gap-3">
-            <button
+            {/* <button
               onClick={onBackToApp}
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
               <span>Beralih ke Mode Guru</span>
-            </button>
+            </button> */}
 
             <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-[11px] font-bold rounded-full border border-slate-200">
-              Admin Session
+              Admin
             </span>
           </div>
         </header>
