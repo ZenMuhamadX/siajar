@@ -11,6 +11,7 @@ import { HomeroomManagement } from './admin/HomeroomManagement';
 import { KotakSaranList } from './admin/KotakSaranList';
 import { EkskulPage } from './admin/EkskulPage';
 import { PengaturanPage } from './admin/PengaturanPage';
+import { PeriodTemplatePage } from './admin/PeriodTemplatePage';
 import { PageHeader } from '../components/admin/PageHeader';
 import type { FullAgenda } from '../types';
 import { FileEdit } from 'lucide-react';
@@ -105,7 +106,10 @@ export const DevPanel: React.FC<DevPanelProps> = ({
       {/* 8. Wali Kelas */}
       {subTab === 'wali_kelas' && <HomeroomManagement showToast={showToast} />}
 
-      {/* 9. Ekstrakurikuler */}
+      {/* 9. Slot Waktu JP */}
+      {subTab === 'slot_waktu' && <PeriodTemplatePage showToast={showToast} />}
+
+      {/* 10. Ekstrakurikuler */}
       {subTab === 'ekskul' && <EkskulPage />}
 
       {/* 9. Tahun Ajaran */}

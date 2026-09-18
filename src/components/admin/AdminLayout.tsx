@@ -17,6 +17,7 @@ import {
   X,
   ShieldCheck,
   Award,
+  Clock,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -29,6 +30,7 @@ export type AdminTab =
   | 'guru'
   | 'mapel'
   | 'wali_kelas'
+  | 'slot_waktu'
   | 'ekskul'
   | 'tahun_ajaran'
   | 'pengaturan'
@@ -74,6 +76,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: 'wali_kelas', label: 'Wali Kelas', icon: Award },
       { id: 'jadwal', label: 'Jadwal', icon: CalendarDays },
+      { id: 'slot_waktu', label: 'Slot Waktu (JP)', icon: Clock },
     ],
   },
   {
@@ -119,6 +122,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         return 'Data Mata Pelajaran';
       case 'wali_kelas':
         return 'Penugasan Wali Kelas';
+      case 'slot_waktu':
+        return 'Slot Waktu (JP)';
       case 'ekskul':
         return 'Ekstrakurikuler';
       case 'tahun_ajaran':

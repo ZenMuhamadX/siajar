@@ -4,6 +4,7 @@ import {
   type ScheduleItem,
   type ScheduleDay,
   type ScheduleStatus,
+  type PeriodTemplate,
   SCHEDULE_DAYS,
   DAY_TRANSLATION_MAP,
   DAFTAR_KELAS,
@@ -18,6 +19,7 @@ import {
   setScheduleStatus,
   deleteSchedule,
 } from '../../services/scheduleService';
+import { getPeriodTemplates } from '../../services/periodTemplateService';
 import { getDaftarGuru, getDaftarMapel } from '../../services/agendaService';
 import { PageHeader } from '../../components/admin/PageHeader';
 import {
@@ -50,6 +52,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [teachers, setTeachers] = useState<Guru[]>([]);
   const [subjects, setSubjects] = useState<MataPelajaran[]>([]);
+  const [periodTemplates, setPeriodTemplates] = useState<PeriodTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Default mode per request: Per Hari
@@ -63,6 +66,9 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ScheduleItem | null>(null);
 
+  // Selected JP template for the form
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+
   // Form states for Add / Edit
   const [formData, setFormData] = useState({
     day: 'MONDAY' as ScheduleDay,
@@ -70,7 +76,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
     start_time: '07:30',
     end_time: '08:05',
     class_id: 'KELAS 1',
-    subject_name: 'Matematika',
+    subject_name: '',
     teacher_name: '',
     status: 'ACTIVE' as ScheduleStatus,
   });
@@ -102,10 +108,15 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
       }
 
       if (currentAYId) {
-        const schList = await getSchedules({ academicYearId: currentAYId });
+        const [schList, ptList] = await Promise.all([
+          getSchedules({ academicYearId: currentAYId }),
+          getPeriodTemplates(currentAYId, true),
+        ]);
         setSchedules(schList);
+        setPeriodTemplates(ptList);
       } else {
         setSchedules([]);
+        setPeriodTemplates([]);
       }
     } catch (err: any) {
       console.error(err);
@@ -123,8 +134,12 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
     setSelectedAYId(ayId);
     setIsLoading(true);
     try {
-      const schList = await getSchedules({ academicYearId: ayId });
+      const [schList, ptList] = await Promise.all([
+        getSchedules({ academicYearId: ayId }),
+        getPeriodTemplates(ayId, true),
+      ]);
       setSchedules(schList);
+      setPeriodTemplates(ptList);
     } catch (e) {
       console.error(e);
     } finally {
@@ -140,14 +155,17 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
     }
     setEditingItem(null);
     setFormConflictError('');
+    // Pre-select first active JP if available
+    const firstPT = periodTemplates[0] ?? null;
+    setSelectedTemplateId(firstPT?.id ?? '');
     setFormData({
       day: 'MONDAY',
-      period_number: 1,
-      start_time: '07:30',
-      end_time: '08:05',
+      period_number: firstPT?.period_number ?? 1,
+      start_time: firstPT?.start_time.slice(0, 5) ?? '07:30',
+      end_time: firstPT?.end_time.slice(0, 5) ?? '08:05',
       class_id: DAFTAR_KELAS[0] || 'KELAS 1',
-      subject_name: subjects[0]?.nama_mapel || 'Matematika',
-      teacher_name: teachers[0]?.nama_guru || '',
+      subject_name: '',
+      teacher_name: '',
       status: 'ACTIVE',
     });
     setIsEditModalOpen(true);
@@ -157,6 +175,9 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
   const handleOpenEdit = (item: ScheduleItem) => {
     setEditingItem(item);
     setFormConflictError('');
+    // Try to match existing period_number to a template
+    const matchedPT = periodTemplates.find((pt) => pt.period_number === item.period_number) ?? null;
+    setSelectedTemplateId(matchedPT?.id ?? '');
     setFormData({
       day: item.day,
       period_number: item.period_number,
@@ -175,8 +196,16 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
     e.preventDefault();
     setFormConflictError('');
 
+    if (!formData.subject_name) {
+      setFormConflictError('Pilih Mata Pelajaran terlebih dahulu.');
+      return;
+    }
     if (!formData.teacher_name) {
       setFormConflictError('Pilih Guru terlebih dahulu.');
+      return;
+    }
+    if (periodTemplates.length > 0 && !selectedTemplateId) {
+      setFormConflictError('Pilih Jam Pelajaran (JP) terlebih dahulu.');
       return;
     }
     if (formData.start_time >= formData.end_time) {
@@ -197,6 +226,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
           subject_name: formData.subject_name,
           teacher_name: formData.teacher_name,
           status: formData.status,
+          ...(selectedTemplateId ? { period_template_id: selectedTemplateId } : {}),
         });
         showToast('success', 'Jadwal berhasil diperbarui.');
       } else {
@@ -211,6 +241,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
           teacher_name: formData.teacher_name,
           status: formData.status,
           activity_type: 'KBM',
+          ...(selectedTemplateId ? { period_template_id: selectedTemplateId } : {}),
         });
         showToast('success', 'Jadwal baru berhasil dibuat.');
       }
@@ -818,161 +849,201 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
       {isEditModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
-              <h3 className="font-bold text-slate-800 text-sm sm:text-base">
-                {editingItem ? 'Edit Jadwal Mengajar' : 'Tambah Jadwal Baru'}
-              </h3>
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-indigo-50 to-white">
+              <div>
+                <h3 className="font-bold text-slate-800 text-sm sm:text-base">
+                  {editingItem ? 'Edit Jadwal Mengajar' : 'Tambah Jadwal Baru'}
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {editingItem
+                    ? 'Perbarui informasi slot jadwal pelajaran'
+                    : 'Isi semua field untuk menambah slot jadwal'}
+                </p>
+              </div>
               <button
                 onClick={() => setIsEditModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded transition"
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition text-lg leading-none"
               >
                 &times;
               </button>
             </div>
 
-            <form onSubmit={handleSaveSchedule} className="p-5 space-y-3 overflow-y-auto">
+            <form onSubmit={handleSaveSchedule} className="overflow-y-auto">
               {formConflictError && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-rose-800 text-xs">
+                <div className="mx-5 mt-4 p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-rose-800 text-xs">
                   <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                   <p>{formConflictError}</p>
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Hari
-                  </label>
+              <div className="p-5 space-y-5">
+
+                {/* ── Section 1: Waktu & Jadwal ── */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">
+                      Waktu &amp; Jadwal
+                    </span>
+                    <div className="flex-1 h-px bg-indigo-100" />
+                  </div>
+
+                  {/* Hari + JP Selector */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        Hari
+                      </label>
+                      <select
+                        value={formData.day}
+                        onChange={(e) =>
+                          setFormData({ ...formData, day: e.target.value as ScheduleDay })
+                        }
+                        className="w-full px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                      >
+                        {SCHEDULE_DAYS.map((d) => (
+                          <option key={d.key} value={d.key}>
+                            {d.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        Jam Pelajaran (JP)
+                      </label>
+                      {periodTemplates.length === 0 ? (
+                        <div className="px-2.5 py-2 text-xs bg-amber-50 border border-amber-200 rounded-lg text-amber-700">
+                          Belum ada JP. Konfigurasi di <span className="font-semibold">Slot Waktu</span>.
+                        </div>
+                      ) : (
+                        <select
+                          value={selectedTemplateId}
+                          onChange={(e) => {
+                            const pt = periodTemplates.find((t) => t.id === e.target.value);
+                            setSelectedTemplateId(e.target.value);
+                            if (pt) {
+                              setFormData((f) => ({
+                                ...f,
+                                period_number: pt.period_number,
+                                start_time: pt.start_time.slice(0, 5),
+                                end_time: pt.end_time.slice(0, 5),
+                              }));
+                            }
+                          }}
+                          className="w-full px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                        >
+                          <option value="">-- Pilih JP --</option>
+                          {periodTemplates.map((pt) => (
+                            <option key={pt.id} value={pt.id}>
+                              {pt.label} · {pt.start_time.slice(0, 5)}–{pt.end_time.slice(0, 5)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Time preview read-only */}
+                  {selectedTemplateId && formData.start_time && formData.end_time && (
+                    <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2 text-xs text-indigo-700">
+                      <Clock className="w-3.5 h-3.5 shrink-0" />
+                      <span>
+                        Waktu:{' '}
+                        <strong>
+                          {formData.start_time} – {formData.end_time}
+                        </strong>
+                        <span className="text-indigo-400 ml-2">(dari Master JP)</span>
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+
+                {/* ── Section 2: Kelas & Mata Pelajaran ── */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">
+                      Kelas &amp; Mata Pelajaran
+                    </span>
+                    <div className="flex-1 h-px bg-indigo-100" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        Kelas
+                      </label>
+                      <select
+                        value={formData.class_id}
+                        onChange={(e) =>
+                          setFormData({ ...formData, class_id: e.target.value })
+                        }
+                        className="w-full px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                      >
+                        {DAFTAR_KELAS.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        Mata Pelajaran
+                      </label>
+                      <select
+                        value={formData.subject_name}
+                        onChange={(e) =>
+                          setFormData({ ...formData, subject_name: e.target.value })
+                        }
+                        className="w-full px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                      >
+                        <option value="">-- Pilih Mapel --</option>
+                        {subjects.map((m) => (
+                          <option key={m.id} value={m.nama_mapel}>
+                            {m.nama_mapel}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Section 3: Guru Pengampu ── */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">
+                      Guru Pengampu
+                    </span>
+                    <div className="flex-1 h-px bg-indigo-100" />
+                  </div>
+
                   <select
-                    value={formData.day}
+                    value={formData.teacher_name}
                     onChange={(e) =>
-                      setFormData({ ...formData, day: e.target.value as ScheduleDay })
+                      setFormData({ ...formData, teacher_name: e.target.value })
                     }
-                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                    className="w-full px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                   >
-                    {SCHEDULE_DAYS.map((d) => (
-                      <option key={d.key} value={d.key}>
-                        {d.label}
+                    <option value="">-- Pilih Guru --</option>
+                    {teachers.map((g) => (
+                      <option key={g.id} value={g.nama_guru}>
+                        {g.nama_guru}
                       </option>
                     ))}
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Nomor JP
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={formData.period_number}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        period_number: parseInt(e.target.value, 10) || 1,
-                      })
-                    }
-                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-                  />
-                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Jam Mulai
-                  </label>
-                  <input
-                    type="time"
-                    value={formData.start_time}
-                    onChange={(e) =>
-                      setFormData({ ...formData, start_time: e.target.value })
-                    }
-                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Jam Selesai
-                  </label>
-                  <input
-                    type="time"
-                    value={formData.end_time}
-                    onChange={(e) =>
-                      setFormData({ ...formData, end_time: e.target.value })
-                    }
-                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Kelas
-                  </label>
-                  <select
-                    value={formData.class_id}
-                    onChange={(e) =>
-                      setFormData({ ...formData, class_id: e.target.value })
-                    }
-                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-                  >
-                    {DAFTAR_KELAS.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Mata Pelajaran
-                  </label>
-                  <input
-                    type="text"
-                    list="mapel-list"
-                    value={formData.subject_name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, subject_name: e.target.value })
-                    }
-                    placeholder="Pilih atau ketik mapel..."
-                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-                  />
-                  <datalist id="mapel-list">
-                    {subjects.map((m) => (
-                      <option key={m.id} value={m.nama_mapel} />
-                    ))}
-                  </datalist>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Guru Pengampu
-                </label>
-                <select
-                  value={formData.teacher_name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, teacher_name: e.target.value })
-                  }
-                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-                >
-                  <option value="">-- Pilih Guru --</option>
-                  {teachers.map((g) => (
-                    <option key={g.id} value={g.nama_guru}>
-                      {g.nama_guru}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center justify-between pt-2">
+              {/* Footer */}
+              <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-semibold text-slate-600">Status:</span>
+                  <label className="text-[11px] font-semibold text-slate-500">Status</label>
                   <select
                     value={formData.status}
                     onChange={(e) =>
@@ -983,9 +1054,9 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
                     }
                     className="px-2 py-1 text-xs bg-white border border-slate-300 rounded-md focus:outline-hidden"
                   >
-                    <option value="DRAFT">DRAFT</option>
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="ARCHIVED">ARCHIVED</option>
+                    <option value="DRAFT">Draft</option>
+                    <option value="ACTIVE">Aktif</option>
+                    <option value="ARCHIVED">Arsip</option>
                   </select>
                 </div>
 
@@ -993,16 +1064,16 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
                   <button
                     type="button"
                     onClick={() => setIsEditModalOpen(false)}
-                    className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition"
+                    className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg border border-slate-300 transition"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
                     disabled={isSaving}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition shadow-xs"
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition shadow-xs"
                   >
-                    {isSaving ? 'Menyimpan...' : 'Simpan'}
+                    {isSaving ? 'Menyimpan...' : editingItem ? 'Perbarui' : 'Simpan Jadwal'}
                   </button>
                 </div>
               </div>

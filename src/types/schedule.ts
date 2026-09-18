@@ -46,6 +46,7 @@ export interface ScheduleItem {
   teacher_name: string;
   activity_type?: ActivityType;
   status: ScheduleStatus;
+  period_template_id?: string | null; // Stage 2.3: soft reference to period_templates
   created_at?: string;
   updated_at?: string;
 }
@@ -55,4 +56,20 @@ export interface ScheduleConflictCheckResult {
   type?: 'TEACHER_CONFLICT' | 'CLASS_CONFLICT';
   message?: string;
   conflictingItem?: ScheduleItem;
+}
+
+// ---------------------------------------------------------------------------
+// Stage 2.3 — Master JP / Period Templates
+// ---------------------------------------------------------------------------
+
+export interface PeriodTemplate {
+  id: string;
+  academic_year_id: string;
+  period_number: number;
+  label: string;      // "JP 1"
+  start_time: string; // "HH:mm"
+  end_time: string;   // "HH:mm"
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
