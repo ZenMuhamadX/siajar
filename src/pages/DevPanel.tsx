@@ -12,6 +12,7 @@ import { KotakSaranList } from './admin/KotakSaranList';
 import { EkskulPage } from './admin/EkskulPage';
 import { PengaturanPage } from './admin/PengaturanPage';
 import { PeriodTemplatePage } from './admin/PeriodTemplatePage';
+import { SubstitusiPage } from './admin/SubstitusiPage';
 import { PageHeader } from '../components/admin/PageHeader';
 import type { FullAgenda } from '../types';
 import { FileEdit } from 'lucide-react';
@@ -120,6 +121,9 @@ export const DevPanel: React.FC<DevPanelProps> = ({
 
       {/* 11. Kotak Saran */}
       {subTab === 'saran' && <KotakSaranList showToast={showToast} />}
+
+      {/* 12. Guru Pengganti / Badal */}
+      {subTab === 'badal' && <SubstitusiPage showToast={showToast} />}
     </AdminLayout>
   );
 };

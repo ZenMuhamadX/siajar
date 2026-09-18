@@ -354,7 +354,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
       <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         {/* Left: View Mode Tabs */}
         <div className="flex items-center bg-slate-100/90 p-1 rounded-lg text-xs gap-1 self-start">
-          <button
+          {/* <button
             onClick={() => setViewMode('day')}
             className={`px-3 py-1.5 rounded-md font-semibold transition flex items-center gap-1.5 ${
               viewMode === 'day'
@@ -364,7 +364,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
           >
             <CalendarDays className="w-3.5 h-3.5" />
             <span>Per Hari</span>
-          </button>
+          </button> */}
 
           <button
             onClick={() => setViewMode('teacher')}
@@ -485,7 +485,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
         </div>
       </div>
 
-      {/* Mode 1: PER HARI (DEFAULT) */}
+      {/* Mode 1: PER HARI (DEFAULT)
       {viewMode === 'day' && (
         <div className="space-y-5">
           {SCHEDULE_DAYS.filter((d) => filterDay === 'ALL' || d.key === filterDay).map((dayObj) => {
@@ -583,7 +583,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
             );
           })}
         </div>
-      )}
+      )} */}
 
       {/* Mode 2: PER GURU */}
       {viewMode === 'teacher' && (

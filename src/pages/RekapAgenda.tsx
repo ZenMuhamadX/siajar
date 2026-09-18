@@ -14,8 +14,6 @@ import {
   RefreshCw,
   User,
   Camera,
-  Eye,
-  Check,
 } from 'lucide-react';
 
 interface RekapAgendaProps {
@@ -23,13 +21,13 @@ interface RekapAgendaProps {
   onEditAgenda?: (agenda: FullAgenda) => void;
 }
 
-type PeriodeType = '30_hari' | 'bulan_ini' | 'harian' | 'custom';
+type PeriodeType = 'bulan_ini' | 'harian' | 'custom';
 
 export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgenda }) => {
   const { isAdmin } = useAuth();
 
   // Filter States
-  const [periodeType, setPeriodeType] = useState<PeriodeType>('30_hari');
+  const [periodeType, setPeriodeType] = useState<PeriodeType>('bulan_ini');
   const [selectedGuru, setSelectedGuru] = useState<string>('SEMUA');
   const [selectedKelas, setSelectedKelas] = useState<string>('SEMUA');
   const [selectedTanggal, setSelectedTanggal] = useState<string>('');
@@ -74,15 +72,6 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
       };
     }
 
-    if (periodeType === '30_hari') {
-      const past30 = new Date();
-      past30.setDate(today.getDate() - 30);
-      return {
-        tanggal: undefined,
-        startDate: past30.toISOString().split('T')[0],
-        endDate: todayStr,
-      };
-    }
 
     if (periodeType === 'custom') {
       return {
@@ -251,16 +240,6 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
           {/* Periode Tab Buttons (Horizontal scrollable / wrap in mobile) */}
           <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-medium overflow-x-auto no-scrollbar">
             <button
-              onClick={() => setPeriodeType('30_hari')}
-              className={`px-2.5 py-1 rounded whitespace-nowrap transition text-[11px] sm:text-xs ${
-                periodeType === '30_hari'
-                  ? 'bg-white text-slate-900 font-bold shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              30 Hari
-            </button>
-            <button
               onClick={() => setPeriodeType('bulan_ini')}
               className={`px-2.5 py-1 rounded whitespace-nowrap transition text-[11px] sm:text-xs ${
                 periodeType === 'bulan_ini'
@@ -428,280 +407,193 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
             </div>
           </div>
 
-          {/* LIST AGENDA HARIAN */}
-          {agendas.map((agenda, index) => (
-            <div
-              key={agenda.header.id || index}
-              className="bg-white rounded-xl border border-slate-200 overflow-hidden print:border-black print:rounded-none print:shadow-none page-break"
-            >
-              {/* Header Sesi Harian */}
-              <div className="bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex items-center justify-between print:bg-transparent print:border-b print:border-black">
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 bg-slate-800 text-white font-bold text-xs rounded print:border print:border-black print:text-black print:bg-white">
-                    {agenda.header.kelas}
-                  </span>
-                  <span className="text-xs font-bold text-slate-800">
-                    {formatDateIndo(agenda.header.tanggal)}
-                  </span>
-                </div>
+          {/* GROUP BY KELAS */}
+          {(() => {
+            // Kelompokkan agendas berdasarkan kelas
+            const kelasList = Array.from(new Set(agendas.map((a) => a.header.kelas))).sort();
 
-                <div className="flex items-center gap-1.5 no-print">
-                  {/* Indikator Bukti Foto */}
-                  {agenda.evidence ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (agenda.evidence?.signedUrl) {
-                          setActivePhoto({
-                            url: agenda.evidence.signedUrl,
-                            uploadedAt: agenda.evidence.uploaded_at,
-                            title: `Bukti Foto Mengajar - ${agenda.header.kelas}`,
-                          });
-                        }
-                      }}
-                      className="px-2 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded transition flex items-center gap-1"
-                      title={
-                        agenda.evidence.uploaded_at
-                          ? `Bukti foto tersedia (Diunggah: ${new Date(
-                              agenda.evidence.uploaded_at
-                            ).toLocaleDateString('id-ID', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              day: 'numeric',
-                              month: 'short',
-                            })})`
-                          : 'Bukti foto tersedia'
-                      }
-                    >
-                      <Camera className="w-3 h-3 text-emerald-700" />
-                      <span>Bukti: Ada</span>
-                    </button>
-                  ) : (
-                    <span
-                      className="px-2 py-1 text-[11px] text-slate-400 border border-slate-200 bg-slate-50/50 rounded flex items-center gap-1 cursor-default"
-                      title="Bukti foto belum tersedia"
-                    >
-                      <Camera className="w-3 h-3 text-slate-300" />
-                      <span>Bukti: -</span>
-                    </span>
-                  )}
+            return kelasList.map((kelas) => {
+              const kelasAgendas = agendas.filter((a) => a.header.kelas === kelas);
 
-                  {onEditAgenda && (
-                    <button
-                      onClick={() => onEditAgenda(agenda)}
-                      className="px-2 py-1 text-[11px] font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded transition flex items-center gap-1"
-                      title="Edit / Koreksi Agenda"
-                    >
-                      <BookOpen className="w-3 h-3" />
-                      <span>Edit</span>
-                    </button>
-                  )}
+              // Kumpulkan semua KBM dari semua sesi kelas ini, tambahkan info tanggal & agenda_id
+              const allKbm = kelasAgendas
+                .flatMap((ag) =>
+                  (ag.kbm || []).map((k) => ({
+                    ...k,
+                    _tanggal: ag.header.tanggal,
+                    _agendaId: ag.header.id,
+                  }))
+                )
+                .sort((a, b) => Number(a.jam_ke) - Number(b.jam_ke));
 
-                  {isAdmin && (
-                    <button
-                      onClick={() =>
-                        handleDelete(
-                          agenda.header.id,
-                          agenda.header.kelas,
-                          agenda.header.tanggal
-                        )
-                      }
-                      className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
-                      title="Hapus Agenda"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
+              return (
+                <div
+                  key={kelas}
+                  className="bg-white rounded-xl border border-slate-200 overflow-hidden print:border-black print:rounded-none print:shadow-none page-break"
+                >
+                  {/* Header Kelas */}
+                  <div className="bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex items-center justify-between print:bg-transparent print:border-b print:border-black">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-slate-800 text-white font-bold text-xs rounded print:border print:border-black print:text-black print:bg-white">
+                        {kelas}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        {kelasAgendas.length} sesi
+                      </span>
+                    </div>
+                  </div>
 
-              {/* KBM Section: Responsive Dual-View (Mobile Card List + Desktop Table) */}
-              <div className="p-3 sm:p-4 space-y-3">
-                {/* 1. Mobile KBM Timeline View (no-print) */}
-                <div className="sm:hidden space-y-2 no-print">
-                  {agenda.kbm && agenda.kbm.length > 0 ? (
-                    agenda.kbm.map((k, kIdx) => (
-                      <div
-                        key={kIdx}
-                        className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1.5"
-                      >
-                        <div className="flex items-center justify-between gap-1.5">
-                          <span className="px-2 py-0.5 bg-slate-800 text-white font-bold text-[10px] rounded">
-                            Jam {k.jam_ke}
-                          </span>
-                          <span className="font-bold text-slate-800 text-[11px] truncate">
-                            {k.mapel}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-600 font-medium">
-                          <span>Guru: {k.nama_guru || '-'}</span>
-                          {k.is_badal && (
-                            <span className="px-1 py-0.2 text-[9px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-300">
-                              Badal
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="pt-1 border-t border-slate-200/80">
-                          <p className="text-[11px] text-slate-700 leading-snug whitespace-pre-wrap">
-                            <span className="font-semibold text-slate-600">Materi: </span>
-                            {k.materi}
-                          </p>
-                          {k.tugas_pr && (
-                            <p className="text-[10px] text-slate-500 mt-1">
-                              <span className="font-semibold text-slate-600">Tugas: </span>
-                              {k.tugas_pr}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-center py-2 text-slate-400 text-xs">Tidak ada data KBM.</p>
-                  )}
-                </div>
-
-                {/* 2. Desktop & Print Table View */}
-                <div className="hidden sm:block overflow-x-auto border border-slate-200 rounded print:block print:border-black print:rounded-none">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold print:border-b print:border-black print:bg-slate-50">
-                        <th className="py-1.5 px-2.5 w-14 text-center border-r border-slate-200 print:border-black">
-                          Jam
-                        </th>
-                        <th className="py-1.5 px-2.5 w-36 border-r border-slate-200 print:border-black">
-                          Guru
-                        </th>
-                        <th className="py-1.5 px-2.5 w-32 border-r border-slate-200 print:border-black">
-                          Mata Pelajaran
-                        </th>
-                        <th className="py-1.5 px-2.5 border-r border-slate-200 print:border-black">
-                          Materi Pembahasan
-                        </th>
-                        <th className="py-1.5 px-2.5 w-32">Tugas / PR</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 print:divide-black">
-                      {agenda.kbm && agenda.kbm.length > 0 ? (
-                        agenda.kbm.map((k, kIdx) => (
-                          <tr key={kIdx} className="hover:bg-slate-50/50">
-                            <td className="py-1.5 px-2.5 text-center font-medium border-r border-slate-200 print:border-black">
-                              {k.jam_ke}
-                            </td>
-                            <td className="py-1.5 px-2.5 font-medium border-r border-slate-200 print:border-black">
-                              <div className="flex items-center gap-1">
-                                <span>{k.nama_guru || '-'}</span>
-                                {k.is_badal && (
-                                  <span className="px-1 text-[9px] font-bold border border-slate-400 rounded">
-                                    Badal
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-1.5 px-2.5 font-medium border-r border-slate-200 print:border-black">
-                              {k.mapel}
-                            </td>
-                            <td className="py-1.5 px-2.5 text-slate-800 border-r border-slate-200 print:border-black">
-                              {k.materi}
-                            </td>
-                            <td className="py-1.5 px-2.5 text-slate-600">
-                              {k.tugas_pr || '-'}
+                  {/* Tabel KBM semua sesi, diurutkan jam */}
+                  <div className="overflow-x-auto border-b border-slate-200 print:border-black">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold print:border-b print:border-black print:bg-slate-50">
+                          <th className="py-1.5 px-2.5 w-14 text-center border-r border-slate-200 print:border-black">
+                            Jam
+                          </th>
+                          <th className="py-1.5 px-2.5 w-28 border-r border-slate-200 print:border-black">
+                            Tanggal
+                          </th>
+                          <th className="py-1.5 px-2.5 w-36 border-r border-slate-200 print:border-black">
+                            Guru
+                          </th>
+                          <th className="py-1.5 px-2.5 w-32 border-r border-slate-200 print:border-black">
+                            Mata Pelajaran
+                          </th>
+                          <th className="py-1.5 px-2.5 border-r border-slate-200 print:border-black">
+                            Materi Pembahasan
+                          </th>
+                          <th className="py-1.5 px-2.5 w-32">Tugas / PR</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 print:divide-black">
+                        {allKbm.length > 0 ? (
+                          allKbm.map((k, kIdx) => (
+                            <tr key={kIdx} className="hover:bg-slate-50/50">
+                              <td className="py-1.5 px-2.5 text-center font-bold text-slate-800 border-r border-slate-200 print:border-black">
+                                {k.jam_ke}
+                              </td>
+                              <td className="py-1.5 px-2.5 text-slate-600 border-r border-slate-200 print:border-black whitespace-nowrap">
+                                {formatSimpleDate(k._tanggal)}
+                              </td>
+                              <td className="py-1.5 px-2.5 font-medium border-r border-slate-200 print:border-black">
+                                <div className="flex items-center gap-1">
+                                  <span>{k.nama_guru || '-'}</span>
+                                  {k.is_badal && (
+                                    <span className="px-1 text-[9px] font-bold border border-amber-400 text-amber-700 rounded">
+                                      Badal
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-1.5 px-2.5 font-medium border-r border-slate-200 print:border-black">
+                                {k.mapel}
+                              </td>
+                              <td className="py-1.5 px-2.5 text-slate-800 border-r border-slate-200 print:border-black">
+                                {k.materi}
+                              </td>
+                              <td className="py-1.5 px-2.5 text-slate-600">
+                                {k.tugas_pr || '-'}
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={6} className="py-4 text-center text-slate-400">
+                              Tidak ada data KBM.
                             </td>
                           </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={5} className="py-2 text-center text-slate-400">
-                            Tidak ada data KBM.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Sub info: Ketidakhadiran, Kejadian & Bukti Foto */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                  {/* Ketidakhadiran */}
-                  <div className="border border-slate-200 rounded p-2.5 bg-slate-50/40 print:bg-white print:border-black">
-                    <p className="font-bold text-slate-700 mb-1 text-[11px] sm:text-xs">
-                      Ketidakhadiran Siswa ({agenda.absensi?.length || 0})
-                    </p>
-                    {agenda.absensi && agenda.absensi.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {agenda.absensi.map((ab, abIdx) => (
-                          <span
-                            key={abIdx}
-                            className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] sm:text-[11px] text-slate-800"
-                          >
-                            {ab.nama_siswa || ab.siswa?.nama_siswa} ({ab.status})
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-[11px] text-slate-500">Hadir lengkap</p>
-                    )}
-                  </div>
-
-                  {/* Catatan Kejadian */}
-                  <div className="border border-slate-200 rounded p-2.5 bg-slate-50/40 print:bg-white print:border-black">
-                    <p className="font-bold text-slate-700 mb-1 text-[11px] sm:text-xs">Catatan Kejadian</p>
-                    {agenda.kejadian && agenda.kejadian.length > 0 ? (
-                      <p className="text-[11px] text-slate-700 leading-normal">
-                        {agenda.kejadian[0].uraian_kejadian}
-                      </p>
-                    ) : (
-                      <p className="text-[11px] text-slate-400 italic">Tidak ada catatan.</p>
-                    )}
-                  </div>
-
-                  {/* Bukti Foto Info */}
-                  <div className="border border-slate-200 rounded p-2.5 bg-slate-50/40 print:bg-white print:border-black">
-                    <p className="font-bold text-slate-700 mb-1 text-[11px] sm:text-xs">Bukti Foto Mengajar</p>
-                    {agenda.evidence ? (
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <p className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1">
-                            <Check className="w-3 h-3 text-emerald-600" />
-                            <span>Tersedia</span>
-                          </p>
-                          {agenda.evidence.uploaded_at && (
-                            <p className="text-[10px] text-slate-500 mt-0.5">
-                              {new Date(agenda.evidence.uploaded_at).toLocaleDateString('id-ID', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                day: 'numeric',
-                                month: 'short',
-                              })}
-                            </p>
-                          )}
-                        </div>
-                        {agenda.evidence.signedUrl && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setActivePhoto({
-                                url: agenda.evidence!.signedUrl!,
-                                uploadedAt: agenda.evidence!.uploaded_at,
-                                title: `Bukti Foto Mengajar - ${agenda.header.kelas}`,
-                              })
-                            }
-                            className="px-2 py-1 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold rounded text-[11px] flex items-center gap-1 transition no-print shrink-0"
-                          >
-                            <Eye className="w-3 h-3 text-slate-500" />
-                            <span>Buka</span>
-                          </button>
                         )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Detail per sesi: Absensi, Catatan, Bukti Foto */}
+                  <div className="divide-y divide-slate-100">
+                    {kelasAgendas.map((agenda, sesiIdx) => (
+                      <div key={agenda.header.id || sesiIdx} className="p-3 sm:p-4 space-y-2">
+                        {/* Sub-header sesi */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-semibold text-slate-600">
+                            {formatDateIndo(agenda.header.tanggal)}
+                          </span>
+                          <div className="flex items-center gap-1.5 no-print">
+                            {agenda.evidence ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (agenda.evidence?.signedUrl) {
+                                    setActivePhoto({
+                                      url: agenda.evidence.signedUrl,
+                                      uploadedAt: agenda.evidence.uploaded_at,
+                                      title: `Bukti Foto - ${agenda.header.kelas}`,
+                                    });
+                                  }
+                                }}
+                                className="px-2 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded transition flex items-center gap-1"
+                              >
+                                <Camera className="w-3 h-3 text-emerald-700" />
+                                <span>Bukti: Ada</span>
+                              </button>
+                            ) : (
+                              <span className="px-2 py-1 text-[11px] text-slate-400 border border-slate-200 bg-slate-50/50 rounded flex items-center gap-1 cursor-default">
+                                <Camera className="w-3 h-3 text-slate-300" />
+                                <span>Bukti: -</span>
+                              </span>
+                            )}
+                            {onEditAgenda && (
+                              <button
+                                onClick={() => onEditAgenda(agenda)}
+                                className="px-2 py-1 text-[11px] font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded transition flex items-center gap-1"
+                              >
+                                <BookOpen className="w-3 h-3" />
+                                <span>Edit</span>
+                              </button>
+                            )}
+                            {isAdmin && (
+                              <button
+                                onClick={() => handleDelete(agenda.header.id, agenda.header.kelas, agenda.header.tanggal)}
+                                className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
+                                title="Hapus Agenda"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Info absensi & kejadian */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                          <div className="border border-slate-200 rounded p-2 bg-slate-50/40 print:bg-white print:border-black">
+                            <p className="font-bold text-slate-700 mb-1 text-[11px]">Ketidakhadiran ({agenda.absensi?.length || 0})</p>
+                            {agenda.absensi && agenda.absensi.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {agenda.absensi.map((ab, abIdx) => (
+                                  <span key={abIdx} className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-800">
+                                    {ab.nama_siswa || ab.siswa?.nama_siswa} ({ab.status})
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-[11px] text-slate-500">Hadir lengkap</p>
+                            )}
+                          </div>
+                          <div className="border border-slate-200 rounded p-2 bg-slate-50/40 print:bg-white print:border-black">
+                            <p className="font-bold text-slate-700 mb-1 text-[11px]">Catatan Kejadian</p>
+                            {agenda.kejadian && agenda.kejadian.length > 0 ? (
+                              <p className="text-[11px] text-slate-700 leading-normal">{agenda.kejadian[0].uraian_kejadian}</p>
+                            ) : (
+                              <p className="text-[11px] text-slate-400 italic">Tidak ada catatan.</p>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    ) : (
-                      <p className="text-[11px] text-slate-400 italic">Belum tersedia</p>
-                    )}
+                    ))}
                   </div>
                 </div>
-              </div>
-            </div>
-          ))}
+              );
+            });
+          })()}
 
           {/* Kolom Tanda Tangan Cetak PDF (Hanya di print) */}
           <div className="hidden print:grid grid-cols-2 pt-8 text-center text-xs page-break">

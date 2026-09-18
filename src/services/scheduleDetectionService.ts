@@ -243,11 +243,15 @@ export async function getTeacherDailyTimeline(
 
   // Map each schedule to TimelineSlot
   const rawSlots: TimelineSlot[] = teacherSchedules.map((sch) => {
-    // Find matching agenda
+    // Find matching agenda.
+    // Primary: exact schedule_id match (created after Stage 2 integration).
+    // Fallback: kelas+tanggal+guru+mapel — only for legacy agendas that have
+    //   no schedule_id, so two JP with the same mapel/teacher don't cross-match.
     const foundAgenda = agendasOnDate.find(
       (a) =>
         a.header.schedule_id === sch.id ||
-        (a.header.kelas === sch.class_id &&
+        (!a.header.schedule_id &&
+          a.header.kelas === sch.class_id &&
           a.header.tanggal === targetDateStr &&
           a.kbm.some(
             (k) =>
@@ -348,4 +352,60 @@ export async function detectCurrentTeacherSchedule(
     conflictDetected: false,
     reason: activeSlot ? 'OK' : 'NO_SCHEDULE_CURRENT_TIME',
   };
+}
+
+/**
+ * Returns all ACTIVE schedules for a given date (across ALL teachers/classes),
+ * paired with their existing agendas. Used for the substitute teacher flow.
+ *
+ * Excludes schedules belonging to `excludeTeacherName` (the logged-in teacher's
+ * own schedules are already handled by their normal timeline).
+ */
+export async function getAllClassesTimelineForDate(
+  date: string,
+  excludeTeacherName: string,
+  now: Date = new Date()
+): Promise<TimelineSlot[]> {
+  const dayKey = getScheduleDayFromDate(new Date(date + 'T00:00:00'));
+  if (!dayKey) return [];
+
+  const academicYears = await getAcademicYears();
+  const activeAY = academicYears.find((ay) => ay.status === 'ACTIVE') || academicYears[0];
+  if (!activeAY) return [];
+
+  // All ACTIVE schedules for this day
+  const allSchedules = await getSchedules({
+    academicYearId: activeAY.id,
+    day: dayKey,
+    status: 'ACTIVE',
+  });
+
+  // Exclude logged-in teacher's own schedules
+  const otherSchedules = allSchedules.filter(
+    (s) => s.teacher_name.trim().toLowerCase() !== excludeTeacherName.trim().toLowerCase()
+  );
+
+  if (otherSchedules.length === 0) return [];
+
+  // Fetch all agendas for this date (all classes)
+  let agendasOnDate: FullAgenda[] = [];
+  try {
+    agendasOnDate = await getRekapAgenda({ tanggal: date });
+  } catch {
+    // non-fatal
+  }
+
+  return otherSchedules.map((sch) => {
+    const foundAgenda =
+      agendasOnDate.find(
+        (a) =>
+          a.header.schedule_id === sch.id ||
+          (!a.header.schedule_id &&
+            a.header.kelas === sch.class_id &&
+            a.header.tanggal === date)
+      ) || null;
+
+    const status = computeSlotStatus(sch, foundAgenda, date, now);
+    return { schedule: sch, status, existingAgenda: foundAgenda };
+  });
 }

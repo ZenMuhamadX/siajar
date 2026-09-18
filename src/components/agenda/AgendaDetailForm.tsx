@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { TimelineSlot } from '../../services/scheduleDetectionService';
-import type { Siswa, AgendaEvidence, FullAgenda } from '../../types';
+import type { Siswa, AgendaEvidence, FullAgenda, Substitution } from '../../types';
 import { getDaftarSiswa, simpanAgenda } from '../../services/agendaService';
 import {
   uploadAgendaEvidence,
@@ -36,6 +36,10 @@ interface AgendaDetailFormProps {
   onSuccessSave: () => void;
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
   directEditData?: FullAgenda | null;
+  /** Set true when the logged-in teacher is a substitute (badal) */
+  isSubstitute?: boolean;
+  /** Substitution record (created before opening this form) */
+  substitution?: Substitution | null;
 }
 
 export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
@@ -46,6 +50,8 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   onSuccessSave,
   showToast,
   directEditData,
+  isSubstitute = false,
+  substitution = null,
 }) => {
   const schedule = slot?.schedule;
   const existingAgenda = directEditData || slot?.existingAgenda;
@@ -53,7 +59,10 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   // Determine Class, Subject, Time, Teacher
   const kelas = schedule?.class_id || existingAgenda?.header.kelas || 'KELAS 1';
   const subjectName = schedule?.subject_name || existingAgenda?.kbm?.[0]?.mapel || '-';
-  const teacherName = schedule?.teacher_name || activeTeacherName || '-';
+  // scheduledTeacherName = guru yang tercatat di jadwal (tidak berubah)
+  const scheduledTeacherName = schedule?.teacher_name || activeTeacherName || '-';
+  // teacherName = untuk KBM row nama_guru: jika badal → guru pengganti, else → guru terjadwal
+  const teacherName = isSubstitute ? activeTeacherName : scheduledTeacherName;
   const startTime = schedule?.start_time ? schedule.start_time.slice(0, 5) : '-';
   const endTime = schedule?.end_time ? schedule.end_time.slice(0, 5) : '-';
   const periodNumber = schedule?.period_number || 1;
@@ -195,7 +204,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
             mapel: subjectName,
             materi: materi.trim(),
             tugas_pr: tugasPr.trim() || undefined,
-            is_badal: false,
+            is_badal: isSubstitute,
           },
         ],
         absensi: absensiList,
@@ -277,25 +286,46 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
       {/* Form Container */}
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* READ-ONLY SCHEDULE HEADER */}
-        <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl">
+        <div className={`p-4 rounded-2xl border ${isSubstitute ? 'bg-amber-50/70 border-amber-200' : 'bg-emerald-50/70 border-emerald-200'}`}>
+          {/* Badge badal */}
+          {isSubstitute && (
+            <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-amber-100 border border-amber-300 rounded-xl">
+              <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">🔄 Mode Guru Pengganti (Badal)</span>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="p-3 bg-white border border-emerald-100 rounded-xl shadow-2xs">
+            <div className={`p-3 bg-white border rounded-xl shadow-2xs ${isSubstitute ? 'border-amber-100' : 'border-emerald-100'}`}>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Kelas
               </span>
               <span className="text-sm font-bold text-slate-900">{kelas}</span>
             </div>
-            <div className="p-3 bg-white border border-emerald-100 rounded-xl shadow-2xs">
+            <div className={`p-3 bg-white border rounded-xl shadow-2xs ${isSubstitute ? 'border-amber-100' : 'border-emerald-100'}`}>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Mata Pelajaran
               </span>
               <span className="text-sm font-bold text-slate-900">{subjectName}</span>
             </div>
-            <div className="p-3 bg-white border border-emerald-100 rounded-xl shadow-2xs">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Guru Pengampu
-              </span>
-              <span className="text-sm font-bold text-slate-900">{teacherName}</span>
+            <div className={`p-3 bg-white border rounded-xl shadow-2xs ${isSubstitute ? 'border-amber-100' : 'border-emerald-100'}`}>
+              {isSubstitute ? (
+                <>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Guru Terjadwal
+                  </span>
+                  <span className="text-sm font-bold text-slate-500 line-through">{scheduledTeacherName}</span>
+                  <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block mt-1">
+                    Guru Pelaksana (Anda)
+                  </span>
+                  <span className="text-sm font-bold text-slate-900">{activeTeacherName}</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Guru Pengampu
+                  </span>
+                  <span className="text-sm font-bold text-slate-900">{scheduledTeacherName}</span>
+                </>
+              )}
             </div>
           </div>
         </div>

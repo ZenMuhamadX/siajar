@@ -159,4 +159,35 @@ export interface KotakSaran {
   created_at?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Stage 3 — Badal / Guru Pengganti
+// ---------------------------------------------------------------------------
+
+export type SubstitutionReason = 'Guru berhalangan' | 'Izin' | 'Sakit' | 'Tugas' | 'Lainnya';
+
+export const SUBSTITUTION_REASONS: SubstitutionReason[] = [
+  'Guru berhalangan',
+  'Izin',
+  'Sakit',
+  'Tugas',
+  'Lainnya',
+];
+
+export interface Substitution {
+  id: string;
+  schedule_id: string;
+  substitution_date: string; // YYYY-MM-DD
+  original_teacher_name: string;
+  original_teacher_id?: string | null;
+  substitute_teacher_name: string;
+  substitute_teacher_id?: string | null;
+  reason: string;
+  reason_detail?: string | null;
+  created_by: string;
+  created_at?: string;
+  updated_at?: string;
+  cancelled_at?: string | null;
+}
+
 export * from './schedule';
+

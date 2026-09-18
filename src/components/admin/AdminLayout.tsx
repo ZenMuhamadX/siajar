@@ -34,7 +34,8 @@ export type AdminTab =
   | 'ekskul'
   | 'tahun_ajaran'
   | 'pengaturan'
-  | 'saran';
+  | 'saran'
+  | 'badal';
 
 interface AdminLayoutProps {
   activeTab: AdminTab;
@@ -77,6 +78,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'wali_kelas', label: 'Wali Kelas', icon: Award },
       { id: 'jadwal', label: 'Jadwal', icon: CalendarDays },
       { id: 'slot_waktu', label: 'Slot Waktu (JP)', icon: Clock },
+      { id: 'badal', label: 'Guru Pengganti', icon: Users },
     ],
   },
   {
@@ -124,6 +126,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         return 'Penugasan Wali Kelas';
       case 'slot_waktu':
         return 'Slot Waktu (JP)';
+      case 'badal':
+        return 'Guru Pengganti (Badal)';
       case 'ekskul':
         return 'Ekstrakurikuler';
       case 'tahun_ajaran':

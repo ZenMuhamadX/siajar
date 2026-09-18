@@ -1,15 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import type { FullAgenda } from '../types';
+import type { FullAgenda, Substitution } from '../types';
 import {
   getTeacherDailyTimeline,
+  getAllClassesTimelineForDate,
   recomputeTimelineSlotStatuses,
   type TimelineSlot,
   type TeacherDailyTimelineResult,
 } from '../services/scheduleDetectionService';
+import {
+  getSubstitutionsForDate,
+  createSubstitution,
+} from '../services/substitutionService';
+import { getDaftarGuru } from '../services/agendaService';
+import { getAcademicYears } from '../services/scheduleService';
 import { ScheduleTimelineCard } from '../components/agenda/ScheduleTimelineCard';
 import { ActiveScheduleHero } from '../components/agenda/ActiveScheduleHero';
 import { AgendaDetailForm } from '../components/agenda/AgendaDetailForm';
+import { SubstitutionConfirmModal } from '../components/agenda/SubstitutionConfirmModal';
 import {
   Calendar,
   Clock,
@@ -20,6 +28,7 @@ import {
   Loader2,
   BookOpen,
   Coffee,
+  Users,
 } from 'lucide-react';
 
 interface InputAgendaProps {
@@ -43,11 +52,24 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
     editData?.header.tanggal || todayStr
   );
 
-  // Timeline Data
+  // Timeline Data (own schedules)
   const [timelineData, setTimelineData] = useState<TeacherDailyTimelineResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedSlotForForm, setSelectedSlotForForm] = useState<TimelineSlot | null>(null);
   const [isFormViewActive, setIsFormViewActive] = useState<boolean>(Boolean(editData));
+
+  // Substitution state
+  const [otherSlots, setOtherSlots] = useState<TimelineSlot[]>([]);
+  const [substitutionsMap, setSubstitutionsMap] = useState<Record<string, Substitution>>({});
+  const [isLoadingOther, setIsLoadingOther] = useState(false);
+  const [substitutionTarget, setSubstitutionTarget] = useState<TimelineSlot | null>(null);
+  const [substitutionLoading, setSubstitutionLoading] = useState(false);
+  const [substitutionError, setSubstitutionError] = useState<string | undefined>();
+  // Track the confirmed substitution to pass to AgendaDetailForm
+  const [activeSubstitution, setActiveSubstitution] = useState<Substitution | null>(null);
+  const [isSubstituteMode, setIsSubstituteMode] = useState(false);
+  // UX gate: panel kandidat badal hanya muncul saat diklik
+  const [showBadalPanel, setShowBadalPanel] = useState(false);
 
   // If editData is provided from Riwayat/App, activate form view directly
   useEffect(() => {
@@ -78,9 +100,50 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
     }
   }, [activeTeacherName, selectedDate, showToast]);
 
+  // Fetch other classes slots (for substitute flow) — only on weekdays
+  const fetchOtherSlots = useCallback(async () => {
+    if (!activeTeacherName || activeTeacherName === 'Administrator') return;
+
+    const dayOfWeek = new Date(selectedDate + 'T00:00:00').getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      setOtherSlots([]);
+      return;
+    }
+
+    setIsLoadingOther(true);
+    try {
+      const [slots, subs] = await Promise.all([
+        getAllClassesTimelineForDate(selectedDate, activeTeacherName, new Date()),
+        getSubstitutionsForDate(selectedDate),
+      ]);
+
+      // Build substitutions map: scheduleId -> Substitution
+      const map: Record<string, Substitution> = {};
+      for (const sub of subs) {
+        map[sub.schedule_id] = sub;
+      }
+      setSubstitutionsMap(map);
+
+      // Only keep slots that are CURRENTLY IN PROGRESS (by current time)
+      // OVERDUE and UPCOMING are intentionally excluded:
+      //   - OVERDUE: historical slots already passed, not actionable for real-time badal
+      //   - UPCOMING: not started yet, not time-relevant
+      const relevant = slots.filter((s) => s.status === 'IN_PROGRESS');
+      setOtherSlots(relevant);
+    } catch (err) {
+      console.warn('Gagal memuat slot kelas lain:', err);
+    } finally {
+      setIsLoadingOther(false);
+    }
+  }, [activeTeacherName, selectedDate]);
+
   useEffect(() => {
     fetchTimeline();
   }, [fetchTimeline]);
+
+  useEffect(() => {
+    fetchOtherSlots();
+  }, [fetchOtherSlots]);
 
   // Lightweight 30s auto-refresh timer to update slot statuses in real-time
   useEffect(() => {
@@ -99,6 +162,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         fetchTimeline();
+        fetchOtherSlots();
       }
     };
 
@@ -108,23 +172,28 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
       clearInterval(timer);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [selectedDate, fetchTimeline]);
+  }, [selectedDate, fetchTimeline, fetchOtherSlots]);
 
   // Date Navigation Helpers
+  const handleSetDate = (newDate: string) => {
+    setSelectedDate(newDate);
+    setShowBadalPanel(false);
+  };
+
   const handlePrevDay = () => {
     const d = new Date(selectedDate + 'T00:00:00');
     d.setDate(d.getDate() - 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    handleSetDate(d.toISOString().split('T')[0]);
   };
 
   const handleNextDay = () => {
     const d = new Date(selectedDate + 'T00:00:00');
     d.setDate(d.getDate() + 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    handleSetDate(d.toISOString().split('T')[0]);
   };
 
   const handleSetToday = () => {
-    setSelectedDate(todayStr);
+    handleSetDate(todayStr);
   };
 
   // Format date display (e.g. "Senin, 14 September 2026")
@@ -144,8 +213,10 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
 
   const isViewingToday = selectedDate === todayStr;
 
-  // Open slot for filling or editing
+  // Open slot for filling or editing (own schedule)
   const handleOpenSlot = (slot: TimelineSlot) => {
+    setActiveSubstitution(null);
+    setIsSubstituteMode(false);
     setSelectedSlotForForm(slot);
     setIsFormViewActive(true);
   };
@@ -153,6 +224,8 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
   const handleBackToTimeline = () => {
     setIsFormViewActive(false);
     setSelectedSlotForForm(null);
+    setActiveSubstitution(null);
+    setIsSubstituteMode(false);
     if (editData && onCancelEdit) {
       onCancelEdit();
     }
@@ -160,9 +233,73 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
 
   const handleSuccessSave = () => {
     fetchTimeline();
+    fetchOtherSlots();
     setIsFormViewActive(false);
     setSelectedSlotForForm(null);
+    setActiveSubstitution(null);
+    setIsSubstituteMode(false);
     onSuccess();
+  };
+
+  // Open substitution modal for a slot from another class
+  const handleOpenSubstitutionTarget = (slot: TimelineSlot) => {
+    setSubstitutionError(undefined);
+    setSubstitutionTarget(slot);
+  };
+
+  // Handle confirmation from SubstitutionConfirmModal
+  const handleSubstitutionConfirm = async (reason: string, reasonDetail: string) => {
+    if (!substitutionTarget || !activeTeacherName) return;
+
+    setSubstitutionLoading(true);
+    setSubstitutionError(undefined);
+
+    try {
+      // Get academic year for overlap validation
+      const academicYears = await getAcademicYears();
+      const activeAY = academicYears.find((ay: any) => ay.status === 'ACTIVE') || academicYears[0];
+
+      // Lookup guru ID for substitute teacher (best effort)
+      let substituteTeacherId: string | null = null;
+      try {
+        const guruList = await getDaftarGuru();
+        const found = guruList.find(
+          (g) => g.nama_guru.trim().toLowerCase() === activeTeacherName.trim().toLowerCase()
+        );
+        if (found) substituteTeacherId = found.id;
+      } catch {
+        // non-fatal
+      }
+
+      const sub = await createSubstitution({
+        scheduleId: substitutionTarget.schedule.id,
+        date: selectedDate,
+        originalTeacherName: substitutionTarget.schedule.teacher_name,
+        originalTeacherId: substitutionTarget.schedule.teacher_id || null,
+        substituteTeacherName: activeTeacherName,
+        substituteTeacherId,
+        reason,
+        reasonDetail,
+        createdBy: activeTeacherName,
+        academicYearId: activeAY?.id || substitutionTarget.schedule.academic_year_id,
+      });
+
+      setSubstitutionTarget(null);
+      setActiveSubstitution(sub);
+      setIsSubstituteMode(true);
+      setSelectedSlotForForm(substitutionTarget);
+      setIsFormViewActive(true);
+
+      // Update map
+      setSubstitutionsMap((prev) => ({
+        ...prev,
+        [substitutionTarget.schedule.id]: sub,
+      }));
+    } catch (err: any) {
+      setSubstitutionError(err?.message || 'Gagal membuat data guru pengganti.');
+    } finally {
+      setSubstitutionLoading(false);
+    }
   };
 
   // IF FORM VIEW IS ACTIVE -> Render Full Page / Embedded AgendaDetailForm
@@ -199,6 +336,8 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
           onSuccessSave={handleSuccessSave}
           showToast={showToast}
           directEditData={editData}
+          isSubstitute={isSubstituteMode}
+          substitution={activeSubstitution}
         />
       </div>
     );
@@ -209,8 +348,76 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
     timelineData?.slots.filter((s) => s.status === 'COMPLETED').length || 0;
   const totalSlotsCount = timelineData?.slots.length || 0;
 
+  // Own slots that are currently IN_PROGRESS (guru login sedang mengajar)
+  const ownActiveSlots = timelineData?.slots.filter((s) => s.status === 'IN_PROGRESS') || [];
+
+  // Derive available badal candidates:
+  // 1. Must be IN_PROGRESS (already filtered by fetchOtherSlots)
+  // 2. No existing agenda final
+  // 3. No existing substitution from anyone (slot already taken)
+  // 4. No time-overlap with teacher's own ACTIVE schedule
+  const availableOtherSlots = otherSlots.filter((s) => {
+    // Exclude if already has a substitution (taken by anyone)
+    const sub = substitutionsMap[s.schedule.id];
+    if (sub) return false;
+
+    // Exclude if already has an agenda final
+    if (s.existingAgenda) return false;
+
+    // Exclude if teacher's own schedule overlaps in time with this candidate
+    const candStart = s.schedule.start_time.slice(0, 5);
+    const candEnd = s.schedule.end_time.slice(0, 5);
+    const toMin = (t: string) => {
+      const [h, m] = t.split(':').map(Number);
+      return h * 60 + m;
+    };
+    const candStartMin = toMin(candStart);
+    const candEndMin = toMin(candEnd);
+
+    const hasOwnOverlap = ownActiveSlots.some((own) => {
+      const ownStart = toMin(own.schedule.start_time.slice(0, 5));
+      const ownEnd = toMin(own.schedule.end_time.slice(0, 5));
+      return Math.max(candStartMin, ownStart) < Math.min(candEndMin, ownEnd);
+    });
+    if (hasOwnOverlap) return false;
+
+    return true;
+  });
+
+  // Teacher is currently in their own active slot
+  const hasOwnActiveSlot = ownActiveSlots.length > 0;
+
+  // Badal button/panel is relevant only when:
+  // - viewing today (real-time relevance)
+  // - teacher is NOT in their own active slot right now
+  // - there are candidates available
+  // - not weekend / no academic year
+  const isBadalRelevant =
+    isViewingToday &&
+    !hasOwnActiveSlot &&
+    activeTeacherName !== 'Administrator' &&
+    timelineData?.reason !== 'WEEKEND' &&
+    timelineData?.reason !== 'NO_ACTIVE_ACADEMIC_YEAR';
+
+  const hasBadalCandidates = availableOtherSlots.length > 0;
+
   return (
     <div className="max-w-4xl mx-auto space-y-4 pb-20 md:pb-6">
+      {/* Substitution Confirm Modal */}
+      {substitutionTarget && (
+        <SubstitutionConfirmModal
+          slot={substitutionTarget}
+          substituteTeacherName={activeTeacherName || ''}
+          onConfirm={handleSubstitutionConfirm}
+          onCancel={() => {
+            setSubstitutionTarget(null);
+            setSubstitutionError(undefined);
+          }}
+          isLoading={substitutionLoading}
+          errorMessage={substitutionError}
+        />
+      )}
+
       {/* Main Container Card */}
       <div className="bg-white border border-slate-200 sm:border-slate-300 rounded-2xl shadow-xs overflow-hidden">
         {/* TOP BAR: Navigation & Date Picker */}
@@ -241,7 +448,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                 <input
                   type="date"
                   value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
+                  onChange={(e) => handleSetDate(e.target.value)}
                   className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-none cursor-pointer"
                 />
               </div>
@@ -335,8 +542,8 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
               </p>
             </div>
           ) : !timelineData || timelineData.slots.length === 0 ? (
-            /* CASE: No Schedule on this day */
-            <div className="py-10 text-center space-y-2">
+            /* CASE: No Schedule on this day — still show substitute section below */
+            <div className="py-6 text-center space-y-2">
               <div className="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto">
                 <BookOpen className="w-6 h-6" />
               </div>
@@ -381,10 +588,112 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                       key={slot.schedule.id}
                       slot={slot}
                       onSelectSlot={handleOpenSlot}
+                      substitution={substitutionsMap[slot.schedule.id] || null}
                     />
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* SECTION 3: GURU PENGGANTI / BADAL
+              Rules:
+              - Only relevant when viewing TODAY
+              - Only when teacher has NO active slot of their own right now
+              - Only available candidates (IN_PROGRESS, no agenda, no substitution, no overlap)
+              - Panel hidden by default behind a button
+          */}
+          {isBadalRelevant && (
+            <div className="mt-2">
+              {!showBadalPanel ? (
+                /* Collapsed: show trigger button with count hint */
+                <div className="flex items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowBadalPanel(true)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold border transition ${
+                      hasBadalCandidates
+                        ? 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100'
+                        : 'bg-slate-50 border-slate-200 text-slate-500 cursor-default'
+                    }`}
+                    disabled={!hasBadalCandidates}
+                    title={hasBadalCandidates ? 'Lihat jadwal yang dapat dibadal' : 'Tidak ada jadwal yang tersedia untuk badal saat ini'}
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    {hasBadalCandidates
+                      ? `Menjadi Guru Pengganti (${availableOtherSlots.length} slot tersedia)`
+                      : 'Tidak ada jadwal yang bisa dibadal saat ini'}
+                  </button>
+                </div>
+              ) : (
+                /* Expanded: show candidate list */
+                <div className="border border-amber-200 rounded-2xl overflow-hidden">
+                  {/* Panel header */}
+                  <div className="px-4 py-3 bg-amber-50 border-b border-amber-200 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4 text-amber-700 shrink-0" />
+                      <div>
+                        <h2 className="text-xs font-bold text-amber-900">
+                          Jadwal yang Tersedia untuk Badal
+                        </h2>
+                        <p className="text-[11px] text-amber-700">
+                          Pilih jadwal yang akan Anda gantikan sekarang.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowBadalPanel(false)}
+                      className="text-[11px] text-amber-600 hover:text-amber-900 font-semibold px-2 py-1 hover:bg-amber-100 rounded-lg transition"
+                    >
+                      Tutup
+                    </button>
+                  </div>
+
+                  <div className="p-3 space-y-2.5 bg-amber-50/20">
+                    {isLoadingOther ? (
+                      <div className="py-4 flex items-center justify-center gap-2 text-xs text-slate-500">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Memuat...</span>
+                      </div>
+                    ) : availableOtherSlots.length === 0 ? (
+                      <p className="py-4 text-center text-xs text-slate-500">
+                        Tidak ada jadwal yang tersedia untuk dibadal saat ini.
+                      </p>
+                    ) : (
+                      availableOtherSlots.map((slot) => (
+                        <div
+                          key={slot.schedule.id}
+                          className="bg-white border border-amber-200 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        >
+                          <div className="space-y-1 text-xs">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-bold text-slate-900">{slot.schedule.class_id}</span>
+                              <span className="text-slate-400">&bull;</span>
+                              <span className="font-semibold text-slate-800">{slot.schedule.subject_name}</span>
+                              <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[11px] font-mono">
+                                {slot.schedule.start_time.slice(0, 5)} – {slot.schedule.end_time.slice(0, 5)}
+                              </span>
+                            </div>
+                            <p className="text-slate-500">
+                              Guru terjadwal:{' '}
+                              <span className="font-medium text-slate-700">{slot.schedule.teacher_name}</span>
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSubstitutionTarget(slot)}
+                            className="shrink-0 px-3.5 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition"
+                          >
+                            Saya yang Gantikan
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
