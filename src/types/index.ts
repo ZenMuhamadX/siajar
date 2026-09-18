@@ -135,7 +135,10 @@ export interface AgendaEvidence {
   file_name?: string;
   file_size?: number;
   mime_type?: string;
+  captured_at?: string;
   uploaded_at?: string;
+  actual_teacher_name?: string;
+  actual_teacher_id?: string;
   created_at?: string;
   signedUrl?: string;
 }

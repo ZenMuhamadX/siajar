@@ -4,7 +4,6 @@ import type { Siswa, AgendaEvidence, FullAgenda, Substitution } from '../../type
 import { getDaftarSiswa, simpanAgenda } from '../../services/agendaService';
 import {
   uploadAgendaEvidence,
-  deleteAgendaEvidence,
   getEvidenceSignedUrl,
 } from '../../services/evidenceService';
 import { PhotoLightboxModal } from '../PhotoLightboxModal';
@@ -18,9 +17,9 @@ import {
   Plus,
   Trash2,
   Camera,
-  Image as ImageIcon,
   Eye,
   AlertCircle,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface AbsensiInputItem {
@@ -63,6 +62,9 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   const scheduledTeacherName = schedule?.teacher_name || activeTeacherName || '-';
   // teacherName = untuk KBM row nama_guru: jika badal → guru pengganti, else → guru terjadwal
   const teacherName = isSubstitute ? activeTeacherName : scheduledTeacherName;
+  const actualTeacherId = isSubstitute
+    ? substitution?.substitute_teacher_id || null
+    : schedule?.teacher_id || null;
   const startTime = schedule?.start_time ? schedule.start_time.slice(0, 5) : '-';
   const endTime = schedule?.end_time ? schedule.end_time.slice(0, 5) : '-';
   const periodNumber = schedule?.period_number || 1;
@@ -78,13 +80,9 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
 
   // Evidence states
   const [existingEvidence, setExistingEvidence] = useState<AgendaEvidence | null>(null);
-  const [selectedPhotoFile, setSelectedPhotoFile] = useState<File | null>(null);
-  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
-  const [isDeleteEvidencePending, setIsDeleteEvidencePending] = useState<boolean>(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
   const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
-
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const nativeCameraInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize data when form opens or slot changes
   useEffect(() => {
@@ -107,9 +105,6 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
       setUraianKejadian('');
       setExistingEvidence(null);
     }
-    setSelectedPhotoFile(null);
-    setPhotoPreviewUrl(null);
-    setIsDeleteEvidencePending(false);
   }, [existingAgenda, slot]);
 
   // Load Siswa list for this class
@@ -176,21 +171,131 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
     setAbsensiList(updated);
   };
 
+  // Helper kompresi gambar dari native camera (file input) menjadi WebP ringan
+  const compressImageFile = async (file: File): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+        const maxDim = 1280;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (b) => resolve(b || file),
+            'image/webp',
+            0.85
+          );
+        } else {
+          resolve(file);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(file);
+      };
+      img.src = objectUrl;
+    });
+  };
+
+  // Handler saat foto selesai dijepret melalui native camera bawaan perangkat
+  const handleNativeCameraChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingPhoto(true);
+    const capturedAt = new Date().toISOString();
+
+    try {
+      const compressedBlob = await compressImageFile(file);
+
+      // Pastikan agenda sudah ada di DB atau buat draft terlebih dahulu jika belum ada
+      const scheduleId = schedule?.id || existingAgenda?.header.schedule_id || null;
+      let targetAgendaId = existingAgenda?.header.id;
+
+      if (!targetAgendaId) {
+        // Buat record header awal agar agendaId valid untuk storage path
+        const initSave = await simpanAgenda({
+          schedule_id: scheduleId,
+          actual_teacher_name: activeTeacherName || teacherName,
+          sekolah: 'SDIT AS-SYIFA',
+          kelas,
+          tanggal: targetDate,
+          kbm: [
+            {
+              jam_ke: `Jam ${periodNumber}`,
+              nama_guru: teacherName,
+              mapel: subjectName,
+              materi: materi.trim() || 'Draft Pembelajaran',
+              tugas_pr: tugasPr.trim() || undefined,
+              is_badal: isSubstitute,
+            },
+          ],
+          absensi: absensiList,
+          uraian_kejadian: uraianKejadian.trim() || undefined,
+        });
+        targetAgendaId = initSave.id;
+      }
+
+      const uploaded = await uploadAgendaEvidence({
+        agendaId: targetAgendaId,
+        file: compressedBlob,
+        tanggal: targetDate,
+        capturedAt,
+        actualTeacherName: activeTeacherName || teacherName,
+        actualTeacherId,
+        academicYearId: schedule?.academic_year_id,
+        oldStoragePath: existingEvidence?.storage_path,
+      });
+
+      setExistingEvidence(uploaded);
+      showToast('success', 'Foto dokumentasi berhasil diambil dan disimpan.');
+    } catch (err: any) {
+      console.error('Evidence upload error:', err);
+      showToast('error', 'Gagal mengunggah foto: ' + (err?.message || 'Periksa koneksi internet'));
+    } finally {
+      setIsUploadingPhoto(false);
+      // Reset input agar bisa dipakai ulang jika dibutuhkan
+      if (e.target) e.target.value = '';
+    }
+  };
+
   // Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validasi materi
     if (!materi.trim()) {
       showToast('error', 'Mohon isi Materi Pembelajaran.');
+      return;
+    }
+
+    // Validasi foto dokumentasi WAJIB ADA (STAGE 4)
+    if (!existingEvidence || !existingEvidence.storage_path) {
+      showToast('error', 'Foto dokumentasi belum diambil. Ambil foto selfie guru terlebih dahulu.');
       return;
     }
 
     setIsSubmitting(true);
     try {
       const scheduleId = schedule?.id || existingAgenda?.header.schedule_id || null;
-      const agendaId = existingAgenda?.header.id;
+      const agendaId = existingAgenda?.header.id || existingEvidence.agenda_id;
 
-      const saveResult = await simpanAgenda({
+      await simpanAgenda({
         agendaId,
         schedule_id: scheduleId,
         actual_teacher_name: activeTeacherName || teacherName,
@@ -211,34 +316,11 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
         uraian_kejadian: uraianKejadian.trim() || undefined,
       });
 
-      const savedAgendaId = saveResult.id;
-
-      // Photo upload
-      if (selectedPhotoFile && savedAgendaId) {
-        try {
-          await uploadAgendaEvidence({
-            agendaId: savedAgendaId,
-            file: selectedPhotoFile,
-            tanggal: targetDate,
-            oldStoragePath: existingEvidence?.storage_path,
-          });
-        } catch (photoErr) {
-          console.error('Evidence upload error:', photoErr);
-          showToast('error', 'Agenda tersimpan, tetapi foto gagal diunggah.');
-        }
-      } else if (isDeleteEvidencePending && existingEvidence && savedAgendaId) {
-        try {
-          await deleteAgendaEvidence(savedAgendaId, existingEvidence.storage_path);
-        } catch (delErr) {
-          console.warn('Gagal hapus foto:', delErr);
-        }
-      }
-
       showToast(
         'success',
         existingAgenda
           ? `Perubahan agenda ${kelas} (${subjectName}) berhasil disimpan.`
-          : `Agenda ${kelas} (${subjectName}) berhasil disimpan.`
+          : `Agenda ${kelas} (${subjectName}) berhasil diselesaikan.`
       );
 
       onSuccessSave();
@@ -521,56 +603,38 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
               )}
             </div>
 
-            {/* SECTION IV: BUKTI FOTO */}
+            {/* SECTION IV: DOKUMENTASI FOTO GURU */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  IV. Bukti Foto Mengajar <span className="text-slate-400 font-normal">(Opsional)</span>
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                    IV. Dokumentasi Foto Mengajar
+                  </h3>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                    Wajib
+                  </span>
+                </div>
+                {existingEvidence?.storage_path ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    Status: Tersimpan (Final)
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    Belum Ada Foto
+                  </span>
+                )}
               </div>
 
-              {/* Hidden File Inputs */}
-              <input
-                ref={cameraInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    setSelectedPhotoFile(file);
-                    setPhotoPreviewUrl(URL.createObjectURL(file));
-                    setIsDeleteEvidencePending(false);
-                  }
-                  e.target.value = '';
-                }}
-              />
-
-              <input
-                ref={galleryInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    setSelectedPhotoFile(file);
-                    setPhotoPreviewUrl(URL.createObjectURL(file));
-                    setIsDeleteEvidencePending(false);
-                  }
-                  e.target.value = '';
-                }}
-              />
-
-              {/* Photo preview / upload selector */}
-              {photoPreviewUrl || (existingEvidence && !isDeleteEvidencePending) ? (
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                  <div className="relative rounded-lg overflow-hidden bg-slate-900 flex items-center justify-center max-h-52 border border-slate-300">
+              {/* Status Foto & Tampilan */}
+              {existingEvidence?.storage_path ? (
+                // State FINAL: Read-only, guru tidak boleh retake / ganti / hapus
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                  <div className="relative rounded-lg overflow-hidden bg-slate-900 flex items-center justify-center max-h-56 border border-slate-300">
                     <img
-                      src={photoPreviewUrl || existingEvidence?.signedUrl || ''}
-                      alt="Bukti Foto"
-                      className="w-full h-auto max-h-52 object-contain cursor-pointer"
+                      src={existingEvidence.signedUrl || ''}
+                      alt="Dokumentasi Foto Guru"
+                      className="w-full h-auto max-h-56 object-contain cursor-pointer"
                       onClick={() => setIsLightboxOpen(true)}
                     />
                     <button
@@ -583,69 +647,86 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                     </button>
                   </div>
 
-                  <div className="flex items-center justify-between gap-2 text-xs">
-                    <span className="text-slate-600 font-medium">
-                      {selectedPhotoFile
-                        ? `✓ Foto baru dipilih`
-                        : '✓ Foto tersimpan'}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => galleryInputRef.current?.click()}
-                        className="px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold rounded-lg text-xs transition"
-                      >
-                        Ganti
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (confirm('Hapus foto bukti mengajar ini?')) {
-                            if (selectedPhotoFile) {
-                              setSelectedPhotoFile(null);
-                              setPhotoPreviewUrl(null);
-                            } else if (existingEvidence) {
-                              setIsDeleteEvidencePending(true);
-                            }
-                          }
-                        }}
-                        className="px-2.5 py-1.5 bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-semibold rounded-lg text-xs transition"
-                      >
-                        Hapus
-                      </button>
+                  <div className="bg-white border border-slate-200 rounded-lg p-3 space-y-1.5 text-xs">
+                    <p className="font-semibold text-slate-800 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                      <span>Foto dokumentasi sudah tersimpan.</span>
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-600 pt-1 border-t border-slate-100">
+                      <div>
+                        <span className="text-slate-400 block">Diambil:</span>
+                        <span className="font-medium text-slate-700">
+                          {existingEvidence.captured_at
+                            ? new Date(existingEvidence.captured_at).toLocaleDateString('id-ID', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : '-'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block">Diupload:</span>
+                        <span className="font-medium text-slate-700">
+                          {existingEvidence.uploaded_at
+                            ? new Date(existingEvidence.uploaded_at).toLocaleDateString('id-ID', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : '-'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="p-4 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+                // State BELUM ADA FOTO: Call to action buka kamera langsung
+                <div className="p-4 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
-                      <Camera className="w-4 h-4" />
+                    <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+                      <Camera className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-slate-700">Belum ada foto kegiatan</p>
-                      <p className="text-[11px] text-slate-400">Ambil dari kamera atau galeri</p>
+                      <p className="text-xs font-bold text-slate-800">Belum ada foto dokumentasi</p>
+                      <p className="text-[11px] text-slate-500">
+                        Ambil foto selfie pengajar langsung melalui kamera perangkat.
+                      </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <button
-                      type="button"
-                      onClick={() => cameraInputRef.current?.click()}
-                      className="flex-1 sm:flex-initial px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition"
-                    >
-                      <Camera className="w-3.5 h-3.5 text-emerald-700" />
-                      <span>Kamera</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => galleryInputRef.current?.click()}
-                      className="flex-1 sm:flex-initial px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition"
-                    >
-                      <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Galeri</span>
-                    </button>
-                  </div>
+                  {/* Hidden Native Camera Input with capture="user" */}
+                  <input
+                    ref={nativeCameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="user"
+                    className="hidden"
+                    onChange={handleNativeCameraChange}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => nativeCameraInputRef.current?.click()}
+                    disabled={isUploadingPhoto}
+                    className="w-full sm:w-auto px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 active:scale-98 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-xs disabled:opacity-50 shrink-0"
+                  >
+                    {isUploadingPhoto ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Menyimpan Foto...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-4 h-4" />
+                        <span>Buka Kamera</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               )}
             </div>
@@ -656,9 +737,11 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
         <PhotoLightboxModal
           isOpen={isLightboxOpen}
           onClose={() => setIsLightboxOpen(false)}
-          imageUrl={photoPreviewUrl || existingEvidence?.signedUrl}
+          imageUrl={existingEvidence?.signedUrl}
           uploadedAt={existingEvidence?.uploaded_at}
-          title={`Bukti Foto - ${kelas} (${subjectName})`}
+          capturedAt={existingEvidence?.captured_at}
+          actualTeacherName={existingEvidence?.actual_teacher_name || activeTeacherName || teacherName}
+          title={`Dokumentasi Foto - ${kelas} (${subjectName})`}
         />
 
         {/* Desktop Save Bar */}

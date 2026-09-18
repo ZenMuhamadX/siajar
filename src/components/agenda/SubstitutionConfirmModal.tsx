@@ -26,7 +26,6 @@ export const SubstitutionConfirmModal: React.FC<SubstitutionConfirmModalProps> =
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const finalReason = reason === 'Lainnya' ? `Lainnya: ${reasonDetail.trim()}` : reason;
     onConfirm(reason, reason === 'Lainnya' ? reasonDetail.trim() : '');
   };
 

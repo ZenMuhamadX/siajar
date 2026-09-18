@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DAFTAR_KELAS, type FullAgenda, type Guru } from '../types';
 import { getRekapAgenda, deleteAgenda, getDaftarGuru } from '../services/agendaService';
-import { getEvidenceSignedUrl } from '../services/evidenceService';
+import { getEvidenceSignedUrl, deleteAgendaEvidence } from '../services/evidenceService';
 import { PhotoLightboxModal } from '../components/PhotoLightboxModal';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -86,10 +86,35 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
 
   // Lightbox Modal State
   const [activePhoto, setActivePhoto] = useState<{
+    agendaId: string;
+    storagePath?: string;
     url: string;
     uploadedAt?: string;
+    capturedAt?: string;
+    actualTeacherName?: string;
     title: string;
   } | null>(null);
+  const [isDeletingEvidence, setIsDeletingEvidence] = useState<boolean>(false);
+
+  const handleAdminDeleteEvidence = async () => {
+    if (!activePhoto || !activePhoto.agendaId) return;
+    if (!import.meta.env.DEV && !confirm('Hapus foto dokumentasi agenda ini? Status agenda akan kembali ke "Belum ada foto" tanpa menghapus isi agenda.')) {
+      return;
+    }
+
+    setIsDeletingEvidence(true);
+    try {
+      await deleteAgendaEvidence(activePhoto.agendaId, activePhoto.storagePath, true);
+      showToast('success', 'Foto dokumentasi berhasil dihapus. Status agenda kembali ke belum ada foto.');
+      setActivePhoto(null);
+      fetchAgendas();
+    } catch (err: any) {
+      console.error('Gagal menghapus foto dokumentasi:', err);
+      showToast('error', 'Gagal menghapus foto dokumentasi: ' + (err?.message || ''));
+    } finally {
+      setIsDeletingEvidence(false);
+    }
+  };
 
   const fetchAgendas = async () => {
     setIsLoading(true);
@@ -138,14 +163,15 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
   };
 
   const handleDelete = async (id: string, kelas: string, tanggal: string) => {
-    if (confirm(`Yakin ingin menghapus agenda ${kelas} tanggal ${tanggal}?`)) {
-      try {
-        await deleteAgenda(id);
-        showToast('success', 'Agenda berhasil dihapus.');
-        fetchAgendas();
-      } catch (err) {
-        showToast('error', 'Gagal menghapus agenda.');
-      }
+    if (!import.meta.env.DEV && !confirm(`Yakin ingin menghapus agenda ${kelas} tanggal ${tanggal}?`)) {
+      return;
+    }
+    try {
+      await deleteAgenda(id);
+      showToast('success', 'Agenda berhasil dihapus.');
+      fetchAgendas();
+    } catch (err) {
+      showToast('error', 'Gagal menghapus agenda.');
     }
   };
 
@@ -524,9 +550,13 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
                                 onClick={() => {
                                   if (agenda.evidence?.signedUrl) {
                                     setActivePhoto({
+                                      agendaId: agenda.header.id,
+                                      storagePath: agenda.evidence.storage_path,
                                       url: agenda.evidence.signedUrl,
                                       uploadedAt: agenda.evidence.uploaded_at,
-                                      title: `Bukti Foto - ${agenda.header.kelas}`,
+                                      capturedAt: agenda.evidence.captured_at,
+                                      actualTeacherName: agenda.evidence.actual_teacher_name || agenda.header.actual_teacher_name || agenda.kbm?.[0]?.nama_guru,
+                                      title: `Dokumentasi Foto - ${agenda.header.kelas} (${agenda.kbm?.[0]?.mapel || 'KBM'})`,
                                     });
                                   }
                                 }}
@@ -619,7 +649,12 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
         onClose={() => setActivePhoto(null)}
         imageUrl={activePhoto?.url}
         uploadedAt={activePhoto?.uploadedAt}
+        capturedAt={activePhoto?.capturedAt}
+        actualTeacherName={activePhoto?.actualTeacherName}
         title={activePhoto?.title}
+        isAdmin={isAdmin}
+        onAdminDelete={handleAdminDeleteEvidence}
+        isDeleting={isDeletingEvidence}
       />
     </div>
   );

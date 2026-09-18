@@ -34,9 +34,7 @@ import {
   List,
   AlertTriangle,
   RefreshCw,
-  CalendarDays,
   Clock,
-  BookOpen,
 } from 'lucide-react';
 
 interface ScheduleManagementProps {

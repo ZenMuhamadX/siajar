@@ -1,12 +1,17 @@
 import React, { useEffect } from 'react';
-import { X, Calendar, Download, AlertCircle } from 'lucide-react';
+import { X, Calendar, Download, AlertCircle, User, Clock, Trash2 } from 'lucide-react';
 
 interface PhotoLightboxModalProps {
   isOpen: boolean;
   onClose: () => void;
   imageUrl?: string | null;
   uploadedAt?: string;
+  capturedAt?: string;
+  actualTeacherName?: string;
   title?: string;
+  isAdmin?: boolean;
+  onAdminDelete?: () => void;
+  isDeleting?: boolean;
 }
 
 export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
@@ -14,7 +19,12 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
   onClose,
   imageUrl,
   uploadedAt,
-  title = 'Bukti Foto Mengajar',
+  capturedAt,
+  actualTeacherName,
+  title = 'Dokumentasi Foto Mengajar',
+  isAdmin = false,
+  onAdminDelete,
+  isDeleting = false,
 }) => {
   // Tutup dengan ESC
   useEffect(() => {
@@ -34,10 +44,11 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
       const d = new Date(isoString);
       return d.toLocaleDateString('id-ID', {
         day: 'numeric',
-        month: 'long',
+        month: 'short',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
+        second: '2-digit',
       });
     } catch {
       return isoString;
@@ -46,31 +57,43 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-xs no-print"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-xs no-print"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        className="bg-white rounded-2xl max-w-2xl w-full max-h-[94vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Modal */}
-        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
+        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div>
             <h3 className="text-sm font-bold text-slate-900">{title}</h3>
-            {uploadedAt && (
-              <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                <Calendar className="w-3 h-3 text-slate-400" />
-                <span>Diunggah: {formatDateTimeIndo(uploadedAt)}</span>
+            {actualTeacherName && (
+              <p className="text-[11px] text-slate-600 font-medium flex items-center gap-1 mt-0.5">
+                <User className="w-3 h-3 text-emerald-600" />
+                <span>Guru Pengajar: <strong className="text-slate-800">{actualTeacherName}</strong></span>
               </p>
             )}
           </div>
           <div className="flex items-center gap-1.5">
+            {isAdmin && onAdminDelete && (
+              <button
+                type="button"
+                onClick={onAdminDelete}
+                disabled={isDeleting}
+                className="px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition disabled:opacity-50"
+                title="Hapus Foto Dokumentasi (Admin)"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeleting ? 'Menghapus...' : 'Hapus Foto'}</span>
+              </button>
+            )}
             {imageUrl && (
               <a
                 href={imageUrl}
                 target="_blank"
                 rel="noreferrer"
-                download="bukti_mengajar.webp"
+                download="dokumentasi_agenda.webp"
                 className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 rounded-lg transition"
                 title="Buka / Unduh Foto"
               >
@@ -88,24 +111,37 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
         </div>
 
         {/* Body Gambar */}
-        <div className="p-3 sm:p-4 bg-slate-900 flex-1 flex items-center justify-center min-h-[260px] max-h-[75vh] overflow-hidden">
+        <div className="p-3 sm:p-4 bg-slate-950 flex-1 flex items-center justify-center min-h-[260px] max-h-[68vh] overflow-hidden">
           {imageUrl ? (
             <img
               src={imageUrl}
-              alt="Bukti Foto Mengajar"
-              className="max-h-[70vh] w-auto max-w-full object-contain rounded-lg shadow-md"
+              alt="Dokumentasi Foto Agenda"
+              className="max-h-[64vh] w-auto max-w-full object-contain rounded-lg shadow-md"
             />
           ) : (
             <div className="text-center p-6 text-slate-400 text-xs flex flex-col items-center gap-2">
               <AlertCircle className="w-8 h-8 text-slate-500" />
-              <span>Foto tidak dapat dimuat atau sudah tidak tersedia di server.</span>
+              <span>Foto tidak dapat dimuat atau sudah dihapus dari server.</span>
             </div>
           )}
         </div>
 
-        {/* Footer info audit */}
-        <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-center text-[11px] text-slate-500">
-          Waktu unggah tercatat resmi di sistem server &bull; SDIT AS-SYIFA
+        {/* Metadata Footer: Diambil & Diunggah */}
+        <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-600">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1 font-medium">
+              <Clock className="w-3 h-3 text-slate-400" />
+              <span>Diambil: {formatDateTimeIndo(capturedAt || uploadedAt)}</span>
+            </span>
+            <span className="text-slate-300 hidden sm:inline">&bull;</span>
+            <span className="flex items-center gap-1 font-medium">
+              <Calendar className="w-3 h-3 text-slate-400" />
+              <span>Diupload: {formatDateTimeIndo(uploadedAt)}</span>
+            </span>
+          </div>
+          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 w-fit">
+            Status: Tersimpan (Final)
+          </span>
         </div>
       </div>
     </div>

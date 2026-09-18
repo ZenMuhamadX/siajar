@@ -4,9 +4,7 @@ import type { Substitution } from '../../types';
 import { PageHeader } from '../../components/admin/PageHeader';
 import {
   Users,
-  Calendar,
   Loader2,
-  AlertTriangle,
   XCircle,
   RefreshCw,
   ChevronDown,
@@ -27,14 +25,6 @@ interface SubWithSchedule extends Substitution {
     day: string;
   };
 }
-
-const DAY_LABEL: Record<string, string> = {
-  MONDAY: 'Senin',
-  TUESDAY: 'Selasa',
-  WEDNESDAY: 'Rabu',
-  THURSDAY: 'Kamis',
-  FRIDAY: 'Jumat',
-};
 
 function formatDate(dateStr: string) {
   try {

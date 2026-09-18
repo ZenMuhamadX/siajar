@@ -349,7 +349,10 @@ export async function getRekapAgenda(filters?: {
             file_name: rawEvidence.file_name,
             file_size: rawEvidence.file_size,
             mime_type: rawEvidence.mime_type,
+            captured_at: rawEvidence.captured_at,
             uploaded_at: rawEvidence.uploaded_at,
+            actual_teacher_name: rawEvidence.actual_teacher_name,
+            actual_teacher_id: rawEvidence.actual_teacher_id,
             created_at: rawEvidence.created_at,
           }
         : null,
