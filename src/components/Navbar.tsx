@@ -2,7 +2,6 @@ import {
   LogOut,
   ShieldCheck,
   User as UserIcon,
-  LayoutDashboard,
   FileEdit,
   History,
   MessageSquarePlus,
@@ -96,24 +95,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Right User Info & Logout */}
             <div className="flex items-center gap-2 sm:gap-3">
-              {isAdmin && (
-                <button
-                  onClick={() => onToggleView(currentView === 'dev' ? 'agenda' : 'dev')}
-                  className={`px-2 py-1 sm:px-2.5 sm:py-1.5 rounded text-[11px] sm:text-xs font-semibold flex items-center gap-1 transition border ${
-                    currentView === 'dev'
-                      ? 'bg-slate-900 text-white border-slate-900'
-                      : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-200'
-                  }`}
-                >
-                  <LayoutDashboard className="w-3 h-3 text-purple-600" />
-                  <span className="hidden sm:inline">Panel Admin</span>
-                  <span className="sm:hidden">Admin</span>
-                </button>
-              )}
-
               {/* Teacher Info */}
               <div className="flex flex-col items-end">
-                <span className="text-[11px] sm:text-xs font-bold text-slate-800 max-w-[120px] sm:max-w-[150px] truncate">
+                <span className="text-[11px] sm:text-xs font-bold text-slate-800 max-w-30 sm:max-w-37.5 truncate">
                   {activeTeacherName || 'Guru'}
                 </span>
                 <span className="text-[9px] sm:text-[10px] text-slate-400 font-medium flex items-center gap-0.5">

@@ -14,29 +14,22 @@ import { Loader2 } from 'lucide-react';
 
 function MainApp() {
   const { activeTeacherName, isAdmin, loading } = useAuth();
-  const [currentView, setCurrentView] = useState<MainViewType>(() => {
-    return window.location.pathname === '/admin' ? 'dev' : 'agenda';
-  });
+  const [currentView, setCurrentView] = useState<MainViewType>('agenda');
   const [adminSubTab, setAdminSubTab] = useState<AdminTab>('overview');
   const [editingAgenda, setEditingAgenda] = useState<FullAgenda | null>(null);
   const [isKotakSaranOpen, setIsKotakSaranOpen] = useState(false);
   const [isTeacherScheduleOpen, setIsTeacherScheduleOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  // Synchronize browser history / URL path (/admin vs /)
   useEffect(() => {
-    const handlePopState = () => {
-      const path = window.location.pathname;
-      if (path === '/admin') {
-        setCurrentView('dev');
-      } else {
-        setCurrentView('agenda');
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+    if (loading || !activeTeacherName) return;
+    if (isAdmin && window.location.pathname !== '/admin') {
+      window.history.replaceState({}, '', '/admin');
+    }
+    if (!isAdmin && window.location.pathname === '/admin') {
+      window.history.replaceState({}, '', '/');
+    }
+  }, [loading, isAdmin, activeTeacherName]);
 
   const showToast = (type: 'success' | 'error' | 'info', message: string) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
@@ -64,10 +57,6 @@ function MainApp() {
       setEditingAgenda(null);
     }
     setCurrentView(view);
-    const targetPath = view === 'dev' ? '/admin' : '/';
-    if (window.location.pathname !== targetPath) {
-      window.history.pushState({}, '', targetPath);
-    }
   };
 
   if (loading) {
@@ -85,22 +74,22 @@ function MainApp() {
     return <LoginPage />;
   }
 
-  // Non-admin cannot stay in dev view
-  const activeView: MainViewType = !isAdmin && currentView === 'dev' ? 'agenda' : currentView;
-
-  if (activeView === 'dev') {
+  if (isAdmin) {
     return (
       <>
         <DevPanel
           subTab={adminSubTab}
-          onSubTabChange={(tab) => setAdminSubTab(tab as any)}
-          onBackToApp={() => handleNavigateView('agenda')}
-          onStartEditAgenda={(agenda) => {
-            handleStartEditAgenda(agenda);
-            const targetPath = '/';
-            if (window.location.pathname !== targetPath) {
-              window.history.pushState({}, '', targetPath);
+          onSubTabChange={(tab) => {
+            setAdminSubTab(tab as AdminTab);
+            if (tab !== 'agenda') {
+              setEditingAgenda(null);
             }
+          }}
+          editingAgenda={editingAgenda}
+          onCancelEditAgenda={handleCancelEdit}
+          onStartEditAgenda={(agenda) => {
+            setEditingAgenda(agenda);
+            setAdminSubTab('agenda');
           }}
           showToast={showToast}
         />
@@ -113,7 +102,7 @@ function MainApp() {
     <div className="min-h-screen bg-slate-100/70 text-slate-800 flex flex-col font-sans">
       {/* Top Header Mode Guru */}
       <Navbar
-        currentView={activeView}
+        currentView={currentView === 'dev' ? 'agenda' : currentView}
         onToggleView={handleNavigateView}
         onOpenKotakSaran={() => setIsKotakSaranOpen(true)}
         onOpenSchedule={() => setIsTeacherScheduleOpen(true)}
@@ -121,7 +110,7 @@ function MainApp() {
 
       {/* Main Content Guru */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 lg:p-6 pb-24 md:pb-6">
-        {activeView === 'agenda' && (
+        {(currentView === 'agenda' || currentView === 'dev') && (
           <InputAgenda
             editData={editingAgenda}
             onCancelEdit={handleCancelEdit}
@@ -132,7 +121,7 @@ function MainApp() {
           />
         )}
 
-        {activeView === 'riwayat' && (
+        {currentView === 'riwayat' && (
           <RiwayatAgenda
             onEditAgenda={handleStartEditAgenda}
             showToast={showToast}

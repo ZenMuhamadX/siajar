@@ -409,3 +409,93 @@ export async function getAllClassesTimelineForDate(
     return { schedule: sch, status, existingAgenda: foundAgenda };
   });
 }
+
+/**
+ * All ACTIVE schedules for a date across every class/teacher.
+ * Used by the admin agenda desk (not the teacher "jadwal saya" flow).
+ */
+export async function getSchoolDailyTimelineForDate(
+  date: string,
+  now: Date = new Date()
+): Promise<TeacherDailyTimelineResult> {
+  const dateObj = new Date(date + 'T00:00:00');
+  const dayKey = getScheduleDayFromDate(dateObj);
+  const dayName = dateObj.toLocaleDateString('id-ID', { weekday: 'long' });
+
+  if (!dayKey) {
+    return {
+      date,
+      dayName,
+      dayKey: null,
+      academicYear: null,
+      slots: [],
+      activeSlot: null,
+      conflictDetected: false,
+      reason: 'WEEKEND',
+    };
+  }
+
+  const academicYears = await getAcademicYears();
+  const activeAY = academicYears.find((ay) => ay.status === 'ACTIVE') || academicYears[0];
+  if (!activeAY) {
+    return {
+      date,
+      dayName,
+      dayKey,
+      academicYear: null,
+      slots: [],
+      activeSlot: null,
+      conflictDetected: false,
+      reason: 'NO_ACTIVE_ACADEMIC_YEAR',
+    };
+  }
+
+  const allSchedules = await getSchedules({
+    academicYearId: activeAY.id,
+    day: dayKey,
+    status: 'ACTIVE',
+  });
+
+  let agendasOnDate: FullAgenda[] = [];
+  try {
+    agendasOnDate = await getRekapAgenda({ tanggal: date });
+  } catch {
+    // non-fatal
+  }
+
+  const slots: TimelineSlot[] = allSchedules
+    .map((sch) => {
+      const foundAgenda =
+        agendasOnDate.find(
+          (a) =>
+            a.header.schedule_id === sch.id ||
+            (!a.header.schedule_id &&
+              a.header.kelas === sch.class_id &&
+              a.header.tanggal === date)
+        ) || null;
+
+      return {
+        schedule: sch,
+        status: computeSlotStatus(sch, foundAgenda, date, now),
+        existingAgenda: foundAgenda,
+      };
+    })
+    .sort((a, b) => {
+      const classCmp = a.schedule.class_id.localeCompare(b.schedule.class_id, 'id');
+      if (classCmp !== 0) return classCmp;
+      return a.schedule.start_time.localeCompare(b.schedule.start_time);
+    });
+
+  const { activeSlot } = recomputeTimelineSlotStatuses(slots, date, now);
+
+  return {
+    date,
+    dayName,
+    dayKey,
+    academicYear: activeAY,
+    slots,
+    activeSlot,
+    conflictDetected: false,
+    reason: slots.length === 0 ? 'NO_SCHEDULES' : 'OK',
+  };
+}

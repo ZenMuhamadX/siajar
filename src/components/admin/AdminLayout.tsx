@@ -43,7 +43,6 @@ export type AdminTab =
 interface AdminLayoutProps {
   activeTab: AdminTab;
   onSelectTab: (tab: AdminTab) => void;
-  onBackToApp: () => void;
   children: React.ReactNode;
 }
 
@@ -110,7 +109,6 @@ const NAV_GROUPS: NavGroup[] = [
 export const AdminLayout: React.FC<AdminLayoutProps> = ({
   activeTab,
   onSelectTab,
-  onBackToApp,
   children,
 }) => {
   const { signOut, activeTeacherName } = useAuth();
@@ -290,18 +288,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               </button>
             </div>
           )}
-
-          {/* Button to go back to Teacher Mode */}
-          <button
-            onClick={onBackToApp}
-            className={`w-full py-1.5 px-3 rounded-lg text-[11px] font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200/80 transition flex items-center justify-center gap-1.5 border border-slate-200 ${
-              isCollapsed ? 'px-0' : ''
-            }`}
-            title="Keluar ke Mode Guru"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-            {!isCollapsed && <span>Mode Guru</span>}
-          </button>
         </div>
       </aside>
 
@@ -331,16 +317,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             </div>
           </div>
 
-          {/* Right Header: Teacher Mode Switcher */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* <button
-              onClick={onBackToApp}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-              <span>Beralih ke Mode Guru</span>
-            </button> */}
-
             <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-[11px] font-bold rounded-full border border-slate-200">
               Admin
             </span>

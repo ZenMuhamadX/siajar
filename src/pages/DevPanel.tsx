@@ -16,15 +16,15 @@ import { EkskulPage } from './admin/EkskulPage';
 import { PengaturanPage } from './admin/PengaturanPage';
 import { PeriodTemplatePage } from './admin/PeriodTemplatePage';
 import { SubstitusiPage } from './admin/SubstitusiPage';
-import { PageHeader } from '../components/admin/PageHeader';
+import { AdminAgendaPage } from './admin/AdminAgendaPage';
 import type { FullAgenda } from '../types';
-import { FileEdit } from 'lucide-react';
 
 interface DevPanelProps {
   subTab: DevSubTab;
   onSubTabChange: (tab: DevSubTab) => void;
-  onBackToApp: () => void;
   onStartEditAgenda?: (agenda: FullAgenda) => void;
+  onCancelEditAgenda?: () => void;
+  editingAgenda?: FullAgenda | null;
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
 }
 
@@ -33,15 +33,15 @@ export type DevSubTab = AdminTab;
 export const DevPanel: React.FC<DevPanelProps> = ({
   subTab,
   onSubTabChange,
-  onBackToApp,
   onStartEditAgenda,
+  onCancelEditAgenda,
+  editingAgenda,
   showToast,
 }) => {
   return (
     <AdminLayout
       activeTab={subTab}
       onSelectTab={(tab) => onSubTabChange(tab)}
-      onBackToApp={onBackToApp}
     >
       {/* 1. Ringkasan Dashboard */}
       {subTab === 'overview' && (
@@ -51,35 +51,12 @@ export const DevPanel: React.FC<DevPanelProps> = ({
         />
       )}
 
-      {/* 2. Form Agenda Superuser */}
       {subTab === 'agenda' && (
-        <div className="space-y-6">
-          <PageHeader
-            title="Agenda Pembelajaran"
-            description="Entri jurnal harian atau koreksi agenda seluruh kelas oleh administrator."
-          />
-
-          <div className="bg-white rounded-xl border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-4">
-            <div className="space-y-1">
-              <h3 className="text-sm font-bold text-slate-900">
-                Pengisian Agenda Mengajar
-              </h3>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Sebagai Administrator, Anda memiliki otorisasi penuh untuk mengisi, meninjau, ataupun mengoreksi data agenda Pembelajaran guru manapun secara langsung melalui form agenda utama.
-              </p>
-            </div>
-
-            <div className="pt-2">
-              <button
-                onClick={onBackToApp}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition flex items-center gap-2 shadow-xs"
-              >
-                <FileEdit className="w-4 h-4" />
-                <span>Buka Form Input Agenda</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        <AdminAgendaPage
+          editData={editingAgenda}
+          onCancelEdit={onCancelEditAgenda}
+          showToast={showToast}
+        />
       )}
 
       {/* 3. Jadwal */}
