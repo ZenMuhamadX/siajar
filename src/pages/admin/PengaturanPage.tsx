@@ -61,15 +61,15 @@ export const PengaturanPage: React.FC = () => {
             </div>
             <div>
               <dt className="text-slate-400 text-[11px]">Aplikasi</dt>
-              <dd className="font-semibold text-slate-800">SIAJAR (Sistem Agenda & Jadwal)</dd>
+              <dd className="font-semibold text-slate-800">SIAJAR (Sistem Agenda Pembelajaran)</dd>
             </div>
-            <div>
+            {/* <div>
               <dt className="text-slate-400 text-[11px]">Model Jam Pelajaran (JP)</dt>
               <dd className="font-semibold text-slate-800">35 Menit / Jam Pelajaran</dd>
-            </div>
+            </div> */}
             <div>
               <dt className="text-slate-400 text-[11px]">Versi Sistem</dt>
-              <dd className="font-semibold text-slate-800">Stage 1.5 (Modern Admin UI)</dd>
+              <dd className="font-semibold text-slate-800">V0.1 (Beta)</dd>
             </div>
           </dl>
         </div>

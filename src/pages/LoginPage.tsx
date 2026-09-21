@@ -33,7 +33,7 @@ export const LoginPage: React.FC = () => {
     loadTeachers();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.SubmitEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setIsSubmitting(true);
@@ -72,7 +72,7 @@ export const LoginPage: React.FC = () => {
               SDIT AS-SYIFA
             </h1>
             <p className="text-xs text-slate-500 font-medium">
-              Sistem Agenda & Jurnal Kelas Harian
+              Sistem Manajemen Pembelajaran SDIT As-Syifa
             </p>
           </div>
 
@@ -101,7 +101,7 @@ export const LoginPage: React.FC = () => {
               }}
               className={`flex-1 py-2 rounded-lg transition flex items-center justify-center gap-1.5 ${
                 mode === 'admin'
-                  ? 'bg-white text-purple-700 shadow-xs'
+                  ? 'bg-white text-red-700 shadow-xs'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
@@ -147,7 +147,7 @@ export const LoginPage: React.FC = () => {
             ) : (
               <div className="p-3 bg-purple-50 border border-purple-100 rounded-xl text-xs text-purple-800 flex items-center gap-2">
                 <Shield className="w-4 h-4 text-purple-600 shrink-0" />
-                <span>Login Superuser untuk mengelola semua data & rekap.</span>
+                <span>Login Admin untuk mengelola semua data </span>
               </div>
             )}
 
@@ -199,7 +199,7 @@ export const LoginPage: React.FC = () => {
               ) : (
                 <>
                   <LogIn className="w-4 h-4" />
-                  <span>{mode === 'admin' ? 'Masuk sebagai Admin' : 'Masuk ke Sistem'}</span>
+                  <span>{mode === 'admin' ? 'Masuk sebagai Admin' : 'Masuk sebagai Guru'}</span>
                 </>
               )}
             </button>

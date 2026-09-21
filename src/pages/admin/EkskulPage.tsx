@@ -19,12 +19,12 @@ export const EkskulPage: React.FC = () => {
             Modul Kegiatan Ekstrakurikuler
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
-            Struktur navigasi dan relasi database telah disiapkan pada Stage 1. Fitur pengelolaan pembina dan jadwal ekstrakurikuler akan aktif penuh pada Stage 5.
+            Struktur navigasi dan relasi database telah disiapkan, fitur pengelolaan pembina dan jadwal ekstrakurikuler sedang dalam tahap pengembangan
           </p>
         </div>
         <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold">
           <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-          <span>Tahap Pengembangan Stage 5</span>
+          <span>Dalam tahap Pengembangan</span>
         </div>
       </div>
     </div>
