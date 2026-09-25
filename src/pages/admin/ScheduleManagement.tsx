@@ -213,6 +213,24 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
       return;
     }
 
+    // RLS relies on schedule.teacher_id / subject_id, not the name text.
+    // Resolve the master row so the ID is always stored.
+    const selectedTeacher = teachers.find((t) => t.nama_guru === formData.teacher_name);
+    const selectedSubject = subjects.find((m) => m.nama_mapel === formData.subject_name);
+
+    if (!selectedTeacher) {
+      setFormConflictError(
+        'Guru tidak ditemukan di master data. Muat ulang halaman lalu coba lagi.'
+      );
+      return;
+    }
+    if (!selectedSubject) {
+      setFormConflictError(
+        'Mata pelajaran tidak ditemukan di master data. Muat ulang halaman lalu coba lagi.'
+      );
+      return;
+    }
+
     setIsSaving(true);
     try {
       if (editingItem) {
@@ -224,7 +242,9 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
           end_time: formData.end_time,
           class_id: formData.class_id,
           subject_name: formData.subject_name,
+          subject_id: selectedSubject.id,
           teacher_name: formData.teacher_name,
+          teacher_id: selectedTeacher.id,
           status: formData.status,
           ...(selectedTemplateId ? { period_template_id: selectedTemplateId } : {}),
         });
@@ -238,7 +258,9 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({ showToas
           end_time: formData.end_time,
           class_id: formData.class_id,
           subject_name: formData.subject_name,
+          subject_id: selectedSubject.id,
           teacher_name: formData.teacher_name,
+          teacher_id: selectedTeacher.id,
           status: formData.status,
           activity_type: 'KBM',
           ...(selectedTemplateId ? { period_template_id: selectedTemplateId } : {}),

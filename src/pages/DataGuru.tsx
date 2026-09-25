@@ -54,11 +54,7 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
 
     try {
       if (editingGuru) {
-        await updateGuru(
-          editingGuru.id,
-          editingGuru.nama_guru,
-          namaInput
-        );
+        await updateGuru(editingGuru.id, namaInput);
         showToast('success', 'Data guru berhasil diperbarui.');
         setEditingGuru(null);
       } else {
@@ -89,7 +85,7 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
   const handleDelete = async (id: string, nama: string) => {
     if (confirm(`Yakin ingin menghapus data guru "${nama}"?`)) {
       try {
-        await deleteGuru(id, nama);
+        await deleteGuru(id);
         showToast('success', `Guru ${nama} berhasil dihapus.`);
         fetchGuru();
       } catch (err) {
@@ -108,10 +104,10 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
           </div>
           <div>
             <h2 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">
-              {editingGuru ? 'Edit Data Guru & Kelas' : 'Kelola Data Guru & Penugasan'}
+              {editingGuru ? 'Edit Data Guru' : 'Kelola Data Guru'}
             </h2>
             <p className="text-[11px] sm:text-xs text-slate-500">
-              Atur daftar guru beserta penugasan kelas yang diajar
+              Atur daftar guru yang dapat digunakan pada agenda dan jadwal
             </p>
           </div>
         </div>
@@ -124,7 +120,7 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
             {editingGuru ? (
               <>
                 <Edit2 className="w-3.5 h-3.5 text-amber-600" />
-                <span>Perbarui Data Guru & Penugasan</span>
+                <span>Perbarui Data Guru</span>
               </>
             ) : (
               <>

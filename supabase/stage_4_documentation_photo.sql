@@ -51,6 +51,6 @@ ON agenda.agenda_evidence(captured_at);
 CREATE INDEX IF NOT EXISTS idx_agenda_evidence_uploaded_at 
 ON agenda.agenda_evidence(uploaded_at);
 
--- 3. Pastikan RLS tetap aktif dan aman
+-- 3. Pastikan RLS tetap aktif dan policy publik tetap berlaku
 ALTER TABLE agenda.agenda_evidence ENABLE ROW LEVEL SECURITY;
 GRANT ALL ON agenda.agenda_evidence TO anon, authenticated;

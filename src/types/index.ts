@@ -74,13 +74,6 @@ export interface MataPelajaran {
   created_at?: string;
 }
 
-export interface GuruKelas {
-  id: string;
-  nama_guru: string;
-  kelas: string;
-  created_at?: string;
-}
-
 export interface HomeroomAssignment {
   id: string;
   academic_year_id: string;

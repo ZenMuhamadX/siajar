@@ -1,32 +1,59 @@
-# React + TypeScript + Vite
+# SIAJAR — Sistem Agenda Pembelajaran SDIT AS-SYIFA
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Aplikasi web untuk mencatat agenda pembelajaran, absensi, bukti foto, dan rekap mengajar guru. Dibangun sebagai SPA (React + TypeScript + Vite) dengan Supabase (PostgreSQL + Storage) sebagai backend.
 
-Currently, two official plugins are available:
+## Menjalankan secara lokal
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+bun install
+cp .env.example .env   # isi konfigurasi Supabase dan PIN lokal
+bun run dev             # http://127.0.0.1:9090
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Perintah lain: `bun run build`, `bun run lint`, dan `bun run preview`.
+
+## Login dan akses database
+
+Aplikasi memakai **login PIN** untuk mode sederhana. PIN admin dan PIN guru dibaca dari `.env` saat build:
+
+- `VITE_TEACHER_PIN`
+- `VITE_ADMIN_PIN`
+
+Nilai `VITE_*` akan tertanam di bundle browser. Model ini **tidak memiliki autentikasi per pengguna atau otorisasi database**: PIN hanya membatasi tampilan frontend, sedangkan policy database yang dipakai adalah akses publik agar frontend dapat mengakses database tanpa Supabase Auth.
+
+Konsekuensinya, aplikasi ini tidak boleh dianggap sebagai sistem dengan keamanan granular. Jangan menaruh `service_role` key di `.env` atau kode frontend.
+
+## Deployment
+
+Aplikasi ini statis dan di-host di **aaPanel (Nginx)**. Docker tidak digunakan. Panduan lengkap—termasuk konfigurasi Nginx dan setup database—ada di **[DEPLOY.md](DEPLOY.md)**.
+
+## Database
+
+Untuk **instalasi baru**, `supabase/schema.sql` sudah merupakan bootstrap lengkap. Cukup jalankan satu file ini melalui Supabase SQL Editor atau `psql`:
+
+```bash
+psql "$DATABASE_URL" -f supabase/schema.sql
+```
+
+`schema.sql` mencakup seluruh tabel aktif, FK, index, RLS policy publik, grant `anon`, `homeroom_assignment`, Storage bucket `agenda-evidence`, dan policy Storage. Tabel legacy `guru_kelas` tidak disertakan.
+
+File migration incremental tetap disimpan untuk database yang sudah berjalan sebelumnya. Jangan menjalankan `schema.sql` sebagai pengganti migration pada database existing karena `CREATE TABLE IF NOT EXISTS` tidak otomatis menambahkan seluruh kolom lama.
+
+### Database yang sudah pernah menjalankan Stage 5 Auth
+
+Jika Supabase Auth sudah pernah diaktifkan, backup database lalu jalankan:
+
+1. `supabase/rollback_5_auth.sql` — mengembalikan policy publik dan grant anon.
+2. `supabase/stage_6_drop_guru_kelas.sql` — memindahkan data legacy yang masih diperlukan lalu menghapus `guru_kelas`.
+
+Setelah keduanya selesai, build dan upload versi login PIN.
+
+## Perintah verifikasi
+
+```bash
+bun run lint
+bunx tsc --noEmit -p tsconfig.app.json
+bun test_conflict.ts
+bun test_stage2_integration.ts
+bun run build
+```

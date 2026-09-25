@@ -401,7 +401,10 @@ export async function getWeeklyReport(options: {
   }
 
   // 2. Ambil semua guru terdaftar untuk inisialisasi baris
-  const { data: guruData } = await supabase.from('guru').select('*').order('nama_guru');
+  const { data: guruData } = await supabase
+    .from('guru')
+    .select('id, nama_guru, created_at')
+    .order('nama_guru');
   const allTeachers: Guru[] = guruData || [];
 
   // Inisialisasi Map statistik per guru

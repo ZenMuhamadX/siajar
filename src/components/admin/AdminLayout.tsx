@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Award,
   Clock,
+  MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -95,6 +96,7 @@ const NAV_GROUPS: NavGroup[] = [
     group: 'KEGIATAN',
     items: [
       { id: 'ekskul', label: 'Ekstrakurikuler', icon: Activity },
+      { id: 'saran', label: 'Kotak Saran', icon: MessageSquare },
     ],
   },
   {

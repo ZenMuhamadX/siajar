@@ -24,13 +24,20 @@ ON agenda.homeroom_assignment (academic_year_id, class_id);
 CREATE INDEX IF NOT EXISTS idx_homeroom_teacher 
 ON agenda.homeroom_assignment (teacher_id, teacher_name);
 
--- 3. Backfill aman dari tabel guru_kelas legacy jika homeroom_assignment masih kosong
--- dan terdapat tahun ajaran aktif
+-- 3. Backfill aman dari tabel guru_kelas legacy bila tabel tersebut masih ada.
+--    Jika tabel sudah dibuang, blok ini dilewati tanpa error.
 DO $$
 DECLARE
     active_ay_id UUID;
 BEGIN
-    SELECT id INTO active_ay_id FROM agenda.academic_year WHERE status = 'ACTIVE' LIMIT 1;
+    IF to_regclass('agenda.guru_kelas') IS NULL THEN
+        RETURN;
+    END IF;
+
+    SELECT id INTO active_ay_id
+    FROM agenda.academic_year
+    WHERE status = 'ACTIVE'
+    LIMIT 1;
 
     IF active_ay_id IS NOT NULL THEN
         -- Insert distinct kelas dari guru_kelas jika belum ada di homeroom_assignment
@@ -49,3 +56,14 @@ BEGIN
         );
     END IF;
 END $$;
+
+-- 4. RLS & hak akses publik, konsisten dengan migrasi schema lainnya.
+ALTER TABLE agenda.homeroom_assignment ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow public read-write homeroom_assignment"
+    ON agenda.homeroom_assignment;
+CREATE POLICY "Allow public read-write homeroom_assignment"
+    ON agenda.homeroom_assignment FOR ALL
+    USING (true) WITH CHECK (true);
+
+GRANT ALL ON agenda.homeroom_assignment TO anon, authenticated;

@@ -1,8 +1,0 @@
-node_modules
-dist
-.git
-.agents
-.codegraph
-.env.local
-.DS_Store
-*.log

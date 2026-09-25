@@ -3,7 +3,6 @@ import type {
   Siswa,
   Guru,
   MataPelajaran,
-  GuruKelas,
   FullAgenda,
   AgendaKBM,
   KotakSaran,
@@ -47,7 +46,7 @@ export async function deleteSiswa(id: string): Promise<void> {
 export async function getDaftarGuru(): Promise<Guru[]> {
   const { data, error } = await supabase
     .from('guru')
-    .select('*')
+    .select('id, nama_guru, created_at')
     .order('nama_guru', { ascending: true });
   if (error) throw error;
   return data || [];
@@ -63,38 +62,17 @@ export async function addGuru(nama: string): Promise<Guru> {
   return data;
 }
 
-export async function updateGuru(
-  id: string,
-  namaLama: string,
-  namaBaru: string
-): Promise<void> {
+export async function updateGuru(id: string, namaBaru: string): Promise<void> {
   const { error } = await supabase
     .from('guru')
     .update({ nama_guru: namaBaru.trim() })
     .eq('id', id);
   if (error) throw error;
-
-  // Sync legacy guru_kelas name if any row remains
-  try {
-    await supabase
-      .from('guru_kelas')
-      .update({ nama_guru: namaBaru.trim() })
-      .eq('nama_guru', namaLama.trim());
-  } catch (err) {
-    // Ignore legacy sync error
-  }
 }
 
-export async function deleteGuru(id: string, nama: string): Promise<void> {
+export async function deleteGuru(id: string): Promise<void> {
   const { error } = await supabase.from('guru').delete().eq('id', id);
   if (error) throw error;
-
-  // Hapus relasi kelas legacy jika ada
-  try {
-    await supabase.from('guru_kelas').delete().eq('nama_guru', nama.trim());
-  } catch (err) {
-    // Ignore legacy sync error
-  }
 }
 
 // ----------------- MATA PELAJARAN SERVICES -----------------
@@ -135,59 +113,6 @@ export async function updateMapel(id: string, namaMapel: string): Promise<void> 
 export async function deleteMapel(id: string): Promise<void> {
   const { error } = await supabase.from('mapel').delete().eq('id', id);
   if (error) throw error;
-}
-
-// ----------------- GURU KELAS SERVICES (PENUGASAN) -----------------
-export async function getDaftarGuruKelas(): Promise<GuruKelas[]> {
-  const { data, error } = await supabase
-    .from('guru_kelas')
-    .select('*')
-    .order('kelas', { ascending: true });
-  if (error) {
-    console.warn('guru_kelas check fallback:', error.message);
-    return [];
-  }
-  return data || [];
-}
-
-export async function getKelasByGuru(namaGuru: string): Promise<string[]> {
-  if (!namaGuru) return [];
-  try {
-    const { data, error } = await supabase
-      .from('guru_kelas')
-      .select('kelas')
-      .eq('nama_guru', namaGuru.trim());
-    if (error) return [];
-    return (data || []).map((d) => d.kelas);
-  } catch (e) {
-    return [];
-  }
-}
-
-export async function checkGuruKelas(namaGuru: string, kelas: string): Promise<boolean> {
-  if (!namaGuru || !kelas) return false;
-  try {
-    const { data, error } = await supabase
-      .from('guru_kelas')
-      .select('id')
-      .eq('nama_guru', namaGuru.trim())
-      .eq('kelas', kelas.trim())
-      .limit(1);
-
-    if (error) {
-      console.warn('Gagal cek guru_kelas:', error.message);
-      return true;
-    }
-
-    const { count } = await supabase.from('guru_kelas').select('*', { count: 'exact', head: true });
-    if (count === 0 || count === null) {
-      return true;
-    }
-
-    return (data && data.length > 0) || false;
-  } catch (e) {
-    return true;
-  }
 }
 
 // ----------------- AGENDA SERVICES -----------------
