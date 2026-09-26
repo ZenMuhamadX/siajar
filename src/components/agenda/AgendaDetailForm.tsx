@@ -4,6 +4,7 @@ import type { Siswa, AgendaEvidence, FullAgenda, Substitution } from '../../type
 import { getDaftarSiswa, simpanAgenda } from '../../services/agendaService';
 import { uploadAgendaEvidence, getEvidenceDisplayUrl } from '../../services/evidenceService';
 import { PhotoLightboxModal } from '../PhotoLightboxModal';
+import { ConfirmDialog } from '../ConfirmDialog';
 import { useSchoolName } from '../../contexts/SettingsContext';
 import {
   ArrowLeft,
@@ -55,21 +56,6 @@ interface DraftPayload {
 }
 
 const DRAFT_PREFIX = 'siajar.draft.agenda.';
-
-/**
- * Penanda materi untuk agenda yang baru terbentuk karena guru memotret foto,
- * tetapi belum disimpan.
- *
- * Kenapa perlu: unggahan foto butuh `agendaId` untuk menyusun path berkas,
- * sehingga memotret lebih dulu membuat baris agenda di basis data. Akibatnya
- * `computeSlotStatus` langsung menandai slot itu COMPLETED — padahal guru baru
- * memotret dan belum menyelesaikan isian.
- *
- * Nilai ini ditulis dan dibaca oleh kode yang sama, dan dipakai untuk
- * membedakan "agenda setengah jadi" dari "agenda yang benar-benar tersimpan".
- * Tanpa itu, agenda setengah jadi akan terkunci dan tidak bisa dilanjutkan.
- */
-const DRAFT_MATERI_PLACEHOLDER = 'Draft Pembelajaran';
 
 const readDraft = (key: string): DraftPayload | null => {
   try {
@@ -159,6 +145,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   );
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
   const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
+  const [isRetakeConfirmOpen, setIsRetakeConfirmOpen] = useState<boolean>(false);
   const nativeCameraInputRef = useRef<HTMLInputElement>(null);
 
   // Draf lokal. Isian hanya hidup di memori, dan guru wajib membuka aplikasi
@@ -180,30 +167,6 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   const draftKey = `${DRAFT_PREFIX}${agendaIdentity}`;
   const [draftReady, setDraftReady] = useState(false);
   const [draftRestoredAt, setDraftRestoredAt] = useState<number | null>(null);
-
-  /**
-   * Kunci baca-saja untuk agenda yang sudah tersimpan.
-   *
-   * Diputuskan SEKALI per agenda, tepat saat form dibuka untuk agenda itu — dan
-   * sengaja TIDAK dihitung ulang secara reaktif. Alasannya: memotret foto
-   * membuat baris agenda di basis data (unggahan butuh `agendaId` untuk path
-   * berkas), dan `computeSlotStatus` langsung menandainya COMPLETED. Kalau kunci
-   * dihitung dari status terkini, form akan mengunci diri sendiri begitu guru
-   * selesai memotret — padahal isiannya belum selesai.
-   *
-   * Agenda yang baru terbentuk karena foto tetapi belum disimpan dikenali dari
-   * materi penandanya, sehingga masih bisa dilanjutkan.
-   */
-  const [lockedAgenda, setLockedAgenda] = useState<string | null>(null);
-
-  useEffect(() => {
-    const savedMateri = existingAgenda?.kbm?.[0]?.materi;
-    const isUnfinishedDraft = savedMateri === DRAFT_MATERI_PLACEHOLDER;
-    setLockedAgenda(existingAgenda && !isUnfinishedDraft ? agendaIdentity : null);
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [agendaIdentity]);
-
-  const isLocked = lockedAgenda === agendaIdentity;
 
   // Rujukan bagian, dipakai untuk mengarahkan guru ke isian yang kurang.
   const photoSectionRef = useRef<HTMLDivElement>(null);
@@ -520,9 +483,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
               jam_ke: `Jam ${periodNumber}`,
               nama_guru: teacherName,
               mapel: subjectName,
-              // Penanda agenda setengah jadi — dibaca kembali oleh `isLocked`
-              // agar agenda ini tidak terkunci sebelum guru menekan Simpan.
-              materi: materi.trim() || DRAFT_MATERI_PLACEHOLDER,
+              materi: materi.trim() || 'Draft Pembelajaran',
               tugas_pr: tugasPr.trim() || undefined,
               is_badal: isSubstitute,
             },
@@ -572,11 +533,6 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (isLocked) {
-      showToast('info', 'Agenda yang sudah tersimpan tidak dapat diubah.');
-      return;
-    }
 
     if (!isMateriReady) {
       showToast('error', 'Materi pembelajaran belum diisi.');
@@ -676,7 +632,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
           </button>
           <div>
             <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-              {isLocked ? 'Lihat Agenda' : 'Isi Agenda Mengajar'}
+              {existingAgenda ? 'Lihat / Edit Agenda' : 'Isi Agenda Mengajar'}
             </h1>
             <p className="text-xs text-slate-600 mt-0.5">
               {schoolName} &bull; {targetDate}
@@ -760,8 +716,8 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
           </div>
         </div>
 
-        {/* Pemberitahuan draf yang dipulihkan — tidak muncul saat agenda terkunci */}
-        {!isLocked && draftRestoredAt && (
+        {/* Pemberitahuan draf yang dipulihkan */}
+        {draftRestoredAt && (
           <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl flex items-start justify-between gap-3">
             <div className="flex items-start gap-2.5">
               <RotateCcw className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" aria-hidden="true" />
@@ -814,32 +770,34 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                   <div className="text-xs text-emerald-900">
                     <p className="font-bold">Foto sudah tersimpan</p>
                     <p className="text-emerald-800 mt-0.5">
-                      Diambil {formatDateTimeIndo(existingEvidence.captured_at)} · tidak dapat
-                      diganti
+                      Diambil {formatDateTimeIndo(existingEvidence.captured_at)}
                     </p>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setIsLightboxOpen(true)}
-                  className="px-3 py-2 min-h-10 bg-white border border-emerald-300 text-emerald-900 text-xs font-bold rounded-lg hover:bg-emerald-100 transition flex items-center gap-1.5 shrink-0"
-                >
-                  <Eye className="w-4 h-4" aria-hidden="true" />
-                  <span>Perbesar</span>
-                </button>
-              </div>
-            </div>
-          ) : isLocked ? (
-            <div className="p-4 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/70 flex flex-col items-center gap-3 text-center">
-              <div className="w-12 h-12 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
-                <Camera className="w-6 h-6" aria-hidden="true" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-slate-500">Tidak ada foto dokumentasi</p>
-                <p className="text-xs text-slate-500 mt-0.5 max-w-sm">
-                  Agenda ini tersimpan tanpa foto.
-                </p>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsLightboxOpen(true)}
+                    className="px-3 py-2 min-h-10 bg-white border border-emerald-300 text-emerald-900 text-xs font-bold rounded-lg hover:bg-emerald-100 transition flex items-center gap-1.5"
+                  >
+                    <Eye className="w-4 h-4" aria-hidden="true" />
+                    <span>Perbesar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsRetakeConfirmOpen(true)}
+                    disabled={isUploadingPhoto}
+                    className="px-3 py-2 min-h-10 bg-white border border-slate-300 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-100 disabled:opacity-50 transition flex items-center gap-1.5"
+                  >
+                    {isUploadingPhoto ? (
+                      <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" aria-hidden="true" />
+                    )}
+                    <span>{isUploadingPhoto ? 'Menyimpan…' : 'Ganti Foto'}</span>
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
@@ -909,15 +867,10 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                 id="agenda-materi"
                 rows={5}
                 aria-required="true"
-                readOnly={isLocked}
                 value={materi}
                 onChange={(e) => setMateri(e.target.value)}
                 placeholder="Contoh: Penjumlahan pecahan berpenyebut sama — latihan halaman 42."
-                className={`w-full p-3.5 text-base rounded-xl border leading-relaxed ${
-                  isLocked
-                    ? 'border-slate-200 bg-slate-50 text-slate-600'
-                    : 'border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600'
-                }`}
+                className="w-full p-3.5 text-base rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 text-slate-900 leading-relaxed bg-white"
               />
               <p className="text-xs text-slate-600 mt-1.5">
                 Satu sampai dua kalimat sudah cukup.
@@ -934,15 +887,10 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
               <input
                 id="agenda-tugas-pr"
                 type="text"
-                readOnly={isLocked}
                 value={tugasPr}
                 onChange={(e) => setTugasPr(e.target.value)}
                 placeholder="Contoh: Latihan halaman 42 nomor 1–5"
-                className={`w-full px-3.5 py-3 text-base rounded-xl border ${
-                  isLocked
-                    ? 'border-slate-200 bg-slate-50 text-slate-600'
-                    : 'border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600'
-                }`}
+                className="w-full px-3.5 py-3 text-base rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 text-slate-900 bg-white"
               />
             </div>
           </div>
@@ -996,15 +944,13 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                       Semua {siswaKelas.length} siswa hadir
                     </span>
                   </div>
-                  {!isLocked && (
-                    <button
-                      type="button"
-                      onClick={handleAddAbsensi}
-                      className="shrink-0 px-3 py-2 min-h-10 text-xs font-bold text-emerald-900 bg-white border border-emerald-300 rounded-lg hover:bg-emerald-100 transition"
-                    >
-                      + Catat yang tidak hadir
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleAddAbsensi}
+                    className="shrink-0 px-3 py-2 min-h-10 text-xs font-bold text-emerald-900 bg-white border border-emerald-300 rounded-lg hover:bg-emerald-100 transition"
+                  >
+                    + Catat yang tidak hadir
+                  </button>
                 </div>
               ) : (
                 <div className="space-y-2.5">
@@ -1021,13 +967,8 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                           <select
                             id={`absen-siswa-${idx}`}
                             value={item.siswa_id}
-                            disabled={isLocked}
                             onChange={(e) => handleAbsensiChange(idx, 'siswa_id', e.target.value)}
-                            className={`flex-1 min-h-10 px-3 py-2 text-base rounded-lg ${
-                              isLocked
-                                ? 'bg-slate-50 text-slate-600 border-slate-200'
-                                : 'bg-white text-slate-900 border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600'
-                            }`}
+                            className="flex-1 min-h-10 px-3 py-2 text-base bg-white text-slate-900 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
                           >
                             <option value="">Pilih siswa…</option>
                             {availableStudents(item.siswa_id).map((s) => (
@@ -1036,17 +977,15 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                               </option>
                             ))}
                           </select>
-                          {!isLocked && (
-                            <button
-                              type="button"
-                              aria-label={`Hapus baris ${idx + 1}`}
-                              onClick={() => handleRemoveAbsensi(idx)}
-                              className="p-2 min-w-10 min-h-10 inline-flex items-center justify-center text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition shrink-0"
-                              title="Hapus baris"
-                            >
-                              <Trash2 className="w-4 h-4" aria-hidden="true" />
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            aria-label={`Hapus baris ${idx + 1}`}
+                            onClick={() => handleRemoveAbsensi(idx)}
+                            className="p-2 min-w-10 min-h-10 inline-flex items-center justify-center text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition shrink-0"
+                            title="Hapus baris"
+                          >
+                            <Trash2 className="w-4 h-4" aria-hidden="true" />
+                          </button>
                         </div>
 
                         {/* Status: tidak ada pilihan yang terisi lebih dulu */}
@@ -1067,13 +1006,12 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                               key={value}
                               type="button"
                               aria-pressed={item.status === value}
-                              disabled={isLocked}
                               onClick={() => handleAbsensiChange(idx, 'status', value)}
                               className={`px-3 py-2 min-h-10 rounded-lg text-xs font-bold border transition ${
                                 item.status === value
                                   ? `${activeBg} text-white border-transparent shadow-xs`
                                   : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                              } ${isLocked ? 'cursor-default opacity-80' : ''}`}
+                              }`}
                             >
                               {label}
                             </button>
@@ -1090,26 +1028,24 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                     </p>
                   )}
 
-                  {!isLocked && (
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <button
-                        type="button"
-                        onClick={handleAddAbsensi}
-                        className="flex-1 py-2.5 min-h-10 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-xl flex items-center justify-center gap-1.5 transition"
-                      >
-                        <Plus className="w-4 h-4" aria-hidden="true" />
-                        <span>Tambah siswa tidak hadir</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAbsensiList([])}
-                        className="py-2.5 min-h-10 px-4 text-xs font-semibold text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl flex items-center justify-center gap-1.5 transition"
-                      >
-                        <UserCheck className="w-4 h-4" aria-hidden="true" />
-                        <span>Semua hadir</span>
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button
+                      type="button"
+                      onClick={handleAddAbsensi}
+                      className="flex-1 py-2.5 min-h-10 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-xl flex items-center justify-center gap-1.5 transition"
+                    >
+                      <Plus className="w-4 h-4" aria-hidden="true" />
+                      <span>Tambah siswa tidak hadir</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAbsensiList([])}
+                      className="py-2.5 min-h-10 px-4 text-xs font-semibold text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl flex items-center justify-center gap-1.5 transition"
+                    >
+                      <UserCheck className="w-4 h-4" aria-hidden="true" />
+                      <span>Semua hadir</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -1131,15 +1067,10 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
           <textarea
             id="agenda-kejadian"
             rows={3}
-            readOnly={isLocked}
             value={uraianKejadian}
             onChange={(e) => setUraianKejadian(e.target.value)}
             placeholder="Contoh: dua siswa rebut di pertengahan jam, materi dilanjutkan setelah ditegur."
-            className={`w-full p-3.5 text-base rounded-xl border leading-relaxed ${
-              isLocked
-                ? 'border-slate-200 bg-slate-50 text-slate-600'
-                : 'border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600'
-            }`}
+            className="w-full p-3.5 text-base rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 text-slate-900 leading-relaxed bg-white"
           />
         </FormStep>
 
@@ -1156,59 +1087,65 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
           title={`Dokumentasi Foto - ${kelas} (${subjectName})`}
         />
 
-        {/* Konfirmasi ganti foto dihapus: foto yang sudah tersimpan bersifat
-            tetap dan tidak bisa diganti, sama seperti agendanya. */}
+        {/* Konfirmasi ganti foto — penggantian tetap boleh, tetapi tercatat */}
+        <ConfirmDialog
+          isOpen={isRetakeConfirmOpen}
+          onClose={() => setIsRetakeConfirmOpen(false)}
+          onConfirm={() => {
+            setIsRetakeConfirmOpen(false);
+            nativeCameraInputRef.current?.click();
+          }}
+          variant="warning"
+          title="Ganti foto dokumentasi?"
+          message="Foto lama akan diganti dan waktu pengambilan baru tercatat. Lakukan hanya bila foto sebelumnya tidak layak (buram, gelap, atau salah orang)."
+          confirmText="Ya, ambil ulang"
+          cancelText="Batal"
+        />
 
         {/* Bilah simpan — satu saja, ikut menggulir bersama form di paling bawah.
-            Untuk agenda yang sudah tersimpan, tidak ada yang bisa disimpan lagi,
-            jadi yang tersisa hanya jalan kembali. */}
-        {isLocked ? (
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs no-print">
+            Sebelumnya versi HP menempel di atas navigasi bawah (`fixed`).
+            Akibatnya ia menutupi bagian bawah layar terus-menerus, tepat saat
+            guru sedang mengisi kolom, dan memaksa konten menyediakan ruang
+            ekstra di belakangnya. Sekarang tombolnya ada di ujung formulir:
+            guru menemukannya setelah selesai mengisi, bukan menghalangi isian.
+
+            Urutan di HP sengaja dibalik (batal di atas, simpan di bawah) supaya
+            tombol utama paling dekat dengan ibu jari. */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4 no-print">
+          <SaveChecklist
+            materi={isMateriReady}
+            foto={isPhotoReady}
+            absensi={isAbsensiComplete}
+            onFix={focusStep}
+          />
+
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
             <button
               type="button"
               onClick={onBack}
-              className="w-full sm:w-auto py-3 min-h-12 px-6 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl transition"
+              className="py-3 min-h-11 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
             >
               Kembali ke Jadwal
             </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="py-3 min-h-12 px-6 bg-primary-700 hover:bg-primary-800 text-white text-sm font-bold rounded-xl shadow-xs transition flex items-center justify-center gap-2 disabled:opacity-50 sm:ml-auto"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                  <span>Menyimpan…</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" aria-hidden="true" />
+                  <span>{existingAgenda ? 'Simpan Perubahan' : 'Simpan Agenda'}</span>
+                </>
+              )}
+            </button>
           </div>
-        ) : (
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4 no-print">
-            <SaveChecklist
-              materi={isMateriReady}
-              foto={isPhotoReady}
-              absensi={isAbsensiComplete}
-              onFix={focusStep}
-            />
-
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <button
-                type="button"
-                onClick={onBack}
-                className="py-3 min-h-11 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
-              >
-                Kembali ke Jadwal
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="py-3 min-h-12 px-6 bg-primary-700 hover:bg-primary-800 text-white text-sm font-bold rounded-xl shadow-xs transition flex items-center justify-center gap-2 disabled:opacity-50 sm:ml-auto"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                    <span>Menyimpan…</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4" aria-hidden="true" />
-                    <span>Simpan Agenda</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        )}
+        </div>
       </form>
     </div>
   );

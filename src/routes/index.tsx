@@ -237,7 +237,15 @@ function TeacherAgendaRoute() {
 
 function TeacherHistoryRoute() {
   const showToast = useToast();
-  return <LazyRiwayatAgenda showToast={showToast} />;
+  const navigate = useNavigate();
+  return (
+    <LazyRiwayatAgenda
+      showToast={showToast}
+      onEditAgenda={(agenda) =>
+        navigate(`/?edit=${encodeURIComponent(agenda.header.id)}`)
+      }
+    />
+  );
 }
 
 /* -------------------------------------------------------------------------- */

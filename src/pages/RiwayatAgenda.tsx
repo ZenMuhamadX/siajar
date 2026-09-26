@@ -8,16 +8,19 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ScrollArea, EmptyState, ErrorState } from '../components/common';
 import type { FullAgenda } from '../types';
 import {
+  Edit2,
   Trash2,
   RefreshCw,
   Camera,
   Eye,
   Search,
   ChevronDown,
+  Lock,
   CalendarDays,
 } from 'lucide-react';
 
 interface RiwayatAgendaProps {
+  onEditAgenda: (agenda: FullAgenda) => void;
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
 }
 
@@ -120,7 +123,7 @@ const subjectSummary = (agenda: FullAgenda) =>
     )
   ).join(' · ');
 
-export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ showToast }) => {
+export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, showToast }) => {
   const { activeTeacherName, isAdmin } = useAuth();
   const [agendas, setAgendas] = useState<FullAgenda[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -391,11 +394,13 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ showToast }) => {
                     agenda={agenda}
                     isOpen={expanded.has(id)}
                     isToday={isToday}
+                    canEdit={isToday || isAdmin}
                     isAdmin={isAdmin}
                     absentCount={agenda.absensi?.length || 0}
                     subjects={subjectSummary(agenda)}
                     hasEvidence={Boolean(agenda.evidence?.storage_path)}
                     onToggle={() => toggleExpanded(id)}
+                    onEdit={() => onEditAgenda(agenda)}
                     onDelete={() => setPendingDelete(agenda)}
                     onOpenPhoto={(photo) => setActivePhoto(photo)}
                   />
@@ -457,11 +462,13 @@ interface RiwayatCardProps {
   agenda: FullAgenda;
   isOpen: boolean;
   isToday: boolean;
+  canEdit: boolean;
   isAdmin: boolean;
   absentCount: number;
   subjects: string;
   hasEvidence: boolean;
   onToggle: () => void;
+  onEdit: () => void;
   onDelete: () => void;
   onOpenPhoto: (photo: ActivePhoto) => void;
 }
@@ -479,11 +486,13 @@ const RiwayatCard: React.FC<RiwayatCardProps> = ({
   agenda,
   isOpen,
   isToday,
+  canEdit,
   isAdmin,
   absentCount,
   subjects,
   hasEvidence,
   onToggle,
+  onEdit,
   onDelete,
   onOpenPhoto,
 }) => {
@@ -545,6 +554,27 @@ const RiwayatCard: React.FC<RiwayatCardProps> = ({
         </button>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          {canEdit ? (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="text-xs px-2.5 py-2 min-h-10 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded-lg flex items-center gap-1.5 transition"
+            >
+              <Edit2 className="w-3.5 h-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">Koreksi / Edit</span>
+            </button>
+          ) : (
+            /* "Terkunci" tanpa alasan membuat guru mengira aplikasinya rusak.
+               Sekarang aturannya disebutkan langsung di tempat kejadian. */
+            <span
+              className="hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-2 rounded-lg"
+              title="Hanya agenda hari yang sama yang bisa dikoreksi sendiri. Untuk hari lain, hubungi administrator."
+            >
+              <Lock className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
+              Hanya hari yang sama
+            </span>
+          )}
+
           {isAdmin && (
             <button
               type="button"
@@ -577,12 +607,15 @@ const RiwayatCard: React.FC<RiwayatCardProps> = ({
       {/* Rincian */}
       {isOpen && (
         <div id={bodyId} className="border-t border-slate-200 p-3.5 sm:p-4 space-y-3.5">
-          <p className="flex items-start gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
-            <span>
-              Agenda yang sudah tersimpan tidak dapat diubah. Hubungi administrator bila perlu
-              koreksi.
-            </span>
-          </p>
+          {!canEdit && (
+            <p className="sm:hidden flex items-start gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
+              <Lock className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" aria-hidden="true" />
+              <span>
+                Hanya agenda hari yang sama yang bisa dikoreksi sendiri. Hubungi administrator
+                untuk hari lain.
+              </span>
+            </p>
+          )}
 
           {/* KBM */}
           <div className="border border-slate-200 rounded-lg">
