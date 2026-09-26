@@ -1,5 +1,6 @@
 import React from 'react';
 import { PageHeader } from '../../components/admin/PageHeader';
+import { EmptyState } from '../../components/common';
 import { Activity, Sparkles } from 'lucide-react';
 
 export const EkskulPage: React.FC = () => {
@@ -10,22 +11,19 @@ export const EkskulPage: React.FC = () => {
         description="Manajemen program ekstrakurikuler sekolah dan pembina kegiatan."
       />
 
-      <div className="bg-white rounded-xl border border-slate-200 p-8 sm:p-12 text-center space-y-4 shadow-2xs">
-        <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
-          <Activity className="w-6 h-6 text-slate-600" />
-        </div>
-        <div className="max-w-md mx-auto space-y-1.5">
-          <h3 className="font-bold text-slate-900 text-base">
-            Modul Kegiatan Ekstrakurikuler
-          </h3>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            Struktur navigasi dan relasi database telah disiapkan, fitur pengelolaan pembina dan jadwal ekstrakurikuler sedang dalam tahap pengembangan
-          </p>
-        </div>
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold">
-          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-          <span>Dalam tahap Pengembangan</span>
-        </div>
+      {/* Placeholder modul memakai EmptyState standar */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs">
+        <EmptyState
+          icon={<Activity className="w-5 h-5" />}
+          title="Modul Kegiatan Ekstrakurikuler"
+          description="Struktur navigasi dan relasi database telah disiapkan, fitur pengelolaan pembina dan jadwal ekstrakurikuler sedang dalam tahap pengembangan"
+          action={
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Dalam tahap Pengembangan</span>
+            </span>
+          }
+        />
       </div>
     </div>
   );

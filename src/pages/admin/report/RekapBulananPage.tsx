@@ -5,6 +5,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { PageHeader } from '../../../components/admin/PageHeader';
+import { EmptyState, LoadingState } from '../../../components/common';
 import { ReportPrintLayout } from '../../../components/admin/report/ReportPrintLayout';
 import {
   getMonthlyReport,
@@ -260,12 +261,12 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
 
         {/* Tabel Data Rekap Bulanan Per Guru */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-            <div>
-              <h3 className="text-xs font-bold text-slate-900">
+          <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="font-bold text-slate-900 text-xs sm:text-sm tracking-tight truncate">
                 Rekapitulasi Mengajar Bulanan &bull; {reportResult?.monthName} {selectedYear}
               </h3>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
                 Menampilkan {reportResult?.teacherSummaries.length || 0} tenaga pendidik
               </p>
             </div>
@@ -273,50 +274,52 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-semibold text-[11px] uppercase tracking-wider">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[10px]">
                 <tr>
-                  <th className="py-3 px-4">Nama Guru</th>
-                  <th className="py-3 px-3 text-center w-24">JP Terjadwal</th>
-                  <th className="py-3 px-3 text-center w-24">JP Terealisasi</th>
-                  <th className="py-3 px-3 text-center w-28">Durasi Terjadwal</th>
-                  <th className="py-3 px-3 text-center w-28">Durasi Terealisasi</th>
-                  <th className="py-3 px-3 text-center w-20">Badal Masuk</th>
-                  <th className="py-3 px-3 text-center w-20">Badal Keluar</th>
-                  <th className="py-3 px-3 text-center w-24">Belum Realisasi</th>
-                  <th className="py-3 px-4 text-center w-28">Realisasi %</th>
+                  <th className="py-3 px-3 sm:px-4">Nama Guru</th>
+                  <th className="py-3 px-3 sm:px-4 text-center w-24">JP Terjadwal</th>
+                  <th className="py-3 px-3 sm:px-4 text-center w-24">JP Terealisasi</th>
+                  <th className="py-3 px-3 sm:px-4 text-center w-28">Durasi Terjadwal</th>
+                  <th className="py-3 px-3 sm:px-4 text-center w-28">Durasi Terealisasi</th>
+                  <th className="py-3 px-3 sm:px-4 text-center w-20">Badal Masuk</th>
+                  <th className="py-3 px-3 sm:px-4 text-center w-20">Badal Keluar</th>
+                  <th className="py-3 px-3 sm:px-4 text-center w-24">Belum Realisasi</th>
+                  <th className="py-3 px-3 sm:px-4 text-center w-28">Realisasi %</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={9} className="py-12 text-center text-slate-400">
-                      <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-slate-400" />
-                      <span>Memuat rekap bulanan...</span>
+                    <td colSpan={9} className="py-6">
+                      <LoadingState message="Memuat rekap bulanan..." />
                     </td>
                   </tr>
                 ) : !reportResult || reportResult.teacherSummaries.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-12 text-center text-slate-400">
-                      Tidak ada data pembelajaran pada bulan ini.
+                    <td colSpan={9} className="py-6">
+                      <EmptyState
+                        title="Belum ada data rekap bulanan"
+                        description="Tidak ada data pembelajaran pada bulan ini."
+                      />
                     </td>
                   </tr>
                 ) : (
                   reportResult.teacherSummaries.map((item, idx) => (
-                    <tr key={item.teacherName + idx} className="hover:bg-slate-50/80 transition">
-                      <td className="py-3 px-4 font-semibold text-slate-900">{item.teacherName}</td>
-                      <td className="py-3 px-3 text-center font-bold text-slate-800">
+                    <tr key={item.teacherName + idx} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-3 sm:px-4 font-semibold text-slate-900">{item.teacherName}</td>
+                      <td className="py-3 px-3 sm:px-4 text-center font-bold text-slate-800">
                         {item.jpScheduled}
                       </td>
-                      <td className="py-3 px-3 text-center font-bold text-emerald-700">
+                      <td className="py-3 px-3 sm:px-4 text-center font-bold text-emerald-700">
                         {item.jpRealized}
                       </td>
-                      <td className="py-3 px-3 text-center font-mono text-slate-600">
+                      <td className="py-3 px-3 sm:px-4 text-center font-mono text-slate-600">
                         {formatMinutesToHourMin(item.durationScheduledMin)}
                       </td>
-                      <td className="py-3 px-3 text-center font-mono font-medium text-emerald-700">
+                      <td className="py-3 px-3 sm:px-4 text-center font-mono font-medium text-emerald-700">
                         {formatMinutesToHourMin(item.durationRealizedMin)}
                       </td>
-                      <td className="py-3 px-3 text-center">
+                      <td className="py-3 px-3 sm:px-4 text-center">
                         {item.badalIn > 0 ? (
                           <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
                             +{item.badalIn}
@@ -325,7 +328,7 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
                           <span className="text-slate-400">0</span>
                         )}
                       </td>
-                      <td className="py-3 px-3 text-center">
+                      <td className="py-3 px-3 sm:px-4 text-center">
                         {item.badalOut > 0 ? (
                           <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-orange-50 text-orange-700 border border-orange-200">
                             -{item.badalOut}
@@ -334,14 +337,14 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
                           <span className="text-slate-400">0</span>
                         )}
                       </td>
-                      <td className="py-3 px-3 text-center">
+                      <td className="py-3 px-3 sm:px-4 text-center">
                         {item.notRealized > 0 ? (
                           <span className="font-bold text-rose-600">{item.notRealized}</span>
                         ) : (
                           <span className="text-slate-400">0</span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-center whitespace-nowrap">
+                      <td className="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
                         <span
                           className={`font-bold ${
                             item.realizationRate >= 90
@@ -361,23 +364,23 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
               {totals && reportResult?.teacherSummaries.length ? (
                 <tfoot className="bg-slate-100/80 border-t-2 border-slate-300 font-bold text-slate-900 text-xs">
                   <tr>
-                    <td className="py-3 px-4">TOTAL KESELURUHAN</td>
-                    <td className="py-3 px-3 text-center">{totals.totalJpScheduled}</td>
-                    <td className="py-3 px-3 text-center text-emerald-700">
+                    <td className="py-3 px-3 sm:px-4">TOTAL KESELURUHAN</td>
+                    <td className="py-3 px-3 sm:px-4 text-center">{totals.totalJpScheduled}</td>
+                    <td className="py-3 px-3 sm:px-4 text-center text-emerald-700">
                       {totals.totalJpRealized}
                     </td>
-                    <td className="py-3 px-3 text-center font-mono">
+                    <td className="py-3 px-3 sm:px-4 text-center font-mono">
                       {formatMinutesToHourMin(totals.totalDurationScheduledMin)}
                     </td>
-                    <td className="py-3 px-3 text-center font-mono text-emerald-700">
+                    <td className="py-3 px-3 sm:px-4 text-center font-mono text-emerald-700">
                       {formatMinutesToHourMin(totals.totalDurationRealizedMin)}
                     </td>
-                    <td className="py-3 px-3 text-center text-amber-700">+{totals.totalBadal}</td>
-                    <td className="py-3 px-3 text-center text-orange-700">-{totals.totalBadal}</td>
-                    <td className="py-3 px-3 text-center text-rose-700">
+                    <td className="py-3 px-3 sm:px-4 text-center text-amber-700">+{totals.totalBadal}</td>
+                    <td className="py-3 px-3 sm:px-4 text-center text-orange-700">-{totals.totalBadal}</td>
+                    <td className="py-3 px-3 sm:px-4 text-center text-rose-700">
                       {totals.totalNotRealized}
                     </td>
-                    <td className="py-3 px-4 text-center text-indigo-700">
+                    <td className="py-3 px-3 sm:px-4 text-center text-indigo-700">
                       {totals.overallRealizationRate}%
                     </td>
                   </tr>

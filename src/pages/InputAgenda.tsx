@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { localDateString } from '../utils/date';
 import { useAuth } from '../contexts/AuthContext';
+import { useAgendaDateParam, useAgendaSlotParam } from '../routes/useAgendaQuery';
 import type { FullAgenda, Substitution } from '../types';
 import {
   getTeacherDailyTimeline,
@@ -45,18 +47,28 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
   showToast,
 }) => {
   const { activeTeacherName } = useAuth();
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = localDateString();
 
-  // Selected date for viewing schedule timeline
-  const [selectedDate, setSelectedDate] = useState<string>(
-    editData?.header.tanggal || todayStr
+  // Tanggal aktif & form isian kini diturunkan dari URL (`?date=` / `?slot=`)
+  // supaya refresh, tombol Back, dan link yang dibuka di tab baru tetap
+  // membuka tampilan yang sama. Lihat src/routes/useAgendaQuery.ts.
+  const { date: selectedDate, setDate } = useAgendaDateParam(
+    editData?.header.tanggal || todayStr,
+    editData?.header.tanggal || null
   );
+  const { slotId, openSlot, closeSlot } = useAgendaSlotParam();
 
   // Timeline Data (own schedules)
   const [timelineData, setTimelineData] = useState<TeacherDailyTimelineResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [selectedSlotForForm, setSelectedSlotForForm] = useState<TimelineSlot | null>(null);
-  const [isFormViewActive, setIsFormViewActive] = useState<boolean>(Boolean(editData));
+  /** Tanggal yang benar-benar sudah dimuat — penanda timeline sudah "settle". */
+  const [loadedDate, setLoadedDate] = useState<string | null>(null);
+  const strippedSlotRef = useRef<string | null>(null);
+
+  // Mode guru pengganti (badal): session-only, sengaja TIDAK ditulis ke URL.
+  // Bila dibuka ulang lewat refresh, tautan harus jatuh ke isian biasa — bukan
+  // mengaitkan agenda guru lain dengan nama kita tanpa mode pengganti.
+  const [substituteSlot, setSubstituteSlot] = useState<TimelineSlot | null>(null);
 
   // Substitution state
   const [otherSlots, setOtherSlots] = useState<TimelineSlot[]>([]);
@@ -71,15 +83,48 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
   // UX gate: panel kandidat badal hanya muncul saat diklik
   const [showBadalPanel, setShowBadalPanel] = useState(false);
 
-  // If editData is provided from Riwayat/App, activate form view directly
+  // ------------------------------------------------------------------ //
+  // Turunan dari URL — tanpa duplikasi state lokal                       //
+  // ------------------------------------------------------------------ //
+
+  /** Slot di timeline guru ini yang sedang dibuka lewat `?slot=`. */
+  const resolvedSlot = useMemo(
+    () => (slotId ? (timelineData?.slots.find((s) => s.schedule.id === slotId) ?? null) : null),
+    [slotId, timelineData]
+  );
+
+  // Kartu timeline hanya bisa diklik untuk status ini — UPCOMING tetap
+  // terkunci, jadi deep-link ke slot seperti itu juga tidak dibuka.
+  const canOpenSlot = resolvedSlot !== null && resolvedSlot.status !== 'UPCOMING';
+
+  /** Timeline sudah menampilkan data untuk tanggal yang diminta URL. */
+  const timelineSettled = !isLoading && (timelineData === null || loadedDate === selectedDate);
+
+  const isSubstituteFormOpen = isSubstituteMode && substituteSlot !== null;
+
+  const isFormViewActive = Boolean(editData) || isSubstituteFormOpen || canOpenSlot;
+  const formSlot = isSubstituteFormOpen ? substituteSlot : resolvedSlot;
+
+  // Buang `?slot=` yang tidak bisa dipakai: `?edit=` selalu menang, timeline
+  // sudah selesai dimuat tapi slot tidak ditemukan (link basi / milik guru
+  // lain / tanggal salah), atau statusnya UPCOMING. Setelah dibuang, kondisi di
+  // atas jadi false sehingga efek ini berhenti — aman dijalankan dua kali oleh
+  // StrictMode.
   useEffect(() => {
-    if (editData) {
-      setIsFormViewActive(true);
-      if (editData.header.tanggal) {
-        setSelectedDate(editData.header.tanggal);
-      }
+    if (!slotId) {
+      strippedSlotRef.current = null;
+      return;
     }
-  }, [editData]);
+    if (editData) {
+      closeSlot();
+      return;
+    }
+    if (!timelineSettled || canOpenSlot) return;
+    if (strippedSlotRef.current === slotId) return;
+    strippedSlotRef.current = slotId;
+    showToast('info', 'Slot jadwal tidak ditemukan pada tanggal ini (tautan mungkin sudah kedaluwarsa).');
+    closeSlot();
+  }, [slotId, editData, timelineSettled, canOpenSlot, showToast, closeSlot]);
 
   // Fetch Teacher Timeline for selected date
   const fetchTimeline = useCallback(async () => {
@@ -97,6 +142,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
       showToast('error', 'Gagal memuat timeline jadwal mengajar.');
     } finally {
       setIsLoading(false);
+      setLoadedDate(selectedDate);
     }
   }, [activeTeacherName, selectedDate, showToast]);
 
@@ -176,20 +222,20 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
 
   // Date Navigation Helpers
   const handleSetDate = (newDate: string) => {
-    setSelectedDate(newDate);
+    setDate(newDate); // tulis ?date= (replace) dan buang ?slot=
     setShowBadalPanel(false);
   };
 
   const handlePrevDay = () => {
     const d = new Date(selectedDate + 'T00:00:00');
     d.setDate(d.getDate() - 1);
-    handleSetDate(d.toISOString().split('T')[0]);
+    handleSetDate(localDateString(d));
   };
 
   const handleNextDay = () => {
     const d = new Date(selectedDate + 'T00:00:00');
     d.setDate(d.getDate() + 1);
-    handleSetDate(d.toISOString().split('T')[0]);
+    handleSetDate(localDateString(d));
   };
 
   const handleSetToday = () => {
@@ -213,19 +259,19 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
 
   const isViewingToday = selectedDate === todayStr;
 
-  // Open slot for filling or editing (own schedule)
+  // Open slot for filling or editing (own schedule) — dibuka lewat URL
   const handleOpenSlot = (slot: TimelineSlot) => {
     setActiveSubstitution(null);
     setIsSubstituteMode(false);
-    setSelectedSlotForForm(slot);
-    setIsFormViewActive(true);
+    setSubstituteSlot(null);
+    openSlot(slot.schedule.id, selectedDate);
   };
 
   const handleBackToTimeline = () => {
-    setIsFormViewActive(false);
-    setSelectedSlotForForm(null);
+    setSubstituteSlot(null);
     setActiveSubstitution(null);
     setIsSubstituteMode(false);
+    closeSlot(); // buang ?slot= (replace), ?date= tetap
     if (editData && onCancelEdit) {
       onCancelEdit();
     }
@@ -234,10 +280,10 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
   const handleSuccessSave = () => {
     fetchTimeline();
     fetchOtherSlots();
-    setIsFormViewActive(false);
-    setSelectedSlotForForm(null);
+    setSubstituteSlot(null);
     setActiveSubstitution(null);
     setIsSubstituteMode(false);
+    closeSlot(); // buang ?slot=; onSuccess membuang ?edit= (no-op bila tidak ada)
     onSuccess();
   };
 
@@ -287,8 +333,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
       setSubstitutionTarget(null);
       setActiveSubstitution(sub);
       setIsSubstituteMode(true);
-      setSelectedSlotForForm(substitutionTarget);
-      setIsFormViewActive(true);
+      setSubstituteSlot(substitutionTarget);
 
       // Update map
       setSubstitutionsMap((prev) => ({
@@ -330,7 +375,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
 
         <AgendaDetailForm
           onBack={handleBackToTimeline}
-          slot={selectedSlotForForm}
+          slot={formSlot}
           targetDate={selectedDate}
           activeTeacherName={activeTeacherName || ''}
           onSuccessSave={handleSuccessSave}

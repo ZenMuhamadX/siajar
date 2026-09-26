@@ -11,6 +11,8 @@ import {
   deletePeriodTemplate,
 } from '../../services/periodTemplateService';
 import { PageHeader } from '../../components/admin/PageHeader';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { DataTable, type Column } from '../../components/common';
 
 interface PeriodTemplatePageProps {
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
@@ -186,21 +188,130 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
     }
   };
 
-  // Delete
-  const handleDelete = async (t: PeriodTemplate) => {
-    if (!confirm(`Hapus ${t.label} (${t.start_time.slice(0, 5)} – ${t.end_time.slice(0, 5)})?`)) return;
+  // Delete (via dialog konfirmasi)
+  const [deleteTarget, setDeleteTarget] = useState<PeriodTemplate | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = (t: PeriodTemplate) => {
+    setDeleteTarget(t);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await deletePeriodTemplate(t.id);
-      showToast('info', `${t.label} dihapus.`);
+      await deletePeriodTemplate(deleteTarget.id);
+      showToast('info', `${deleteTarget.label} dihapus.`);
+      setDeleteTarget(null);
       const list = await getPeriodTemplates(selectedAYId);
       setTemplates(list);
     } catch (e: any) {
       showToast('error', e?.message ?? 'Gagal menghapus JP.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   const selectedAY = academicYears.find((y) => y.id === selectedAYId);
   const activeCount = templates.filter((t) => t.is_active).length;
+
+  const columns: Column<PeriodTemplate>[] = [
+    {
+      key: 'period_number',
+      header: '#',
+      align: 'center',
+      width: '50px',
+      accessor: (t) => <span className="font-mono text-slate-400">{t.period_number}</span>,
+    },
+    {
+      key: 'label',
+      header: 'Label',
+      align: 'left',
+      accessor: (t) => <span className="font-semibold text-slate-800">{t.label}</span>,
+    },
+    {
+      key: 'start_time',
+      header: 'Jam Mulai',
+      align: 'center',
+      width: '110px',
+      accessor: (t) => (
+        <span className="font-mono text-slate-700 whitespace-nowrap">{t.start_time.slice(0, 5)}</span>
+      ),
+    },
+    {
+      key: 'end_time',
+      header: 'Jam Selesai',
+      align: 'center',
+      width: '110px',
+      accessor: (t) => (
+        <span className="font-mono text-slate-700 whitespace-nowrap">{t.end_time.slice(0, 5)}</span>
+      ),
+    },
+    {
+      key: 'duration',
+      header: 'Durasi',
+      align: 'center',
+      width: '100px',
+      accessor: (t) => {
+        const dur = calcDuration(t.start_time.slice(0, 5), t.end_time.slice(0, 5));
+        return (
+          <span className="text-slate-500 whitespace-nowrap">
+            {dur > 0 ? `${dur} menit` : <span className="text-rose-400">?</span>}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      align: 'center',
+      width: '110px',
+      accessor: (t) => (
+        <span
+          className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold ${
+            t.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
+          }`}
+        >
+          {t.is_active ? 'Aktif' : 'Nonaktif'}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Aksi',
+      align: 'right',
+      width: '130px',
+      accessor: (t) => (
+        <div className="flex items-center justify-end gap-1">
+          <button
+            onClick={() => handleToggle(t)}
+            className={`p-1.5 rounded-lg transition ${
+              t.is_active
+                ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
+                : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
+            }`}
+            title={t.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+          >
+            <Power className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => handleOpenEdit(t)}
+            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+            title="Edit"
+          >
+            <Edit2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => handleDelete(t)}
+            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+            title="Hapus"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-5">
@@ -245,116 +356,31 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
       />
 
       {/* Table Card */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        {isLoading ? (
-          <div className="p-10 text-center text-sm text-slate-400">Memuat data...</div>
-        ) : templates.length === 0 ? (
-          /* Empty state */
-          <div className="p-10 text-center space-y-3">
-            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto">
-              <Clock className="w-6 h-6 text-slate-400" />
-            </div>
-            <p className="font-semibold text-slate-700 text-sm">Belum ada konfigurasi JP</p>
-            <p className="text-xs text-slate-400">
-              Tahun ajaran <span className="font-semibold">{selectedAY?.name ?? '-'}</span> belum memiliki
-              konfigurasi Jam Pelajaran.
-            </p>
-            <button
-              onClick={handleOpenCreate}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition shadow-sm inline-flex items-center gap-1.5"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Tambah JP Pertama
-            </button>
-          </div>
-        ) : (
+      <DataTable
+        title="Daftar Slot Waktu (JP)"
+        subtitle={
           <>
-            {/* Stats bar */}
-            <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs text-slate-500">
-              <span>
-                {templates.length} JP dikonfigurasi •{' '}
-                <span className="text-emerald-600 font-semibold">{activeCount} aktif</span>
-                {activeCount < templates.length && (
-                  <span className="text-slate-400"> · {templates.length - activeCount} nonaktif</span>
-                )}
-              </span>
-              <span className="text-slate-400">Tahun Ajaran: {selectedAY?.name}</span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-slate-100 text-left">
-                    <th className="px-5 py-3 font-semibold text-slate-500 w-10">#</th>
-                    <th className="px-3 py-3 font-semibold text-slate-500">Label</th>
-                    <th className="px-3 py-3 font-semibold text-slate-500">Jam Mulai</th>
-                    <th className="px-3 py-3 font-semibold text-slate-500">Jam Selesai</th>
-                    <th className="px-3 py-3 font-semibold text-slate-500">Durasi</th>
-                    <th className="px-3 py-3 font-semibold text-slate-500">Status</th>
-                    <th className="px-5 py-3 font-semibold text-slate-500 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {templates.map((t) => {
-                    const dur = calcDuration(t.start_time.slice(0, 5), t.end_time.slice(0, 5));
-                    return (
-                      <tr key={t.id} className={`hover:bg-slate-50 transition ${!t.is_active ? 'opacity-60' : ''}`}>
-                        <td className="px-5 py-3.5 font-mono text-slate-400">{t.period_number}</td>
-                        <td className="px-3 py-3.5 font-semibold text-slate-800">{t.label}</td>
-                        <td className="px-3 py-3.5 font-mono text-slate-700">{t.start_time.slice(0, 5)}</td>
-                        <td className="px-3 py-3.5 font-mono text-slate-700">{t.end_time.slice(0, 5)}</td>
-                        <td className="px-3 py-3.5 text-slate-500">
-                          {dur > 0 ? `${dur} menit` : <span className="text-rose-400">?</span>}
-                        </td>
-                        <td className="px-3 py-3.5">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold ${
-                              t.is_active
-                                ? 'bg-emerald-50 text-emerald-700'
-                                : 'bg-slate-100 text-slate-500'
-                            }`}
-                          >
-                            {t.is_active ? 'Aktif' : 'Nonaktif'}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              onClick={() => handleToggle(t)}
-                              className={`p-1.5 rounded-lg transition ${
-                                t.is_active
-                                  ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
-                                  : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
-                              }`}
-                              title={t.is_active ? 'Nonaktifkan' : 'Aktifkan'}
-                            >
-                              <Power className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleOpenEdit(t)}
-                              className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                              title="Edit"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(t)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                              title="Hapus"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <span>{`${templates.length} JP dikonfigurasi · `}</span>
+            <span className="text-emerald-600 font-semibold">{`${activeCount} aktif`}</span>
+            {activeCount < templates.length && (
+              <span className="text-slate-400">{` · ${templates.length - activeCount} nonaktif`}</span>
+            )}
           </>
-        )}
-      </div>
+        }
+        headerRightContent={
+          <span className="text-slate-400 whitespace-nowrap">Tahun Ajaran: {selectedAY?.name}</span>
+        }
+        columns={columns}
+        data={templates}
+        keyExtractor={(t) => t.id}
+        isLoading={isLoading}
+        emptyTitle="Belum ada konfigurasi JP"
+        emptyDescription={`Tahun ajaran ${
+          selectedAY?.name ?? '-'
+        } belum memiliki konfigurasi Jam Pelajaran. Klik "Tambah JP" di kanan atas untuk menambahkan.`}
+        emptyIcon={<Clock className="w-5 h-5" />}
+        rowClassName={(t) => (t.is_active ? '' : 'opacity-60')}
+      />
 
       {/* All-nonactive warning */}
       {!isLoading && templates.length > 0 && activeCount === 0 && (
@@ -497,6 +523,21 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
           </div>
         </div>
       )}
+
+      {/* Dialog konfirmasi hapus JP */}
+      <ConfirmDialog
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        isLoading={isDeleting}
+        title="Hapus Slot Waktu (JP)?"
+        message={
+          deleteTarget
+            ? `JP "${deleteTarget.label}" (${deleteTarget.start_time.slice(0, 5)} – ${deleteTarget.end_time.slice(0, 5)}) akan dihapus.`
+            : ''
+        }
+        confirmText="Hapus"
+      />
     </div>
   );
 };

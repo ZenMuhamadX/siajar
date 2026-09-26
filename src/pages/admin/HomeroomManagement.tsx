@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { PageHeader } from '../../components/admin/PageHeader';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { DAFTAR_KELAS, type Guru, type HomeroomAssignment } from '../../types';
 import type { AcademicYear } from '../../types/schedule';
 import { getAcademicYears } from '../../services/scheduleService';
@@ -19,9 +20,18 @@ import {
   CheckCircle2,
   UserCheck,
 } from 'lucide-react';
+import { DataTable, StatusBadge, type Column } from '../../components/common';
 
 interface HomeroomManagementProps {
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
+}
+
+interface HomeroomRow {
+  classId: string;
+  saved: HomeroomAssignment | undefined;
+  selected: string;
+  isChanged: boolean;
+  isProcessing: boolean;
 }
 
 export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToast }) => {
@@ -130,7 +140,10 @@ export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToas
     }
   };
 
-  const handleDeleteAssignment = async (classId: string) => {
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteAssignment = (classId: string) => {
     const existing = assignments.find((a) => a.class_id === classId);
     if (!existing) {
       // Just clear draft
@@ -142,18 +155,144 @@ export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToas
       return;
     }
 
-    if (confirm(`Hapus penugasan wali kelas untuk ${classId}?`)) {
-      try {
-        await deleteHomeroomAssignment(existing.id);
-        showToast('success', `Penugasan wali kelas ${classId} dihapus.`);
-        await fetchAssignments();
-      } catch (err: any) {
-        showToast('error', 'Gagal menghapus penugasan.');
-      }
+    setDeleteTarget(classId);
+  };
+
+  const confirmDeleteAssignment = async () => {
+    if (!deleteTarget) return;
+    const existing = assignments.find((a) => a.class_id === deleteTarget);
+    if (!existing) {
+      setDeleteTarget(null);
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await deleteHomeroomAssignment(existing.id);
+      showToast('success', `Penugasan wali kelas ${deleteTarget} dihapus.`);
+      setDeleteTarget(null);
+      await fetchAssignments();
+    } catch (err: any) {
+      showToast('error', 'Gagal menghapus penugasan.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   const selectedAY = academicYears.find((a) => a.id === selectedAYId);
+
+  // Derived rows (murni tampilan): satu per kelas, berisi data tersimpan + draft
+  const tableRows: HomeroomRow[] = DAFTAR_KELAS.map((classId) => {
+    const saved = assignments.find((a) => a.class_id === classId);
+    const selected = draftSelection[classId] || '';
+    return {
+      classId,
+      saved,
+      selected,
+      isChanged: selected !== (saved?.teacher_name || ''),
+      isProcessing: isSaving === classId,
+    };
+  });
+
+  const columns: Column<HomeroomRow>[] = [
+    {
+      key: 'academic_year',
+      header: 'Tahun Ajaran',
+      align: 'left',
+      width: '160px',
+      accessor: (_row) => (
+        <span className="text-slate-600 font-medium whitespace-nowrap">
+          {selectedAY?.name || '-'}
+        </span>
+      ),
+    },
+    {
+      key: 'class_id',
+      header: 'Kelas',
+      align: 'center',
+      width: '110px',
+      accessor: (row) => (
+        <span className="font-bold text-xs text-slate-900 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200/80 whitespace-nowrap">
+          {row.classId}
+        </span>
+      ),
+    },
+    {
+      key: 'teacher',
+      header: 'Guru Wali Kelas',
+      align: 'left',
+      className: 'min-w-[220px]',
+      accessor: (row) => (
+        <select
+          value={row.selected}
+          onChange={(e) => handleSelectTeacher(row.classId, e.target.value)}
+          className="w-full max-w-sm px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-400 transition"
+        >
+          <option value="">-- Belum Dipilih / Kosong --</option>
+          {teachers.map((t) => (
+            <option key={t.id} value={t.nama_guru}>
+              {t.nama_guru}
+            </option>
+          ))}
+        </select>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      align: 'center',
+      width: '150px',
+      accessor: (row) => (
+        <StatusBadge
+          status={row.saved ? 'ACTIVE' : 'DRAFT'}
+          label={row.saved ? 'Ditetapkan' : 'Belum Ditetapkan'}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Aksi',
+      align: 'right',
+      width: '200px',
+      accessor: (row) => (
+        <div className="flex items-center justify-end gap-1.5">
+          {row.saved && (
+            <button
+              type="button"
+              onClick={() => handleDeleteAssignment(row.classId)}
+              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition"
+              title="Hapus penugasan wali kelas"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          <button
+            type="button"
+            disabled={row.isProcessing || !row.selected || !row.isChanged}
+            onClick={() => handleSaveClassAssignment(row.classId)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs ${
+              row.isChanged && row.selected
+                ? 'bg-slate-900 hover:bg-slate-800 text-white'
+                : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+            }`}
+          >
+            {row.isProcessing ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Menyimpan...</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-3.5 h-3.5" />
+                <span>{row.isChanged ? 'Simpan' : 'Tersimpan'}</span>
+              </>
+            )}
+          </button>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -216,110 +355,29 @@ export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToas
         </p>
       </div>
 
-      {/* Class Cards / Grid */}
-      <div className="bg-white rounded-xl border border-slate-200/90 shadow-xs overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <UserCheck className="w-4 h-4 text-slate-600" />
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-              Daftar Penugasan Kelas ({DAFTAR_KELAS.length} Kelas)
-            </h4>
-          </div>
-          {isLoading && (
-            <div className="flex items-center gap-1.5 text-xs text-slate-400">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-600" />
-              <span>Memuat...</span>
-            </div>
-          )}
-        </div>
+      {/* Class Table */}
+      <DataTable
+        title="Daftar Penugasan Kelas"
+        subtitle={`Total ${DAFTAR_KELAS.length} data kelas`}
+        titleIcon={<UserCheck className="w-4 h-4 text-slate-600" />}
+        columns={columns}
+        data={tableRows}
+        keyExtractor={(row) => row.classId}
+        isLoading={isLoading}
+        emptyTitle="Belum ada daftar kelas"
+        emptyDescription="Daftar kelas tidak tersedia untuk tahun ajaran ini."
+      />
 
-        <div className="divide-y divide-slate-100">
-          {DAFTAR_KELAS.map((kelasName) => {
-            const currentSaved = assignments.find((a) => a.class_id === kelasName);
-            const currentSelected = draftSelection[kelasName] || '';
-            const isChanged = currentSelected !== (currentSaved?.teacher_name || '');
-            const isProcessing = isSaving === kelasName;
-
-            return (
-              <div
-                key={kelasName}
-                className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/60 transition"
-              >
-                {/* Left: Class Info */}
-                <div className="w-full sm:w-48 shrink-0">
-                  <div className="flex items-center gap-2.5">
-                    <span className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 font-bold text-slate-800 flex items-center justify-center text-xs">
-                      {kelasName.replace('KELAS ', 'K')}
-                    </span>
-                    <div>
-                      <h5 className="font-bold text-sm text-slate-900">{kelasName}</h5>
-                      <span className="text-[11px] text-slate-400">
-                        {currentSaved ? 'Wali kelas aktif' : 'Belum ditetapkan'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Middle: Teacher Dropdown Selector */}
-                <div className="flex-1 max-w-md">
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 sm:hidden">
-                    Pilih Wali Kelas
-                  </label>
-                  <select
-                    value={currentSelected}
-                    onChange={(e) => handleSelectTeacher(kelasName, e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900 transition"
-                  >
-                    <option value="">-- Belum Dipilih / Kosong --</option>
-                    {teachers.map((t) => (
-                      <option key={t.id} value={t.nama_guru}>
-                        {t.nama_guru}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Right: Actions */}
-                <div className="flex items-center justify-end gap-2 shrink-0">
-                  {currentSaved && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteAssignment(kelasName)}
-                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                      title="Hapus penugasan wali kelas"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    disabled={isProcessing || !currentSelected || !isChanged}
-                    onClick={() => handleSaveClassAssignment(kelasName)}
-                    className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs ${
-                      isChanged && currentSelected
-                        ? 'bg-slate-900 hover:bg-slate-800 text-white'
-                        : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
-                    }`}
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Menyimpan...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-3.5 h-3.5" />
-                        <span>{isChanged ? 'Simpan' : 'Tersimpan'}</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* Dialog konfirmasi hapus penugasan wali kelas */}
+      <ConfirmDialog
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDeleteAssignment}
+        isLoading={isDeleting}
+        title="Hapus penugasan wali kelas?"
+        message={`Penugasan wali kelas untuk ${deleteTarget ?? ''} akan dihapus dan kolom kembali kosong.`}
+        confirmText="Hapus"
+      />
     </div>
   );
 };

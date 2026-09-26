@@ -6,7 +6,7 @@ import {
   DAY_TRANSLATION_MAP,
 } from '../types';
 import { getAcademicYears, getSchedules } from '../services/scheduleService';
-import { Calendar, Clock, BookOpen, Building2, X, Loader2 } from 'lucide-react';
+import { Calendar, X, Loader2 } from 'lucide-react';
 
 interface TeacherScheduleModalProps {
   isOpen: boolean;
@@ -75,7 +75,7 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
           <div>
@@ -124,8 +124,8 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
           ))}
         </div>
 
-        {/* Content */}
-        <div className="p-5 overflow-y-auto flex-1">
+        {/* Content Table */}
+        <div className="p-0 overflow-y-auto flex-1">
           {isLoading ? (
             <div className="py-12 text-center space-y-2">
               <Loader2 className="w-6 h-6 text-purple-600 animate-spin mx-auto" />
@@ -133,50 +133,66 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
             </div>
           ) : filtered.length === 0 ? (
             <div className="py-12 text-center text-slate-400 italic space-y-1">
-              <p className="text-sm">Belum ada jadwal mengajar aktif untuk Anda.</p>
+              <p className="text-sm font-semibold text-slate-600">Belum ada jadwal mengajar aktif untuk Anda.</p>
               <p className="text-xs">Hubungi Administrator jika jadwal belum diatur.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {filtered.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 hover:border-purple-300 transition"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-purple-800 text-xs uppercase tracking-wide">
-                      {DAY_TRANSLATION_MAP[item.day]}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700">
-                      JP {item.period_number}
-                    </span>
-                  </div>
-
-                  <div>
-                    <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-                      <BookOpen className="w-3.5 h-3.5 text-slate-400" />
-                      {item.subject_name}
-                    </h4>
-                    <p className="text-xs text-slate-600 font-semibold flex items-center gap-1.5 mt-0.5">
-                      <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                      {item.class_id}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-1 font-mono text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
-                    <Clock className="w-3 h-3 text-slate-400" />
-                    <span>
-                      {item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)}
-                    </span>
-                  </div>
-                </div>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                      Hari
+                    </th>
+                    <th className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-[11px] text-center whitespace-nowrap">
+                      Waktu
+                    </th>
+                    <th className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-[11px] text-center whitespace-nowrap">
+                      JP
+                    </th>
+                    <th className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-[11px] text-center whitespace-nowrap">
+                      Kelas
+                    </th>
+                    <th className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-[11px]">
+                      Mata Pelajaran
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filtered.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50/70 transition">
+                      <td className="px-4 py-3 whitespace-nowrap font-bold text-purple-900">
+                        {DAY_TRANSLATION_MAP[item.day] || item.day}
+                      </td>
+                      <td className="px-4 py-3 text-center whitespace-nowrap font-mono text-slate-700">
+                        {item.start_time.slice(0, 5)} – {item.end_time.slice(0, 5)}
+                      </td>
+                      <td className="px-4 py-3 text-center whitespace-nowrap">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700">
+                          JP {item.period_number}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center whitespace-nowrap">
+                        <span className="font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded text-xs">
+                          {item.class_id}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-medium text-slate-800">
+                        {item.subject_name}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end">
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+          <span className="text-xs text-slate-500">
+            Total <strong className="text-slate-800">{filtered.length}</strong> slot mengajar
+          </span>
           <button
             onClick={onClose}
             className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs rounded-lg transition"

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { localDateString } from '../../../utils/date';
 import {
   Printer,
   Filter,
@@ -8,6 +9,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { PageHeader } from '../../../components/admin/PageHeader';
+import { DataTable, type Column } from '../../../components/common';
 import { DailyReportDetailModal } from '../../../components/admin/report/DailyReportDetailModal';
 import { ReportPrintLayout } from '../../../components/admin/report/ReportPrintLayout';
 import { PhotoLightboxModal } from '../../../components/PhotoLightboxModal';
@@ -27,7 +29,7 @@ interface RekapHarianPageProps {
 
 export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) => {
   // Tanggal default: Hari ini
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = localDateString();
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
 
   // Filter Dropdowns
@@ -163,6 +165,111 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
   const completedSlots = reportItems.filter((r) => r.status === 'SELESAI' || r.status === 'BADAL').length;
   const badalSlots = reportItems.filter((r) => r.isBadal).length;
   const missingSlots = reportItems.filter((r) => r.status === 'BELUM_TEREALISASI').length;
+
+  const columns: Column<DailyReportItem>[] = [
+    {
+      key: 'waktu',
+      header: 'Waktu',
+      width: '150px',
+      accessor: (item) => (
+        <div className="whitespace-nowrap">
+          <div className="flex items-center gap-1.5 font-mono font-medium text-slate-900">
+            <Clock className="w-3.5 h-3.5 text-slate-400" />
+            <span>
+              {item.startTime} - {item.endTime}
+            </span>
+          </div>
+          <span className="text-[10px] text-slate-400 block pl-5">
+            {item.durationMinutes} menit
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: 'classId',
+      header: 'Kelas',
+      width: '130px',
+      accessor: (item) => (
+        <div>
+          <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-bold whitespace-nowrap">
+            {item.classId}
+          </span>
+          {item.isUnscheduledAgenda && (
+            <span className="block text-[9px] text-amber-600 font-normal mt-0.5">
+              Tanpa Jadwal
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'subjectName',
+      header: 'Mata Pelajaran',
+      accessor: (item) => <span className="font-semibold text-slate-900">{item.subjectName}</span>,
+    },
+    {
+      key: 'scheduledTeacherName',
+      header: 'Guru Terjadwal',
+      accessor: (item) => <span className="text-slate-600">{item.scheduledTeacherName}</span>,
+    },
+    {
+      key: 'actualTeacherName',
+      header: 'Guru Aktual',
+      accessor: (item) => (
+        <span
+          className={`font-semibold whitespace-nowrap ${
+            item.isBadal
+              ? 'text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded text-[11px] border border-amber-200'
+              : 'text-slate-800'
+          }`}
+        >
+          {item.actualTeacherName}
+          {item.isBadal && ' (Badal)'}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      align: 'center',
+      width: '130px',
+      accessor: (item) => renderStatusBadge(item.status),
+    },
+    {
+      key: 'hasDocumentation',
+      header: 'Dokumentasi',
+      align: 'center',
+      width: '130px',
+      accessor: (item) =>
+        item.hasDocumentation ? (
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+            <Camera className="w-3 h-3 text-emerald-600" />
+            Ada
+          </span>
+        ) : (
+          <span className="text-[11px] text-slate-400">Tidak ada</span>
+        ),
+    },
+    {
+      key: 'aksi',
+      header: 'Aksi',
+      align: 'center',
+      width: '80px',
+      accessor: (item) => (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setActiveItemForDetail(item);
+          }}
+          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
+          title="Lihat Detail Agenda"
+        >
+          <Eye className="w-4 h-4" />
+        </button>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -339,139 +446,17 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
         </div>
 
         {/* Tabel Data Rekap Harian */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-            <div>
-              <h3 className="text-xs font-bold text-slate-900">
-                Daftar Jadwal & Agenda &bull; {formatDateIndo(selectedDate)}
-              </h3>
-              <p className="text-[11px] text-slate-400">
-                Menampilkan {reportItems.length} slot pembelajaran
-              </p>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-semibold text-[11px] uppercase tracking-wider">
-                <tr>
-                  <th className="py-3 px-4 w-28">Waktu</th>
-                  <th className="py-3 px-4 w-24">Kelas</th>
-                  <th className="py-3 px-4">Mata Pelajaran</th>
-                  <th className="py-3 px-4">Guru Terjadwal</th>
-                  <th className="py-3 px-4">Guru Aktual</th>
-                  <th className="py-3 px-4 text-center w-28">Status</th>
-                  <th className="py-3 px-4 text-center w-28">Dokumentasi</th>
-                  <th className="py-3 px-4 text-center w-20">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400">
-                      <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-slate-400" />
-                      <span>Memuat data rekap...</span>
-                    </td>
-                  </tr>
-                ) : reportItems.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400">
-                      Tidak ada jadwal atau agenda yang ditemukan untuk filter ini.
-                    </td>
-                  </tr>
-                ) : (
-                  reportItems.map((item, idx) => (
-                    <tr
-                      key={item.id + idx}
-                      className="hover:bg-slate-50/80 transition group cursor-pointer"
-                      onClick={() => setActiveItemForDetail(item)}
-                    >
-                      {/* Waktu */}
-                      <td className="py-3 px-4 font-mono font-medium text-slate-900 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5 text-slate-400" />
-                          <span>
-                            {item.startTime} - {item.endTime}
-                          </span>
-                        </div>
-                        <span className="text-[10px] text-slate-400 block pl-5">
-                          {item.durationMinutes} menit
-                        </span>
-                      </td>
-
-                      {/* Kelas */}
-                      <td className="py-3 px-4 font-bold text-slate-800 whitespace-nowrap">
-                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px]">
-                          {item.classId}
-                        </span>
-                        {item.isUnscheduledAgenda && (
-                          <span className="block text-[9px] text-amber-600 font-normal mt-0.5">
-                            Tanpa Jadwal
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Mapel */}
-                      <td className="py-3 px-4 font-semibold text-slate-900">
-                        {item.subjectName}
-                      </td>
-
-                      {/* Guru Terjadwal */}
-                      <td className="py-3 px-4 text-slate-600">
-                        {item.scheduledTeacherName}
-                      </td>
-
-                      {/* Guru Aktual */}
-                      <td className="py-3 px-4">
-                        <span
-                          className={`font-semibold ${
-                            item.isBadal
-                              ? 'text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded text-[11px] border border-amber-200'
-                              : 'text-slate-800'
-                          }`}
-                        >
-                          {item.actualTeacherName}
-                          {item.isBadal && ' (Badal)'}
-                        </span>
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3 px-4 text-center whitespace-nowrap">
-                        {renderStatusBadge(item.status)}
-                      </td>
-
-                      {/* Dokumentasi */}
-                      <td className="py-3 px-4 text-center whitespace-nowrap">
-                        {item.hasDocumentation ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                            <Camera className="w-3 h-3 text-emerald-600" />
-                            Ada
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-slate-400">Tidak ada</span>
-                        )}
-                      </td>
-
-                      {/* Aksi */}
-                      <td
-                        className="py-3 px-4 text-center whitespace-nowrap"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <button
-                          onClick={() => setActiveItemForDetail(item)}
-                          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
-                          title="Lihat Detail Agenda"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <DataTable
+          title={`Daftar Jadwal & Agenda • ${formatDateIndo(selectedDate)}`}
+          subtitle={`Menampilkan ${reportItems.length} slot pembelajaran`}
+          columns={columns}
+          data={reportItems}
+          keyExtractor={(item, idx) => item.id + idx}
+          isLoading={isLoading}
+          emptyTitle="Tidak ada jadwal atau agenda"
+          emptyDescription="Tidak ada jadwal atau agenda yang ditemukan untuk filter ini."
+          onRowClick={(item) => setActiveItemForDetail(item)}
+        />
       </div>
 
       {/* PRINT VERSION (Shown ONLY on Print) */}

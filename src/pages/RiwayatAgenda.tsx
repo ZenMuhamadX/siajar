@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { localDateString } from '../utils/date';
 import { useAuth } from '../contexts/AuthContext';
 import { getRekapAgenda, deleteAgenda } from '../services/agendaService';
 import { getEvidenceSignedUrl } from '../services/evidenceService';
@@ -28,7 +29,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
     title: string;
   } | null>(null);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = localDateString();
 
   const fetchRiwayat = async () => {
     setIsLoading(true);

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { localDateString } from '../utils/date';
 import type { FullAgenda, Guru, Substitution } from '../types';
 import type { AcademicYear, ScheduleItem } from '../types/schedule';
 import { getAcademicYears, getSchedules } from './scheduleService';
@@ -372,7 +373,7 @@ export function getMondayToSundayRange(d: Date): { monday: string; sunday: strin
   for (let i = 0; i < 7; i++) {
     const nextDate = new Date(mondayDate);
     nextDate.setDate(mondayDate.getDate() + i);
-    days.push(nextDate.toISOString().split('T')[0]);
+    days.push(localDateString(nextDate));
   }
 
   return {
@@ -458,7 +459,7 @@ export async function getWeeklyReport(options: {
 
   const curDate = new Date(startObj);
   while (curDate <= endObj) {
-    const curDateStr = curDate.toISOString().split('T')[0];
+    const curDateStr = localDateString(curDate);
     const dayKey = getScheduleDayFromDate(curDate);
 
     if (dayKey) {

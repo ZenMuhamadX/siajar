@@ -1,4 +1,5 @@
 import { getAcademicYears, getSchedules } from './scheduleService';
+import { localDateString } from '../utils/date';
 import { getRekapAgenda } from './agendaService';
 import type { ScheduleItem, ScheduleDay } from '../types/schedule';
 import type { FullAgenda } from '../types';
@@ -77,7 +78,7 @@ export function computeSlotStatus(
     return 'COMPLETED';
   }
 
-  const todayStr = now.toISOString().split('T')[0];
+  const todayStr = localDateString(now);
 
   // Future date
   if (targetDateStr > todayStr) {
@@ -134,7 +135,8 @@ export async function getTeacherDailyTimeline(
   now: Date = new Date()
 ): Promise<TeacherDailyTimelineResult> {
   const targetDateObj = typeof targetDate === 'string' ? new Date(targetDate + 'T00:00:00') : targetDate;
-  const targetDateStr = typeof targetDate === 'string' ? targetDate : targetDate.toISOString().split('T')[0];
+  const targetDateStr =
+    typeof targetDate === 'string' ? targetDate : localDateString(targetDate);
 
   const dayKey = getScheduleDayFromDate(targetDateObj);
   const dayNameMap: Record<string, string> = {
@@ -309,7 +311,7 @@ export async function detectCurrentTeacherSchedule(
     };
   }
 
-  const todayStr = now.toISOString().split('T')[0];
+  const todayStr = localDateString(now);
   const timeline = await getTeacherDailyTimeline(teacherName, todayStr, now);
 
   if (timeline.conflictDetected) {

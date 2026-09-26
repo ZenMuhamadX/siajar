@@ -7,24 +7,23 @@ import {
   MessageSquarePlus,
   CalendarDays,
 } from 'lucide-react';
+import { NavLink, useLocation } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 
-export type MainViewType = 'agenda' | 'riwayat' | 'dev';
-
 interface NavbarProps {
-  currentView: MainViewType;
-  onToggleView: (view: MainViewType) => void;
   onOpenKotakSaran: () => void;
   onOpenSchedule?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({
-  currentView,
-  onToggleView,
-  onOpenKotakSaran,
-  onOpenSchedule,
-}) => {
+export const Navbar: React.FC<NavbarProps> = ({ onOpenKotakSaran, onOpenSchedule }) => {
   const { activeTeacherName, isAdmin, signOut } = useAuth();
+  const { pathname } = useLocation();
+
+  // View aktif diturunkan dari URL (/ vs /riwayat), bukan state terpisah,
+  // supaya refresh & tombol Back tetap berada di halaman yang sama.
+  const currentView: 'agenda' | 'riwayat' = pathname.startsWith('/riwayat')
+    ? 'riwayat'
+    : 'agenda';
 
   return (
     <>
@@ -49,8 +48,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Desktop Navigation Links */}
             <div className="hidden md:flex items-center gap-2">
-              <button
-                onClick={() => onToggleView('agenda')}
+              <NavLink
+                to="/"
+                end
                 className={`px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition ${
                   currentView === 'agenda'
                     ? 'bg-slate-100 text-slate-900 border border-slate-300 font-bold'
@@ -59,10 +59,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <FileEdit className="w-3.5 h-3.5" />
                 <span>Isi Agenda</span>
-              </button>
+              </NavLink>
 
-              <button
-                onClick={() => onToggleView('riwayat')}
+              <NavLink
+                to="/riwayat"
                 className={`px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition ${
                   currentView === 'riwayat'
                     ? 'bg-slate-100 text-slate-900 border border-slate-300 font-bold'
@@ -71,7 +71,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <History className="w-3.5 h-3.5" />
                 <span>Riwayat Agenda</span>
-              </button>
+              </NavLink>
 
               {onOpenSchedule && (
                 <button
@@ -128,8 +128,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Bottom Navigation Bar for Mobile (Thumb-Friendly, Fixed Bottom with iOS safe-area support) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xs border-t border-slate-200 shadow-lg px-2 pt-1.5 safe-bottom flex items-center justify-around no-print">
-        <button
-          onClick={() => onToggleView('agenda')}
+        <NavLink
+          to="/"
+          end
           className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition min-h-[44px] ${
             currentView === 'agenda'
               ? 'text-emerald-700 font-bold bg-emerald-50/50'
@@ -138,10 +139,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <FileEdit className={`w-5 h-5 mb-0.5 ${currentView === 'agenda' ? 'stroke-[2.5]' : ''}`} />
           <span className="text-[10px]">Isi Agenda</span>
-        </button>
+        </NavLink>
 
-        <button
-          onClick={() => onToggleView('riwayat')}
+        <NavLink
+          to="/riwayat"
           className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition min-h-[44px] ${
             currentView === 'riwayat'
               ? 'text-emerald-700 font-bold bg-emerald-50/50'
@@ -150,7 +151,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <History className={`w-5 h-5 mb-0.5 ${currentView === 'riwayat' ? 'stroke-[2.5]' : ''}`} />
           <span className="text-[10px]">Riwayat</span>
-        </button>
+        </NavLink>
 
         {onOpenSchedule && (
           <button

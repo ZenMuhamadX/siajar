@@ -56,19 +56,19 @@ export const PengaturanPage: React.FC = () => {
           <h3 className="font-bold text-slate-900 text-sm">Informasi Satuan Pendidikan</h3>
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-xs">
             <div>
-              <dt className="text-slate-400 text-[11px]">Nama Sekolah</dt>
+              <dt className="text-slate-500 text-[11px]">Nama Sekolah</dt>
               <dd className="font-semibold text-slate-800">SDIT AS-SYIFA</dd>
             </div>
             <div>
-              <dt className="text-slate-400 text-[11px]">Aplikasi</dt>
+              <dt className="text-slate-500 text-[11px]">Aplikasi</dt>
               <dd className="font-semibold text-slate-800">SIAJAR (Sistem Agenda Pembelajaran)</dd>
             </div>
             {/* <div>
-              <dt className="text-slate-400 text-[11px]">Model Jam Pelajaran (JP)</dt>
+              <dt className="text-slate-500 text-[11px]">Model Jam Pelajaran (JP)</dt>
               <dd className="font-semibold text-slate-800">35 Menit / Jam Pelajaran</dd>
             </div> */}
             <div>
-              <dt className="text-slate-400 text-[11px]">Versi Sistem</dt>
+              <dt className="text-slate-500 text-[11px]">Versi Sistem</dt>
               <dd className="font-semibold text-slate-800">V0.1 (Beta)</dd>
             </div>
           </dl>

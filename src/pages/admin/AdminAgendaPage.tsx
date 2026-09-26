@@ -1,4 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { localDateString } from '../../utils/date';
+import { useAgendaDateParam, useAgendaSlotParam } from '../../routes/useAgendaQuery';
 import { DAFTAR_KELAS, type FullAgenda, type Guru } from '../../types';
 import { getDaftarGuru } from '../../services/agendaService';
 import {
@@ -7,18 +9,14 @@ import {
 } from '../../services/scheduleDetectionService';
 import { AgendaDetailForm } from '../../components/agenda/AgendaDetailForm';
 import { PageHeader } from '../../components/admin/PageHeader';
+import { DataTable, FilterBar, StatusBadge, type Column } from '../../components/common';
 import {
   AlertTriangle,
   Calendar,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Clock,
   Coffee,
   Edit3,
-  FileEdit,
-  Filter,
-  Loader2,
   Plus,
 } from 'lucide-react';
 
@@ -42,17 +40,27 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
   onCancelEdit,
   showToast,
 }) => {
-  const todayStr = new Date().toISOString().split('T')[0];
-  const [selectedDate, setSelectedDate] = useState(editData?.header.tanggal || todayStr);
+  const todayStr = localDateString();
+
+  // Tanggal & form isian kini diturunkan dari URL (`?date=` / `?slot=`) supaya
+  // refresh, tombol Back, dan link yang dibuka di tab baru tetap membuka
+  // tampilan yang sama. Lihat src/routes/useAgendaQuery.ts.
+  const { date: selectedDate, setDate } = useAgendaDateParam(
+    editData?.header.tanggal || todayStr,
+    editData?.header.tanggal || null
+  );
+  const { slotId, openSlot, closeSlot } = useAgendaSlotParam();
+
   const [slots, setSlots] = useState<TimelineSlot[]>([]);
   const [reason, setReason] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
+  /** Tanggal yang benar-benar sudah dimuat — penanda daftar slot sudah "settle". */
+  const [loadedDate, setLoadedDate] = useState<string | null>(null);
+  const strippedSlotRef = useRef<string | null>(null);
   const [daftarGuru, setDaftarGuru] = useState<Guru[]>([]);
   const [filterGuru, setFilterGuru] = useState('SEMUA');
   const [filterKelas, setFilterKelas] = useState('SEMUA');
   const [filterStatus, setFilterStatus] = useState<StatusFilter>('SEMUA');
-  const [selectedSlot, setSelectedSlot] = useState<TimelineSlot | null>(null);
-  const [directEdit, setDirectEdit] = useState<FullAgenda | null>(editData || null);
 
   useEffect(() => {
     getDaftarGuru()
@@ -61,15 +69,6 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
         showToast('error', 'Gagal memuat daftar guru.');
       });
   }, [showToast]);
-
-  useEffect(() => {
-    if (editData) {
-      setDirectEdit(editData);
-      if (editData.header.tanggal) {
-        setSelectedDate(editData.header.tanggal);
-      }
-    }
-  }, [editData]);
 
   const fetchSlots = useCallback(async () => {
     setIsLoading(true);
@@ -83,6 +82,7 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
       setSlots([]);
     } finally {
       setIsLoading(false);
+      setLoadedDate(selectedDate);
     }
   }, [selectedDate, showToast]);
 
@@ -90,16 +90,58 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
     fetchSlots();
   }, [fetchSlots]);
 
-  useEffect(() => {
-    if (!directEdit || selectedSlot || slots.length === 0) return;
-    const scheduleId = directEdit.header.schedule_id;
-    const match = slots.find((s) =>
-      scheduleId
-        ? s.schedule.id === scheduleId
-        : s.existingAgenda?.header.id === directEdit.header.id
+  // ------------------------------------------------------------------ //
+  // Turunan dari URL — tanpa duplikasi state lokal                       //
+  // ------------------------------------------------------------------ //
+
+  /** Slot yang dibuka lewat `?slot=`. */
+  const resolvedSlot = useMemo(
+    () => (slotId ? (slots.find((s) => s.schedule.id === slotId) ?? null) : null),
+    [slotId, slots]
+  );
+
+  /**
+   * Konteks jadwal untuk mode `?edit=` — dulu efek + state lokal `selectedSlot`,
+   * kini turunan murni dari slots yang sudah dimuat.
+   */
+  const editSlot = useMemo(() => {
+    if (!editData || slots.length === 0) return null;
+    const scheduleId = editData.header.schedule_id;
+    return (
+      slots.find((s) =>
+        scheduleId
+          ? s.schedule.id === scheduleId
+          : s.existingAgenda?.header.id === editData.header.id
+      ) ?? null
     );
-    if (match) setSelectedSlot(match);
-  }, [directEdit, selectedSlot, slots]);
+  }, [editData, slots]);
+
+  const selectedSlot = resolvedSlot ?? editSlot;
+  /** `?edit=` menang; selain itu agenda yang sudah terisi ikut terbuka. */
+  const directEdit = editData ?? resolvedSlot?.existingAgenda ?? null;
+  const isFormOpen = Boolean(directEdit || resolvedSlot);
+
+  /** Daftar slot sudah menampilkan data untuk tanggal yang diminta URL. */
+  const slotsSettled = !isLoading && loadedDate === selectedDate;
+
+  // Buang `?slot=` yang tidak bisa dipakai: `?edit=` selalu menang, atau link
+  // basi / tanggalnya tidak punya jadwal. Setelah dibuang kondisi di atas jadi
+  // false sehingga efek ini berhenti — aman dijalankan dua kali oleh StrictMode.
+  useEffect(() => {
+    if (!slotId) {
+      strippedSlotRef.current = null;
+      return;
+    }
+    if (editData) {
+      closeSlot();
+      return;
+    }
+    if (!slotsSettled || resolvedSlot) return;
+    if (strippedSlotRef.current === slotId) return;
+    strippedSlotRef.current = slotId;
+    showToast('info', 'Slot jadwal tidak ditemukan pada tanggal ini (tautan mungkin sudah kedaluwarsa).');
+    closeSlot();
+  }, [slotId, editData, slotsSettled, resolvedSlot, showToast, closeSlot]);
 
   const formatDateIndo = (dateStr: string) => {
     try {
@@ -115,14 +157,13 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
   };
 
   const handleSetDate = (date: string) => {
-    setSelectedDate(date);
-    setSelectedSlot(null);
+    setDate(date); // tulis ?date= (replace) dan buang ?slot=
   };
 
   const shiftDate = (delta: number) => {
     const d = new Date(selectedDate + 'T00:00:00');
     d.setDate(d.getDate() + delta);
-    handleSetDate(d.toISOString().split('T')[0]);
+    handleSetDate(localDateString(d));
   };
 
   const filteredSlots = useMemo(() => {
@@ -144,14 +185,12 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
     'Administrator';
 
   const handleOpenSlot = (slot: TimelineSlot) => {
-    setSelectedSlot(slot);
-    setDirectEdit(slot.existingAgenda);
+    openSlot(slot.schedule.id, selectedDate); // push: ?slot=<id>&date=<tanggal>
   };
 
   const handleCloseForm = () => {
-    setSelectedSlot(null);
-    setDirectEdit(null);
-    onCancelEdit?.();
+    closeSlot(); // buang ?slot= (replace), ?date= tetap
+    onCancelEdit?.(); // buang ?edit= — no-op bila bukan mode edit
   };
 
   const handleSuccessSave = () => {
@@ -159,7 +198,100 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
     fetchSlots();
   };
 
-  if (selectedSlot || directEdit) {
+  const isFiltered =
+    filterGuru !== 'SEMUA' || filterKelas !== 'SEMUA' || filterStatus !== 'SEMUA';
+
+  const handleResetFilters = () => {
+    setFilterGuru('SEMUA');
+    setFilterKelas('SEMUA');
+    setFilterStatus('SEMUA');
+  };
+
+  // Kondisi khusus (akhir pekan / belum ada TA aktif) -> ditampilkan sebagai EmptyState khusus
+  const notice =
+    reason === 'WEEKEND'
+      ? {
+          icon: <Coffee className="w-6 h-6 text-amber-500" />,
+          title: 'Akhir pekan',
+          description: 'Tidak ada jadwal reguler pada Sabtu/Minggu.',
+        }
+      : reason === 'NO_ACTIVE_ACADEMIC_YEAR'
+        ? {
+            icon: <AlertTriangle className="w-6 h-6 text-amber-500" />,
+            title: 'Belum ada tahun ajaran aktif',
+            description: 'Aktifkan tahun ajaran di menu Pengaturan.',
+          }
+        : null;
+
+  const columns: Column<TimelineSlot>[] = [
+    {
+      key: 'waktu',
+      header: 'Waktu',
+      align: 'left',
+      accessor: (slot) => (
+        <div className="font-mono text-slate-700 whitespace-nowrap">
+          {slot.schedule.start_time.slice(0, 5)} – {slot.schedule.end_time.slice(0, 5)}
+          <span className="block text-[10px] text-slate-400 font-sans">
+            JP {slot.schedule.period_number}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: 'kelas',
+      header: 'Kelas',
+      align: 'left',
+      accessor: (slot) => (
+        <span className="font-semibold text-slate-900 whitespace-nowrap">
+          {slot.schedule.class_id}
+        </span>
+      ),
+    },
+    {
+      key: 'mapel',
+      header: 'Mapel',
+      align: 'left',
+      accessor: (slot) => <span className="text-slate-800">{slot.schedule.subject_name}</span>,
+    },
+    {
+      key: 'guru',
+      header: 'Guru',
+      align: 'left',
+      accessor: (slot) => <span className="text-slate-600">{slot.schedule.teacher_name}</span>,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      align: 'left',
+      accessor: (slot) => <StatusBadge status={slot.status} label={statusLabel[slot.status]} />,
+    },
+    {
+      key: 'actions',
+      header: 'Aksi',
+      align: 'right',
+      accessor: (slot) => {
+        const isFilled = slot.status === 'COMPLETED';
+        return (
+          <div className="flex items-center justify-end">
+            <button
+              type="button"
+              onClick={() => handleOpenSlot(slot)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition ${
+                isFilled
+                  ? 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                  : 'bg-slate-900 text-white hover:bg-slate-700'
+              }`}
+            >
+              {isFilled ? <Edit3 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+              {isFilled ? 'Koreksi' : 'Isi agenda'}
+            </button>
+          </div>
+        );
+      },
+    },
+  ];
+
+  if (isFormOpen) {
     return (
       <div className="space-y-4">
         <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -219,50 +351,49 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200">
-            <button
-              type="button"
-              onClick={() => shiftDate(-1)}
-              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-white rounded-lg"
-              title="Hari sebelumnya"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <div className="flex items-center gap-1.5 px-2">
-              <Calendar className="w-3.5 h-3.5 text-slate-500" />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => handleSetDate(e.target.value)}
-                className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-none cursor-pointer"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => shiftDate(1)}
-              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-white rounded-lg"
-              title="Hari berikutnya"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-            {selectedDate !== todayStr && (
+      {/* Toolbar standar: navigasi tanggal + filter kelas/guru/status */}
+      <FilterBar
+        isFiltered={isFiltered}
+        onResetFilters={handleResetFilters}
+        filters={
+          <>
+            <div className="flex items-center gap-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200">
               <button
                 type="button"
-                onClick={() => handleSetDate(todayStr)}
-                className="ml-1 px-2.5 py-1 text-[11px] font-bold bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50"
+                onClick={() => shiftDate(-1)}
+                className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-white rounded-lg"
+                title="Hari sebelumnya"
               >
-                Hari ini
+                <ChevronLeft className="w-4 h-4" />
               </button>
-            )}
-          </div>
+              <div className="flex items-center gap-1.5 px-2">
+                <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => handleSetDate(e.target.value)}
+                  className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-none cursor-pointer"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => shiftDate(1)}
+                className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-white rounded-lg"
+                title="Hari berikutnya"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              {selectedDate !== todayStr && (
+                <button
+                  type="button"
+                  onClick={() => handleSetDate(todayStr)}
+                  className="ml-1 px-2.5 py-1 text-[11px] font-bold bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50"
+                >
+                  Hari ini
+                </button>
+              )}
+            </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
-              <Filter className="w-3 h-3" />
-              Filter
-            </span>
             <select
               value={filterKelas}
               onChange={(e) => setFilterKelas(e.target.value)}
@@ -296,101 +427,37 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
               <option value="BELUM">Belum diisi</option>
               <option value="SUDAH">Sudah diisi</option>
             </select>
-          </div>
-        </div>
+          </>
+        }
+      />
 
-        {isLoading ? (
-          <div className="py-16 flex flex-col items-center gap-2 text-xs text-slate-500">
-            <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
-            Memuat jadwal harian...
-          </div>
-        ) : reason === 'WEEKEND' ? (
-          <div className="py-14 text-center space-y-2">
-            <Coffee className="w-8 h-8 text-amber-500 mx-auto" />
-            <p className="text-sm font-bold text-slate-800">Akhir pekan</p>
-            <p className="text-xs text-slate-500">Tidak ada jadwal reguler pada Sabtu/Minggu.</p>
-          </div>
-        ) : reason === 'NO_ACTIVE_ACADEMIC_YEAR' ? (
-          <div className="py-14 text-center space-y-2">
-            <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto" />
-            <p className="text-sm font-bold text-slate-800">Belum ada tahun ajaran aktif</p>
-            <p className="text-xs text-slate-500">Aktifkan tahun ajaran di menu Pengaturan.</p>
-          </div>
-        ) : filteredSlots.length === 0 ? (
-          <div className="py-14 text-center space-y-2">
-            <Clock className="w-8 h-8 text-slate-300 mx-auto" />
-            <p className="text-sm font-bold text-slate-800">Tidak ada slot sesuai filter</p>
-            <p className="text-xs text-slate-500">Ubah tanggal atau filter kelas/guru.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left min-w-[720px]">
-              <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Waktu</th>
-                  <th className="px-4 py-3 font-semibold">Kelas</th>
-                  <th className="px-4 py-3 font-semibold">Mapel</th>
-                  <th className="px-4 py-3 font-semibold">Guru</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold text-right">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredSlots.map((slot) => {
-                  const isFilled = slot.status === 'COMPLETED';
-                  return (
-                    <tr key={slot.schedule.id} className="hover:bg-slate-50/80">
-                      <td className="px-4 py-3 font-mono text-slate-700 whitespace-nowrap">
-                        {slot.schedule.start_time.slice(0, 5)} – {slot.schedule.end_time.slice(0, 5)}
-                        <span className="block text-[10px] text-slate-400 font-sans">
-                          JP {slot.schedule.period_number}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 font-semibold text-slate-900 whitespace-nowrap">
-                        {slot.schedule.class_id}
-                      </td>
-                      <td className="px-4 py-3 text-slate-800">{slot.schedule.subject_name}</td>
-                      <td className="px-4 py-3 text-slate-600">{slot.schedule.teacher_name}</td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold ${
-                            isFilled
-                              ? 'bg-emerald-50 text-emerald-700'
-                              : slot.status === 'IN_PROGRESS'
-                                ? 'bg-indigo-50 text-indigo-700'
-                                : 'bg-amber-50 text-amber-800'
-                          }`}
-                        >
-                          {isFilled ? (
-                            <CheckCircle2 className="w-3 h-3" />
-                          ) : (
-                            <FileEdit className="w-3 h-3" />
-                          )}
-                          {statusLabel[slot.status]}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenSlot(slot)}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition ${
-                            isFilled
-                              ? 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-                              : 'bg-slate-900 text-white hover:bg-slate-700'
-                          }`}
-                        >
-                          {isFilled ? <Edit3 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                          {isFilled ? 'Koreksi' : 'Isi agenda'}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {/* Satu DataTable: loading, empty (akhir pekan/TA/filter), dan tabel slot */}
+      <DataTable
+        title="Slot Agenda Harian"
+        subtitle={
+          isLoading
+            ? 'Memuat jadwal harian...'
+            : `${filteredSlots.length} dari ${slots.length} slot ditampilkan`
+        }
+        columns={columns}
+        data={notice ? [] : filteredSlots}
+        keyExtractor={(slot) => slot.schedule.id}
+        isLoading={isLoading}
+        isFiltered={notice ? false : isFiltered}
+        onResetFilter={handleResetFilters}
+        emptyIcon={notice?.icon}
+        emptyTitle={
+          notice?.title ?? (isFiltered ? 'Tidak ada slot sesuai filter' : 'Belum ada slot jadwal')
+        }
+        emptyDescription={
+          notice?.description ??
+          (isFiltered
+            ? 'Ubah tanggal atau filter kelas/guru.'
+            : 'Tidak ada jadwal reguler untuk tanggal yang dipilih.')
+        }
+        enablePagination
+        defaultPageSize={25}
+      />
     </div>
   );
 };

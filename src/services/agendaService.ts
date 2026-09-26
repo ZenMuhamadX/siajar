@@ -201,16 +201,8 @@ export async function simpanAgenda(payload: SimpanAgendaPayload): Promise<{ id: 
   return { id: currentAgendaId! };
 }
 
-export async function getRekapAgenda(filters?: {
-  kelas?: string;
-  tanggal?: string;
-  startDate?: string;
-  endDate?: string;
-  nama_guru?: string;
-}): Promise<FullAgenda[]> {
-  let query = supabase
-    .from('agenda_header')
-    .select(`
+/** Kolom + relasi agenda yang dibutuhkan untuk membangun `FullAgenda`. */
+const AGENDA_DETAIL_SELECT = `
       *,
       agenda_kbm (*),
       agenda_absensi (
@@ -219,7 +211,66 @@ export async function getRekapAgenda(filters?: {
       ),
       agenda_kejadian (*),
       agenda_evidence (*)
-    `)
+    `;
+
+/** Ubah satu baris `agenda_header` (dengan relasinya) menjadi bentuk `FullAgenda`. */
+function mapAgendaRow(item: any): FullAgenda {
+  const rawEvidence = Array.isArray(item.agenda_evidence)
+    ? item.agenda_evidence[0]
+    : item.agenda_evidence;
+
+  return {
+    header: {
+      id: item.id,
+      sekolah: item.sekolah,
+      kelas: item.kelas,
+      tanggal: item.tanggal,
+      schedule_id: item.schedule_id || null,
+      actual_teacher_name: item.actual_teacher_name || null,
+      created_at: item.created_at,
+    },
+    kbm: (item.agenda_kbm || []).sort((a: any, b: any) =>
+      a.jam_ke.localeCompare(b.jam_ke, undefined, { numeric: true })
+    ),
+    absensi: (item.agenda_absensi || []).map((ab: any) => ({
+      id: ab.id,
+      agenda_id: ab.agenda_id,
+      siswa_id: ab.siswa_id,
+      status: ab.status,
+      siswa: ab.siswa,
+      nama_siswa: ab.siswa?.nama_siswa || '',
+    })),
+    kejadian: item.agenda_kejadian || [],
+    evidence: rawEvidence
+      ? {
+          id: rawEvidence.id,
+          agenda_id: rawEvidence.agenda_id,
+          storage_path: rawEvidence.storage_path,
+          file_name: rawEvidence.file_name,
+          file_size: rawEvidence.file_size,
+          mime_type: rawEvidence.mime_type,
+          captured_at: rawEvidence.captured_at,
+          uploaded_at: rawEvidence.uploaded_at,
+          actual_teacher_name: rawEvidence.actual_teacher_name,
+          actual_teacher_id: rawEvidence.actual_teacher_id,
+          created_at: rawEvidence.created_at,
+        }
+      : null,
+  };
+}
+
+export async function getRekapAgenda(filters?: {
+  kelas?: string;
+  tanggal?: string;
+  startDate?: string;
+  endDate?: string;
+  nama_guru?: string;
+  /** Batasi jumlah baris (untuk "terbaru" / dashboard) — opsional. */
+  limit?: number;
+}): Promise<FullAgenda[]> {
+  let query = supabase
+    .from('agenda_header')
+    .select(AGENDA_DETAIL_SELECT)
     .order('tanggal', { ascending: false })
     .order('created_at', { ascending: false });
 
@@ -235,54 +286,14 @@ export async function getRekapAgenda(filters?: {
   if (filters?.endDate) {
     query = query.lte('tanggal', filters.endDate);
   }
+  if (filters?.limit && filters.limit > 0) {
+    query = query.limit(filters.limit);
+  }
 
   const { data, error } = await query;
   if (error) throw error;
 
-  let results: FullAgenda[] = (data || []).map((item: any) => {
-    const rawEvidence = Array.isArray(item.agenda_evidence)
-      ? item.agenda_evidence[0]
-      : item.agenda_evidence;
-
-    return {
-      header: {
-        id: item.id,
-        sekolah: item.sekolah,
-        kelas: item.kelas,
-        tanggal: item.tanggal,
-        schedule_id: item.schedule_id || null,
-        actual_teacher_name: item.actual_teacher_name || null,
-        created_at: item.created_at,
-      },
-      kbm: (item.agenda_kbm || []).sort((a: any, b: any) =>
-        a.jam_ke.localeCompare(b.jam_ke, undefined, { numeric: true })
-      ),
-      absensi: (item.agenda_absensi || []).map((ab: any) => ({
-        id: ab.id,
-        agenda_id: ab.agenda_id,
-        siswa_id: ab.siswa_id,
-        status: ab.status,
-        siswa: ab.siswa,
-        nama_siswa: ab.siswa?.nama_siswa || '',
-      })),
-      kejadian: item.agenda_kejadian || [],
-      evidence: rawEvidence
-        ? {
-            id: rawEvidence.id,
-            agenda_id: rawEvidence.agenda_id,
-            storage_path: rawEvidence.storage_path,
-            file_name: rawEvidence.file_name,
-            file_size: rawEvidence.file_size,
-            mime_type: rawEvidence.mime_type,
-            captured_at: rawEvidence.captured_at,
-            uploaded_at: rawEvidence.uploaded_at,
-            actual_teacher_name: rawEvidence.actual_teacher_name,
-            actual_teacher_id: rawEvidence.actual_teacher_id,
-            created_at: rawEvidence.created_at,
-          }
-        : null,
-    };
-  });
+  let results: FullAgenda[] = (data || []).map(mapAgendaRow);
 
   if (filters?.nama_guru && filters.nama_guru !== 'Administrator') {
     const teacherName = filters.nama_guru.trim();
@@ -292,6 +303,23 @@ export async function getRekapAgenda(filters?: {
   }
 
   return results;
+}
+
+/**
+ * Ambil satu agenda lengkap berdasarkan id — dipakai untuk handoff edit via URL
+ * (`?edit=<id>`). Mengembalikan `null` bila id tidak ditemukan (link basi /
+ * agenda sudah dihapus), sehingga pemanggil bisa menampilkan pesan + membersihkan query.
+ */
+export async function getAgendaById(agendaId: string): Promise<FullAgenda | null> {
+  const { data, error } = await supabase
+    .from('agenda_header')
+    .select(AGENDA_DETAIL_SELECT)
+    .eq('id', agendaId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? mapAgendaRow(data) : null;
 }
 
 export async function deleteAgenda(agendaId: string): Promise<void> {

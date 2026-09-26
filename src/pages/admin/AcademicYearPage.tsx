@@ -7,8 +7,9 @@ import {
   archiveAcademicYear,
 } from '../../services/scheduleService';
 import { PageHeader } from '../../components/admin/PageHeader';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { DataTable, StatusBadge, type Column } from '../../components/common';
 import {
-  Calendar,
   Plus,
   CheckCircle2,
   Archive,
@@ -32,6 +33,13 @@ export const AcademicYearPage: React.FC<AcademicYearPageProps> = ({ showToast })
   const [endDate, setEndDate] = useState('');
   const [status, setStatus] = useState<AcademicYearStatus>('DRAFT');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Dialog konfirmasi (menggantikan confirm() bawaan browser)
+  const [confirmAction, setConfirmAction] = useState<{
+    type: 'activate' | 'archive';
+    ay: AcademicYear;
+  } | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   const fetchYears = async () => {
     setIsLoading(true);
@@ -86,37 +94,134 @@ export const AcademicYearPage: React.FC<AcademicYearPageProps> = ({ showToast })
     }
   };
 
-  const handleActivate = async (ay: AcademicYear) => {
+  const handleActivate = (ay: AcademicYear) => {
     if (ay.status === 'ACTIVE') return;
-    if (
-      confirm(
-        `Aktifkan Tahun Ajaran "${ay.name}"? Tahun ajaran yang saat ini aktif akan otomatis diarsipkan.`
-      )
-    ) {
-      try {
-        await setActiveAcademicYear(ay.id);
-        showToast('success', `Tahun ajaran ${ay.name} sekarang ACTIVE.`);
-        fetchYears();
-      } catch (err: any) {
-        showToast('error', 'Gagal mengaktifkan tahun ajaran: ' + (err?.message || ''));
-      }
-    }
+    setConfirmAction({ type: 'activate', ay });
   };
 
-  const handleArchive = async (ay: AcademicYear) => {
+  const handleArchive = (ay: AcademicYear) => {
     if (ay.status === 'ARCHIVED') return;
-    if (confirm(`Arsipkan Tahun Ajaran "${ay.name}"?`)) {
-      try {
+    setConfirmAction({ type: 'archive', ay });
+  };
+
+  const runConfirmAction = async () => {
+    if (!confirmAction) return;
+    const { type, ay } = confirmAction;
+    setIsConfirming(true);
+    try {
+      if (type === 'activate') {
+        await setActiveAcademicYear(ay.id);
+        showToast('success', `Tahun ajaran ${ay.name} sekarang ACTIVE.`);
+      } else {
         await archiveAcademicYear(ay.id);
         showToast('info', `Tahun ajaran ${ay.name} diarsipkan.`);
-        fetchYears();
-      } catch (err: any) {
-        showToast('error', 'Gagal mengarsipkan: ' + (err?.message || ''));
       }
+      setConfirmAction(null);
+      fetchYears();
+    } catch (err: any) {
+      showToast(
+        'error',
+        (type === 'activate'
+          ? 'Gagal mengaktifkan tahun ajaran: '
+          : 'Gagal mengarsipkan: ') + (err?.message || '')
+      );
+    } finally {
+      setIsConfirming(false);
     }
   };
 
   const activeAY = academicYears.find((y) => y.status === 'ACTIVE');
+
+  const columns: Column<AcademicYear>[] = [
+    {
+      key: 'name',
+      header: 'Tahun Ajaran',
+      align: 'left',
+      accessor: (ay) => (
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-slate-900 text-sm">{ay.name}</span>
+          {ay.status === 'ACTIVE' && (
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+              Aktif Sekarang
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'start_date',
+      header: 'Tanggal Mulai',
+      align: 'center',
+      width: '140px',
+      accessor: (ay) => (
+        <span className="font-mono text-slate-600 whitespace-nowrap">{ay.start_date}</span>
+      ),
+    },
+    {
+      key: 'end_date',
+      header: 'Tanggal Selesai',
+      align: 'center',
+      width: '140px',
+      accessor: (ay) => (
+        <span className="font-mono text-slate-600 whitespace-nowrap">{ay.end_date}</span>
+      ),
+    },
+    {
+      key: 'keterangan',
+      header: 'Keterangan',
+      align: 'left',
+      accessor: (ay) => (
+        <span className="text-slate-500">
+          {ay.status === 'ACTIVE'
+            ? 'Sedang berjalan sebagai TA aktif'
+            : ay.status === 'ARCHIVED'
+            ? 'Arsip historis'
+            : 'Draf persiapan'}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      align: 'center',
+      width: '130px',
+      accessor: (ay) => <StatusBadge status={ay.status} />,
+    },
+    {
+      key: 'actions',
+      header: 'Aksi',
+      align: 'right',
+      width: '200px',
+      accessor: (ay) => {
+        const isActive = ay.status === 'ACTIVE';
+        const isArchived = ay.status === 'ARCHIVED';
+        return (
+          <div className="flex items-center justify-end gap-1.5">
+            {!isActive && (
+              <button
+                type="button"
+                onClick={() => handleActivate(ay)}
+                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition inline-flex items-center gap-1 shadow-xs"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Aktifkan</span>
+              </button>
+            )}
+            {!isArchived && !isActive && (
+              <button
+                type="button"
+                onClick={() => handleArchive(ay)}
+                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition inline-flex items-center gap-1 border border-slate-200"
+              >
+                <Archive className="w-3.5 h-3.5 text-slate-500" />
+                <span>Arsipkan</span>
+              </button>
+            )}
+          </div>
+        );
+      },
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -143,7 +248,7 @@ export const AcademicYearPage: React.FC<AcademicYearPageProps> = ({ showToast })
         }
       />
 
-      {/* Active banner summary */}
+      {/* Active banner summary (KPI / Summary Card) */}
       {activeAY ? (
         <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-start sm:items-center gap-3">
@@ -155,9 +260,7 @@ export const AcademicYearPage: React.FC<AcademicYearPageProps> = ({ showToast })
                 <h3 className="font-bold text-slate-900 text-base">
                   Tahun Ajaran Aktif: {activeAY.name}
                 </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
-                  ACTIVE
-                </span>
+                <StatusBadge status="ACTIVE" size="sm" />
               </div>
               <p className="text-xs text-slate-600 mt-0.5">
                 Periode operasional: {activeAY.start_date} s/d {activeAY.end_date}
@@ -174,97 +277,20 @@ export const AcademicYearPage: React.FC<AcademicYearPageProps> = ({ showToast })
         </div>
       )}
 
-      {/* Grid of Academic Years */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider text-xs">
-          Daftar Seluruh Tahun Ajaran
-        </h3>
-
-        {isLoading ? (
-          <div className="bg-white rounded-xl p-8 text-center border border-slate-200">
-            <RefreshCw className="w-5 h-5 text-slate-400 animate-spin mx-auto mb-2" />
-            <p className="text-xs text-slate-500">Memuat data tahun ajaran...</p>
-          </div>
-        ) : academicYears.length === 0 ? (
-          <div className="bg-white rounded-xl p-10 text-center border border-slate-200 text-slate-400 italic text-xs">
-            Belum ada data tahun ajaran. Klik tombol "Tambah Tahun Ajaran" untuk memulai.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {academicYears.map((ay) => {
-              const isActive = ay.status === 'ACTIVE';
-              const isArchived = ay.status === 'ARCHIVED';
-
-              return (
-                <div
-                  key={ay.id}
-                  className={`bg-white rounded-xl border p-4 sm:p-5 flex flex-col justify-between space-y-4 transition ${
-                    isActive
-                      ? 'border-emerald-300 ring-2 ring-emerald-500/20 shadow-xs'
-                      : isArchived
-                      ? 'border-slate-200 opacity-75'
-                      : 'border-slate-200 hover:border-slate-300 shadow-xs'
-                  }`}
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-base sm:text-lg text-slate-900">
-                        {ay.name}
-                      </h4>
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          isActive
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : isArchived
-                            ? 'bg-slate-100 text-slate-600'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}
-                      >
-                        {ay.status}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500 font-mono">
-                      <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>
-                        {ay.start_date} &rarr; {ay.end_date}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-[11px] text-slate-400">
-                      {isActive ? 'Sedang berjalan' : isArchived ? 'Arsip historis' : 'Draf persiapan'}
-                    </span>
-
-                    <div className="flex items-center gap-1.5">
-                      {!isActive && (
-                        <button
-                          onClick={() => handleActivate(ay)}
-                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition flex items-center gap-1"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Aktifkan</span>
-                        </button>
-                      )}
-
-                      {!isArchived && !isActive && (
-                        <button
-                          onClick={() => handleArchive(ay)}
-                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition flex items-center gap-1"
-                        >
-                          <Archive className="w-3.5 h-3.5 text-slate-500" />
-                          <span>Arsipkan</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      {/* Standard Table of Academic Years */}
+      <DataTable
+        title="Daftar Tahun Ajaran"
+        subtitle={`Total ${academicYears.length} tahun ajaran terdaftar`}
+        columns={columns}
+        data={academicYears}
+        keyExtractor={(ay) => ay.id}
+        isLoading={isLoading}
+        emptyTitle="Belum ada tahun ajaran"
+        emptyDescription='Klik tombol "Tambah Tahun Ajaran" untuk memulai.'
+        rowClassName={(ay) => (ay.status === 'ACTIVE' ? 'bg-emerald-50/30' : '')}
+        enablePagination
+        defaultPageSize={10}
+      />
 
       {/* Modal Add Academic Year */}
       {isModalOpen && (
@@ -355,6 +381,28 @@ export const AcademicYearPage: React.FC<AcademicYearPageProps> = ({ showToast })
           </div>
         </div>
       )}
+
+      {/* Dialog konfirmasi aktifkan / arsipkan */}
+      <ConfirmDialog
+        isOpen={Boolean(confirmAction)}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={runConfirmAction}
+        isLoading={isConfirming}
+        variant={confirmAction?.type === 'activate' ? 'warning' : 'danger'}
+        title={
+          confirmAction?.type === 'activate'
+            ? 'Aktifkan Tahun Ajaran?'
+            : 'Arsipkan Tahun Ajaran?'
+        }
+        message={
+          confirmAction
+            ? confirmAction.type === 'activate'
+              ? `Aktifkan Tahun Ajaran "${confirmAction.ay.name}"? Tahun ajaran yang saat ini aktif akan otomatis diarsipkan.`
+              : `Arsipkan Tahun Ajaran "${confirmAction.ay.name}"? Data historis tetap tersimpan.`
+            : ''
+        }
+        confirmText={confirmAction?.type === 'activate' ? 'Aktifkan' : 'Arsipkan'}
+      />
     </div>
   );
 };

@@ -1,162 +1,28 @@
-import React, { useState } from 'react';
-import {
-  LayoutDashboard,
-  FileEdit,
-  CalendarDays,
-  FileSpreadsheet,
-  Users,
-  GraduationCap,
-  BookOpen,
-  Calendar,
-  Settings,
-  Activity,
-  LogOut,
-  ChevronLeft,
-  ChevronRight,
-  Menu,
-  X,
-  ShieldCheck,
-  Award,
-  Clock,
-  MessageSquare,
-} from 'lucide-react';
+import React, { Suspense, useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router';
+import { ChevronLeft, ChevronRight, LogOut, Menu, X, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { ErrorBoundary } from '../ErrorBoundary';
+import { LoadingState } from '../common';
+import {
+  ADMIN_NAV_GROUPS,
+  adminPath,
+  getAdminRouteByPath,
+} from '../../routes/adminRoutes';
 
-export type AdminTab =
-  | 'overview'
-  | 'agenda'
-  | 'jadwal'
-  | 'rekap'
-  | 'rekap_harian'
-  | 'rekap_mingguan'
-  | 'rekap_bulanan'
-  | 'siswa'
-  | 'guru'
-  | 'mapel'
-  | 'wali_kelas'
-  | 'slot_waktu'
-  | 'ekskul'
-  | 'tahun_ajaran'
-  | 'pengaturan'
-  | 'saran'
-  | 'badal';
+export type { AdminTab } from '../../routes/adminRoutes';
 
-interface AdminLayoutProps {
-  activeTab: AdminTab;
-  onSelectTab: (tab: AdminTab) => void;
-  children: React.ReactNode;
-}
-
-interface NavItem {
-  id: AdminTab;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-}
-
-interface NavGroup {
-  group: string;
-  items: NavItem[];
-}
-
-const NAV_GROUPS: NavGroup[] = [
-  {
-    group: 'UTAMA',
-    items: [
-      { id: 'overview', label: 'Ringkasan', icon: LayoutDashboard },
-      { id: 'agenda', label: 'Agenda', icon: FileEdit },
-    ],
-  },
-  {
-    group: 'REKAP & LAPORAN',
-    items: [
-      { id: 'rekap_harian', label: 'Rekap Harian', icon: CalendarDays },
-      { id: 'rekap_mingguan', label: 'Rekap Mingguan', icon: FileSpreadsheet },
-      { id: 'rekap_bulanan', label: 'Rekap Bulanan', icon: BookOpen },
-      { id: 'rekap', label: 'Log Jurnal Agenda', icon: Activity },
-    ],
-  },
-  {
-    group: 'MASTER DATA',
-    items: [
-      { id: 'siswa', label: 'Siswa', icon: Users },
-      { id: 'guru', label: 'Guru', icon: GraduationCap },
-      { id: 'mapel', label: 'Mata Pelajaran', icon: BookOpen },
-    ],
-  },
-  {
-    group: 'PENUGASAN',
-    items: [
-      { id: 'wali_kelas', label: 'Wali Kelas', icon: Award },
-      { id: 'jadwal', label: 'Jadwal', icon: CalendarDays },
-      { id: 'slot_waktu', label: 'Slot Waktu (JP)', icon: Clock },
-      { id: 'badal', label: 'Guru Pengganti', icon: Users },
-    ],
-  },
-  {
-    group: 'KEGIATAN',
-    items: [
-      { id: 'ekskul', label: 'Ekstrakurikuler', icon: Activity },
-      { id: 'saran', label: 'Kotak Saran', icon: MessageSquare },
-    ],
-  },
-  {
-    group: 'PENGATURAN',
-    items: [
-      { id: 'tahun_ajaran', label: 'Tahun Ajaran', icon: Calendar },
-      { id: 'pengaturan', label: 'Pengaturan', icon: Settings },
-    ],
-  },
-];
-
-export const AdminLayout: React.FC<AdminLayoutProps> = ({
-  activeTab,
-  onSelectTab,
-  children,
-}) => {
+export const AdminLayout: React.FC = () => {
   const { signOut, activeTeacherName } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const location = useLocation();
 
-  const getPageTitle = (tab: AdminTab): string => {
-    switch (tab) {
-      case 'overview':
-        return 'Ringkasan Dashboard';
-      case 'agenda':
-        return 'Agenda Pembelajaran';
-      case 'jadwal':
-        return 'Jadwal Sekolah';
-      case 'rekap':
-        return 'Log Jurnal Agenda';
-      case 'rekap_harian':
-        return 'Rekap Harian';
-      case 'rekap_mingguan':
-        return 'Rekap Mingguan';
-      case 'rekap_bulanan':
-        return 'Rekap Bulanan';
-      case 'siswa':
-        return 'Data Siswa';
-      case 'guru':
-        return 'Data Guru';
-      case 'mapel':
-        return 'Data Mata Pelajaran';
-      case 'wali_kelas':
-        return 'Penugasan Wali Kelas';
-      case 'slot_waktu':
-        return 'Slot Waktu (JP)';
-      case 'badal':
-        return 'Guru Pengganti (Badal)';
-      case 'ekskul':
-        return 'Ekstrakurikuler';
-      case 'tahun_ajaran':
-        return 'Tahun Ajaran';
-      case 'pengaturan':
-        return 'Pengaturan Sistem';
-      case 'saran':
-        return 'Kotak Saran Guru';
-      default:
-        return 'Panel Administrator';
-    }
-  };
+  // Tab aktif & judul breadcrumb diturunkan dari segmen URL (/admin/<segmen>),
+  // sehingga deep-link, Back, dan Forward otomatis konsisten.
+  const pathSegment = location.pathname.replace(/^\/admin\/?/, '').split('/')[0] ?? '';
+  const activeRoute = getAdminRouteByPath(pathSegment);
+  const pageTitle = activeRoute?.title ?? 'Panel Administrator';
 
   return (
     <div className="min-h-screen bg-slate-50/80 text-slate-800 flex font-sans">
@@ -170,11 +36,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
       {/* LEFT SIDEBAR */}
       <aside
-        className={`fixed md:sticky top-0 left-0 h-screen z-50 bg-white border-r border-slate-200 flex flex-col transition-all duration-200 ease-in-out no-print ${
-          isCollapsed ? 'w-18' : 'w-64'
-        } ${
-          isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'
-        }`}
+        className={`fixed md:sticky top-0 left-0 h-screen z-50 bg-white border-r border-slate-200 flex flex-col transition-all duration-200 ease-in-out no-print ${isCollapsed ? 'w-18' : 'w-64'
+          } ${isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'
+          }`}
       >
         {/* Top: Brand / Logo */}
         <div className="h-16 px-4 border-b border-slate-100 flex items-center justify-between shrink-0">
@@ -220,7 +84,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
         {/* Nav groups */}
         <nav className="flex-1 p-3 space-y-5 overflow-y-auto min-h-0">
-          {NAV_GROUPS.map((grp) => (
+          {ADMIN_NAV_GROUPS.map((grp) => (
             <div key={grp.group} className="space-y-1">
               {!isCollapsed && (
                 <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -230,25 +94,24 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
               {grp.items.map((item) => {
                 const Icon = item.icon;
-                const isActive = activeTab === item.id;
+                const isActive = activeRoute?.tab === item.tab;
 
+                // NavLink, bukan <button>: bisa open-in-new-tab / copy link /
+                // middle-click seperti navigasi web pada umumnya.
                 return (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      onSelectTab(item.id);
-                      setIsMobileOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition ${
-                      isActive
-                        ? 'bg-slate-900 text-white shadow-xs'
-                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                    } ${isCollapsed ? 'justify-center px-0' : ''}`}
+                  <NavLink
+                    key={item.tab}
+                    to={adminPath(item.tab)}
                     title={item.label}
+                    onClick={() => setIsMobileOpen(false)}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition ${isActive
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                      } ${isCollapsed ? 'justify-center px-0' : ''}`}
                   >
                     <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
                     {!isCollapsed && <span className="truncate">{item.label}</span>}
-                  </button>
+                  </NavLink>
                 );
               })}
             </div>
@@ -313,7 +176,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 <span>Admin</span>
                 <span>/</span>
                 <span className="font-semibold text-slate-800">
-                  {getPageTitle(activeTab)}
+                  {pageTitle}
                 </span>
               </div>
             </div>
@@ -326,9 +189,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           </div>
         </header>
 
-        {/* MAIN CONTENT AREA */}
+        {/* MAIN CONTENT AREA — halaman aktif dirender oleh <Route> di bawah /admin */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden">
-          {children}
+          <ErrorBoundary key={location.pathname}>
+            <Suspense fallback={<LoadingState message="Memuat halaman..." />}>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
     </div>
