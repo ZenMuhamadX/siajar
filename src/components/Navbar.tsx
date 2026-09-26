@@ -144,9 +144,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenKotakSaran, onOpenSchedule
       </header>
 
       {/* Bottom Navigation Bar for Mobile (Thumb-Friendly, Fixed Bottom with iOS safe-area support).
-          Tinggi minimumnya mengikuti `--bottom-nav-h` supaya elemen lain yang
-          harus duduk di atasnya (bilah simpan form, notifikasi) memakai angka
-          yang sama — bukan tebakan. */}
+          Tinggi minimumnya mengikuti `--bottom-nav-h` supaya apa pun yang harus
+          duduk di atasnya — saat ini notifikasi — memakai angka yang sama,
+          bukan tebakan. */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xs border-t border-slate-200 shadow-lg px-2 pt-1.5 safe-bottom flex items-center justify-around no-print min-h-[var(--bottom-nav-h)]">
         <NavLink
           to="/"

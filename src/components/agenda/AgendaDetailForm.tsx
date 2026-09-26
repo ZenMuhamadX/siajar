@@ -235,9 +235,11 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
     setDraftReady(true);
     // `existingEvidence` sengaja TIDAK di-reset di sini — pengelolaannya
     // dipisah ke efek di bawah supaya pratinjau foto tidak ikut terhapus.
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- dependensi
-    // sengaja berupa identitas (string), bukan objek `slot`; lihat penjelasan
-    // di deklarasi `agendaIdentity`.
+    //
+    // Dependensi sengaja berupa identitas (string), bukan objek `slot`: timer
+    // 30 detik di InputAgenda membuat objek slot baru terus, sehingga memakai
+    // objek akan mengulang efek ini dan mengosongkan isian.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [agendaIdentity]);
 
   /**
@@ -264,9 +266,9 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
 
   useEffect(() => {
     setExistingEvidence(existingAgenda?.evidence ?? null);
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- dipicu oleh
-    // identitas agenda dan path foto; `existingAgenda` dibaca sebagai nilai
-    // terbaru pada saat itu.
+    // Dipicu oleh identitas agenda dan path foto; `existingAgenda` dibaca
+    // sebagai nilai terbaru pada saat itu.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [agendaIdentity, incomingEvidencePath]);
 
   // Simpan draf tertunda. Menunggu `draftReady` penting: tanpa itu, efek ini
@@ -611,12 +613,11 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   };
 
   return (
-    /* Ruang bawah harus melewati DUA elemen tetap di HP: navigasi bawah
-       (`--bottom-nav-h` = 76px) dan bilah simpan di atasnya. Tinggi bilah
-       simpan 105px (terukur), jadi tumpukannya 181px. `<main>` di TeacherShell
-       sudah menyumbang `pb-24` (96px), sehingga sisa yang dibutuhkan ≈85px;
-       dipakai 112px (`pb-28`) agar ada sisa ruang nyata, bukan sekadar pas. */
-    <div className="max-w-3xl mx-auto space-y-4 pb-28 md:pb-6">
+    /* Tidak ada lagi elemen tetap di halaman ini: bilah simpan ikut menggulir
+       di ujung formulir. Ruang bawah hanya perlu melewati navigasi bawah HP
+       (76px), dan `<main>` di TeacherShell sudah menyumbang `pb-24` (96px) —
+       jadi tidak perlu tambahan padding di sini. */
+    <div className="max-w-3xl mx-auto space-y-4">
       {/* Top Header Card */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -1101,27 +1102,35 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
           cancelText="Batal"
         />
 
-        {/* Daftar periksa + bilah simpan (layar lebar) */}
-        <div className="hidden md:flex p-4 bg-white border border-slate-200 rounded-2xl items-center justify-between gap-4 shadow-xs">
-          <button
-            type="button"
-            onClick={onBack}
-            className="px-4 py-2.5 min-h-10 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
-          >
-            Kembali ke Jadwal
-          </button>
+        {/* Bilah simpan — satu saja, ikut menggulir bersama form di paling bawah.
+            Sebelumnya versi HP menempel di atas navigasi bawah (`fixed`).
+            Akibatnya ia menutupi bagian bawah layar terus-menerus, tepat saat
+            guru sedang mengisi kolom, dan memaksa konten menyediakan ruang
+            ekstra di belakangnya. Sekarang tombolnya ada di ujung formulir:
+            guru menemukannya setelah selesai mengisi, bukan menghalangi isian.
 
-          <div className="flex items-center gap-3">
-            <SaveChecklist
-              materi={isMateriReady}
-              foto={isPhotoReady}
-              absensi={isAbsensiComplete}
-              onFix={focusStep}
-            />
+            Urutan di HP sengaja dibalik (batal di atas, simpan di bawah) supaya
+            tombol utama paling dekat dengan ibu jari. */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4 no-print">
+          <SaveChecklist
+            materi={isMateriReady}
+            foto={isPhotoReady}
+            absensi={isAbsensiComplete}
+            onFix={focusStep}
+          />
+
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <button
+              type="button"
+              onClick={onBack}
+              className="py-3 min-h-11 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+            >
+              Kembali ke Jadwal
+            </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-6 py-3 min-h-11 bg-primary-700 hover:bg-primary-800 text-white text-sm font-bold rounded-xl shadow-xs transition flex items-center gap-2 disabled:opacity-50"
+              className="py-3 min-h-12 px-6 bg-primary-700 hover:bg-primary-800 text-white text-sm font-bold rounded-xl shadow-xs transition flex items-center justify-center gap-2 disabled:opacity-50 sm:ml-auto"
             >
               {isSubmitting ? (
                 <>
@@ -1135,46 +1144,6 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                 </>
               )}
             </button>
-          </div>
-        </div>
-
-        {/* Bilah simpan tetap (HP).
-            `bottom` membaca `--bottom-nav-h`, bukan angka tetap 56px, supaya
-            tidak pernah tertimpa navigasi bawah. `z-40` menyamai navigasi. */}
-        <div className="md:hidden fixed bottom-[var(--bottom-nav-h)] left-0 right-0 z-40 bg-white/95 backdrop-blur-xs border-t border-slate-200 px-3 py-2.5 shadow-lg no-print">
-          <div className="max-w-md mx-auto space-y-2">
-            <SaveChecklist
-              materi={isMateriReady}
-              foto={isPhotoReady}
-              absensi={isAbsensiComplete}
-              onFix={focusStep}
-            />
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onBack}
-                className="px-3 py-3 min-h-11 bg-slate-100 text-slate-700 text-xs font-semibold rounded-xl shrink-0"
-              >
-                Kembali
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex-1 py-3 min-h-11 px-4 bg-primary-700 hover:bg-primary-800 text-white text-sm font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                    <span>Menyimpan…</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4" aria-hidden="true" />
-                    <span>{existingAgenda ? 'Simpan Perubahan' : 'Simpan Agenda'}</span>
-                  </>
-                )}
-              </button>
-            </div>
           </div>
         </div>
       </form>
