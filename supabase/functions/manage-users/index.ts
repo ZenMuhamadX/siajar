@@ -1,14 +1,15 @@
 /**
- * Edge Function: manage-users — versi SELF-HOSTED
+ * Edge Function: manage-users
  * =============================================================================
- * Ditulis TANPA dependensi apa pun (tanpa supabase-js, tanpa npm:/esm.sh).
- * Semua panggilan memakai fetch langsung ke GoTrue (/auth/v1) dan PostgREST
- * (/rest/v1). Dengan begitu fungsi ini jalan di edge-runtime versi berapa pun,
- * termasuk instalasi self-hosted yang lebih tua atau tanpa akses registry npm.
- *
  * Satu-satunya tempat yang boleh menulis app_metadata (peran + identitas guru).
  * app_metadata hanya bisa ditulis memakai service_role, sehingga browser tidak
  * mungkin memalsukan peran admin atau identitas guru.
+ *
+ * Memakai supabase-js resmi (npm:@supabase/supabase-js@2) supaya bentuk respons
+ * GoTrue/PostgREST selalu ditangani library, bukan ditulis manual.
+ * Bila edge-runtime Anda menolak specifier `npm:`, versi tanpa dependensi
+ * tersedia di riwayat git:
+ *   git show 1879fc4:supabase/functions/manage-users/index.ts
  *
  * Aksi (POST JSON { action, ... }):
  *   status             — publik. { hasAdmin, authDomain, adminEmail }
@@ -31,7 +32,9 @@
  * ketidakcocokan langsung terlihat.
  */
 
-const SUPABASE_URL = (Deno.env.get('SUPABASE_URL') ?? '').replace(/\/+$/, '');
+import { createClient, type User } from 'npm:@supabase/supabase-js@2';
+
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const AUTH_DOMAIN = Deno.env.get('AUTH_DOMAIN') ?? 'siajar.local';
 const ADMIN_EMAIL = (Deno.env.get('ADMIN_EMAIL') ?? `admin@${AUTH_DOMAIN}`).toLowerCase();
@@ -46,13 +49,10 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-interface AuthUser {
-  id: string;
-  email?: string | null;
-  app_metadata?: Record<string, unknown> | null;
-  banned_until?: string | null;
-  last_sign_in_at?: string | null;
-}
+const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false },
+  db: { schema: SCHEMA },
+});
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -63,142 +63,55 @@ function json(body: unknown, status = 200): Response {
 
 const emailForGuru = (guruId: string) => `guru-${guruId}@${AUTH_DOMAIN}`.toLowerCase();
 
-function roleOf(user: AuthUser): string {
+function roleOf(user: User): string {
   const meta = (user.app_metadata ?? {}) as Record<string, unknown>;
   return typeof meta.role === 'string' ? meta.role : '';
 }
 
-/** Ambil pesan galat dari respons GoTrue/PostgREST. */
-async function readError(res: Response): Promise<string> {
-  try {
-    const body = (await res.json()) as Record<string, unknown>;
-    const msg =
-      body?.msg ?? body?.message ?? body?.error_description ?? body?.error ?? body?.hint;
-    if (typeof msg === 'string') return msg;
-  } catch {
-    /* bukan JSON */
-  }
-  return `HTTP ${res.status}`;
+function isActive(user: User): boolean {
+  if (!user.banned_until) return true;
+  return new Date(user.banned_until) < new Date();
 }
 
-// ---------------------------------------------------------------------------
-// GoTrue (auth) — selalu memakai service_role
-// ---------------------------------------------------------------------------
-
-function gotrue(path: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(`${SUPABASE_URL}/auth/v1${path}`, {
-    ...init,
-    headers: {
-      apikey: SERVICE_KEY,
-      Authorization: `Bearer ${SERVICE_KEY}`,
-      'Content-Type': 'application/json',
-      ...(init.headers ?? {}),
-    },
-  });
-}
-
-async function listAllUsers(): Promise<AuthUser[]> {
-  const all: AuthUser[] = [];
+/** Ambil seluruh user auth (dipaginasi). */
+async function listAllUsers(): Promise<User[]> {
+  const all: User[] = [];
   for (let page = 1; ; page++) {
-    const res = await gotrue(`/admin/users?page=${page}&per_page=1000`);
-    if (!res.ok) throw new Error(`Gagal membaca daftar user: ${await readError(res)}`);
-    const body = (await res.json()) as { users?: AuthUser[] };
-    const batch = body?.users ?? [];
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw new Error(`Gagal membaca daftar user: ${error.message}`);
+    const batch = data?.users ?? [];
     all.push(...batch);
     if (batch.length < 1000) break;
   }
   return all;
 }
 
-/** Validasi token pemanggil lewat GoTrue, lalu kembalikan usernya. */
-async function callerFromToken(req: Request): Promise<AuthUser | null> {
+/** Verifikasi pemanggil adalah admin. Mengembalikan user atau null. */
+async function requireAdmin(req: Request): Promise<User | null> {
   const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
   if (!token) return null;
 
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) return null;
-  return (await res.json()) as AuthUser;
+  const { data, error } = await admin.auth.getUser(token);
+  if (error || !data?.user) return null;
+  return roleOf(data.user) === 'admin' ? data.user : null;
 }
 
-async function requireAdmin(req: Request): Promise<AuthUser | null> {
-  const user = await callerFromToken(req);
-  if (!user) return null;
-  return roleOf(user) === 'admin' ? user : null;
+/** Nama guru diambil dari DATABASE, bukan dari yang dikirim browser. */
+async function findGuru(guruId: string): Promise<{ id: string; nama_guru: string } | null> {
+  const { data, error } = await admin
+    .from('guru')
+    .select('id, nama_guru')
+    .eq('id', guruId)
+    .maybeSingle();
+  if (error) throw new Error(`Gagal membaca data guru: ${error.message}`);
+  return data ?? null;
 }
-
-async function createAuthUser(
-  email: string,
-  password: string,
-  appMetadata: Record<string, unknown>
-): Promise<void> {
-  const res = await gotrue('/admin/users', {
-    method: 'POST',
-    body: JSON.stringify({
-      email,
-      password,
-      email_confirm: true,
-      app_metadata: appMetadata,
-    }),
-  });
-  if (!res.ok) throw new Error(await readError(res));
-}
-
-async function updateAuthUser(id: string, patch: Record<string, unknown>): Promise<void> {
-  const res = await gotrue(`/admin/users/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(patch),
-  });
-  if (!res.ok) throw new Error(await readError(res));
-}
-
-// ---------------------------------------------------------------------------
-// PostgREST — baca data guru
-// ---------------------------------------------------------------------------
-
-async function restGet(path: string): Promise<Array<Record<string, unknown>>> {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    headers: {
-      apikey: SERVICE_KEY,
-      Authorization: `Bearer ${SERVICE_KEY}`,
-      'Accept-Profile': SCHEMA,
-    },
-  });
-  if (!res.ok) throw new Error(`Gagal membaca data: ${await readError(res)}`);
-  return (await res.json()) as Array<Record<string, unknown>>;
-}
-
-async function findGuru(
-  guruId: string
-): Promise<{ id: string; nama_guru: string } | null> {
-  const rows = await restGet(
-    `guru?select=id,nama_guru&id=eq.${encodeURIComponent(guruId)}&limit=1`
-  );
-  const row = rows[0];
-  if (!row) return null;
-  return { id: String(row.id), nama_guru: String(row.nama_guru) };
-}
-
-async function listGuru(): Promise<Array<{ id: string; nama_guru: string }>> {
-  const rows = await restGet('guru?select=id,nama_guru&order=nama_guru.asc');
-  return rows.map((r) => ({ id: String(r.id), nama_guru: String(r.nama_guru) }));
-}
-
-// ---------------------------------------------------------------------------
-// Utilitas
-// ---------------------------------------------------------------------------
 
 /** Kode harus string dan cukup panjang. Mengembalikan kode ter-trim atau null. */
 function normalizeCode(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const code = value.trim();
   return code.length >= MIN_CODE_LENGTH ? code : null;
-}
-
-function isActive(user: AuthUser): boolean {
-  if (!user.banned_until) return true;
-  return new Date(user.banned_until) < new Date();
 }
 
 // ---------------------------------------------------------------------------
@@ -230,14 +143,21 @@ async function handleBootstrapAdmin(body: Record<string, unknown>): Promise<Resp
   const existing = users.find((u) => u.email?.toLowerCase() === ADMIN_EMAIL);
 
   if (existing) {
-    await updateAuthUser(existing.id, {
+    const { error } = await admin.auth.admin.updateUserById(existing.id, {
       password: code,
       email_confirm: true,
       app_metadata: meta,
       ban_duration: 'none',
     });
+    if (error) return json({ error: error.message }, 400);
   } else {
-    await createAuthUser(ADMIN_EMAIL, code, meta);
+    const { error } = await admin.auth.admin.createUser({
+      email: ADMIN_EMAIL,
+      password: code,
+      email_confirm: true,
+      app_metadata: meta,
+    });
+    if (error) return json({ error: error.message }, 400);
   }
 
   return json({ ok: true, email: ADMIN_EMAIL });
@@ -247,12 +167,16 @@ async function handleListAccounts(req: Request): Promise<Response> {
   const caller = await requireAdmin(req);
   if (!caller) return json({ error: 'Tidak berwenang.' }, 403);
 
-  const [users, guruList] = await Promise.all([listAllUsers(), listGuru()]);
+  const [users, { data: guruList, error: guruErr }] = await Promise.all([
+    listAllUsers(),
+    admin.from('guru').select('id, nama_guru').order('nama_guru', { ascending: true }),
+  ]);
+  if (guruErr) return json({ error: guruErr.message }, 400);
 
-  const byEmail = new Map<string, AuthUser>();
+  const byEmail = new Map<string, User>();
   for (const u of users) if (u.email) byEmail.set(u.email.toLowerCase(), u);
 
-  const accounts = guruList.map((g) => {
+  const accounts = (guruList ?? []).map((g) => {
     const u = byEmail.get(emailForGuru(g.id));
     return {
       guru_id: g.id,
@@ -278,7 +202,6 @@ async function upsertTeacherAccount(
   const guruId = typeof body.guruId === 'string' ? body.guruId : '';
   if (!guruId) return json({ error: 'guruId wajib diisi.' }, 400);
 
-  // Nama guru diambil dari DATABASE, bukan dari yang dikirim browser.
   const guru = await findGuru(guruId);
   if (!guru) return json({ error: 'Guru tidak ditemukan.' }, 404);
 
@@ -292,12 +215,13 @@ async function upsertTeacherAccount(
   const existing = users.find((u) => u.email?.toLowerCase() === email);
 
   if (existing) {
-    await updateAuthUser(existing.id, {
+    const { error } = await admin.auth.admin.updateUserById(existing.id, {
       password: code,
       email_confirm: true,
       app_metadata: meta,
       ban_duration: 'none',
     });
+    if (error) return json({ error: error.message }, 400);
     return json({ ok: true, created: false, email });
   }
 
@@ -305,7 +229,14 @@ async function upsertTeacherAccount(
     return json({ error: 'Akun guru ini belum dibuat.' }, 404);
   }
 
-  await createAuthUser(email, code, meta);
+  const { error } = await admin.auth.admin.createUser({
+    email,
+    password: code,
+    email_confirm: true,
+    app_metadata: meta,
+  });
+  if (error) return json({ error: error.message }, 400);
+
   return json({ ok: true, created: true, email });
 }
 
@@ -325,9 +256,10 @@ async function handleSetTeacherActive(
   const existing = users.find((u) => u.email?.toLowerCase() === email);
   if (!existing) return json({ error: 'Akun guru ini belum dibuat.' }, 404);
 
-  await updateAuthUser(existing.id, {
+  const { error } = await admin.auth.admin.updateUserById(existing.id, {
     ban_duration: active ? 'none' : BAN_FOREVER,
   });
+  if (error) return json({ error: error.message }, 400);
 
   return json({ ok: true, active });
 }

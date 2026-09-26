@@ -36,7 +36,7 @@ Otorisasi ditegakkan oleh RLS di `supabase/schema.sql`. Tanpa sesi yang sah, rol
 
 Tidak ada skrip yang perlu dijalankan di terminal.
 
-> **Catatan self-hosted:** Edge Function `manage-users` sengaja ditulis tanpa dependensi apa pun (tanpa `npm:`/`esm.sh`), jadi berjalan di versi `edge-runtime` apa pun. Satu hal yang harus disamakan: `AUTH_DOMAIN` pada environment service `functions` dan `VITE_AUTH_DOMAIN` di `.env`. Halaman setup akan memperingatkan Anda kalau keduanya berbeda.
+> **Catatan self-hosted:** Edge Function `manage-users` memakai `npm:@supabase/supabase-js@2`. Satu hal yang harus disamakan: `AUTH_DOMAIN` pada environment service `functions` dan `VITE_AUTH_DOMAIN` di `.env`. Halaman setup akan memperingatkan Anda kalau keduanya berbeda.
 
 ### Mengatur akun guru
 

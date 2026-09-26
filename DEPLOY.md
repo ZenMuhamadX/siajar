@@ -77,7 +77,14 @@ Aktifkan TLS melalui **Website → SSL → Let's Encrypt**, lalu aktifkan **Forc
 
 ## 4. Edge Function `manage-users` (Supabase self-hosted)
 
-Satu fungsi ini yang membuat akun, mengubah kode, dan menonaktifkan akun guru. Fungsinya **tanpa dependensi** — semua panggilan memakai `fetch` langsung ke GoTrue (`/auth/v1`) dan PostgREST (`/rest/v1`). Jadi ia tidak terpengaruh versi `edge-runtime` maupun ada/tidaknya akses ke registry npm.
+Satu fungsi ini yang membuat akun, mengubah kode, dan menonaktifkan akun guru. Fungsinya memakai `npm:@supabase/supabase-js@2`.
+
+> Butuh `edge-runtime` yang mendukung specifier `npm:` (instalasi self-hosted 2024 ke atas) dan akses ke registry npm. Kalau muncul galat module resolution saat deploy, ganti ke versi tanpa dependensi:
+>
+> ```bash
+> git show 1879fc4:supabase/functions/manage-users/index.ts > volumes/functions/manage-users/index.ts
+> docker compose restart functions
+> ```
 
 ### 4.1 Pasang fungsinya
 
