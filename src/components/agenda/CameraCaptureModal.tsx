@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { RefreshCw, Check, X, AlertTriangle, SwitchCamera, Loader2 } from 'lucide-react';
+import { ModalShell } from '../common/ModalShell';
 
 interface CameraCaptureModalProps {
   isOpen: boolean;
@@ -194,21 +194,29 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
     onClose();
   };
 
-  if (!isOpen) return null;
-
-  // Portal ke `document.body` — lihat catatan di `index.css` soal `main` yang
-  // punya `transform` dari `animation: fade-in-up`.
-  return createPortal(
-    <div className="fixed inset-0 z-50 bg-black flex flex-col justify-between select-none overflow-hidden no-print">
+  // Modal ini memakai mode `bare` karena tampilannya memang layar penuh (tanpa
+  // kartu). `ModalShell` tetap memberi `role="dialog"`, ESC, dan perangkap
+  // fokus yang sebelumnya tidak ada di sini.
+  return (
+    <ModalShell
+      isOpen={isOpen}
+      onClose={handleClose}
+      bare
+      closeOnBackdrop={false}
+      ariaLabel="Kamera dokumentasi mengajar"
+      backdropClassName="bg-black"
+      cardClassName="relative flex flex-col justify-between select-none overflow-hidden"
+    >
       {/* Top Floating Bar: Close & Switch Camera */}
       <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between p-4 bg-gradient-to-b from-black/70 via-black/30 to-transparent">
         <button
           type="button"
           onClick={handleClose}
-          className="w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-md transition"
+          className="w-11 h-11 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-md transition"
+          aria-label="Tutup kamera"
           title="Tutup Kamera"
         >
-          <X className="w-5 h-5" />
+          <X className="w-5 h-5" aria-hidden="true" />
         </button>
 
         {!capturedBlob && (
@@ -216,10 +224,11 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
             type="button"
             onClick={handleToggleFacingMode}
             disabled={isLoadingCamera || Boolean(cameraError)}
-            className="w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-md transition disabled:opacity-30"
+            className="w-11 h-11 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-md transition disabled:opacity-30"
+            aria-label="Putar kamera depan/belakang"
             title="Putar Kamera"
           >
-            <SwitchCamera className="w-5 h-5" />
+            <SwitchCamera className="w-5 h-5" aria-hidden="true" />
           </button>
         )}
       </div>
@@ -229,7 +238,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
         {capturedPreviewUrl ? (
           <img
             src={capturedPreviewUrl}
-            alt="Snapshot Foto"
+            alt="Pratinjau foto yang baru diambil"
             className="w-full h-full object-cover"
           />
         ) : (
@@ -245,16 +254,23 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
             />
 
             {isLoadingCamera && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 text-white text-xs">
-                <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
+              <div
+                className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 text-white text-xs"
+                role="status"
+                aria-live="polite"
+              >
+                <Loader2 className="w-8 h-8 animate-spin text-emerald-400" aria-hidden="true" />
                 <span>Membuka kamera...</span>
               </div>
             )}
 
             {cameraError && (
-              <div className="absolute inset-0 bg-black/90 p-6 flex flex-col items-center justify-center text-center gap-3 text-white">
+              <div
+                className="absolute inset-0 bg-black/90 p-6 flex flex-col items-center justify-center text-center gap-3 text-white"
+                role="alert"
+              >
                 <div className="w-12 h-12 rounded-full bg-rose-500/20 flex items-center justify-center text-rose-400">
-                  <AlertTriangle className="w-6 h-6" />
+                  <AlertTriangle className="w-6 h-6" aria-hidden="true" />
                 </div>
                 <p className="text-xs text-slate-300 max-w-xs">{cameraError}</p>
                 <button
@@ -262,7 +278,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
                   onClick={() => startCamera(facingMode)}
                   className="mt-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl flex items-center gap-2 transition"
                 >
-                  <RefreshCw className="w-3.5 h-3.5" />
+                  <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>Coba Lagi</span>
                 </button>
               </div>
@@ -281,9 +297,9 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
               className="flex flex-col items-center gap-1 text-white hover:text-slate-300 active:scale-95 transition"
             >
               <div className="w-12 h-12 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center backdrop-blur-md">
-                <RefreshCw className="w-5 h-5 text-white" />
+                <RefreshCw className="w-5 h-5 text-white" aria-hidden="true" />
               </div>
-              <span className="text-[11px] font-medium">Ulang</span>
+              <span className="text-[13px] font-medium">Ulang</span>
             </button>
 
             <button
@@ -292,9 +308,9 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
               className="flex flex-col items-center gap-1 text-emerald-400 hover:text-emerald-300 active:scale-95 transition"
             >
               <div className="w-14 h-14 rounded-full bg-emerald-500 hover:bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-                <Check className="w-7 h-7 text-white" />
+                <Check className="w-7 h-7 text-white" aria-hidden="true" />
               </div>
-              <span className="text-[11px] font-bold text-white">Gunakan</span>
+              <span className="text-[13px] font-bold text-white">Gunakan</span>
             </button>
           </div>
         ) : (
@@ -303,15 +319,15 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
               type="button"
               onClick={handleCapture}
               disabled={isLoadingCamera || Boolean(cameraError)}
-              className="w-18 h-18 rounded-full border-4 border-white flex items-center justify-center p-1 active:scale-95 disabled:opacity-30 disabled:pointer-events-none transition shadow-2xl"
+              aria-label="Ambil foto"
               title="Ambil Foto"
+              className="w-18 h-18 rounded-full border-4 border-white flex items-center justify-center p-1 active:scale-95 disabled:opacity-30 disabled:pointer-events-none transition shadow-2xl"
             >
               <div className="w-full h-full rounded-full bg-white active:bg-slate-200 transition" />
             </button>
           </div>
         )}
       </div>
-    </div>,
-    document.body,
+    </ModalShell>
   );
 };

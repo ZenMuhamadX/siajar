@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Pagination } from './Pagination';
+import { ScrollArea } from './ScrollArea';
 import { EmptyState } from './EmptyState';
 import { ErrorState } from './ErrorState';
 import { TableSkeleton } from './LoadingState';
@@ -123,7 +124,7 @@ export function DataTable<T>({
                   </h3>
                 )}
                 {subtitle && (
-                  <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
+                  <p className="text-[13px] text-slate-500 font-medium truncate mt-0.5">
                     {subtitle}
                   </p>
                 )}
@@ -136,10 +137,19 @@ export function DataTable<T>({
         </div>
       ) : null}
 
-      {/* Responsive Table Container with horizontal scrolling */}
-      <div className="overflow-x-auto w-full">
-        <table className={`w-full border-collapse text-xs ${tableClassName}`}>
-          <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[10px]">
+      {/* Kontainer tabel dengan isyarat geser horizontal (lihat ScrollArea). */}
+      <ScrollArea className="w-full" label="Tabel data">
+        {/* Diumumkan ke pembaca layar; `aria-busy` saja tidak selalu dibacakan. */}
+        {isLoading && (
+          <span role="status" aria-live="polite" className="sr-only">
+            Memuat data
+          </span>
+        )}
+        <table
+          aria-busy={isLoading}
+          className={`w-full border-collapse text-xs ${tableClassName}`}
+        >
+          <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[12px]">
             <tr>
               {columns.map((col) => {
                 const alignClass = getAlignmentClass(col.align);
@@ -195,7 +205,30 @@ export function DataTable<T>({
                   <tr
                     key={rowKey}
                     onClick={() => onRowClick?.(item)}
-                    className={`transition-colors hover:bg-slate-50/80 ${
+                    /* Aksesibilitas keyboard: baris yang bisa diklik sebelumnya
+                     * hanya punya `onClick`, sehingga pengguna keyboard tidak
+                     * bisa mencapainya sama sekali. Ditambahkan `tabIndex` +
+                     * Enter/Space.
+                     *
+                     * `role="button"` sengaja TIDAK dipakai — ia akan
+                     * menghapus semantik baris tabel bagi pembaca layar,
+                     * sehingga isi sel tidak lagi diumumkan sebagai tabel.
+                     * `aria-label` juga tidak dipakai karena akan menggantikan
+                     * nama baris, menyembunyikan isi sel. Cukup tabIndex +
+                     * keydown; isi baris tetap terbaca, lalu Enter mengaktifkan.
+                     */
+                    onKeyDown={
+                      isClickable
+                        ? (e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              onRowClick?.(item);
+                            }
+                          }
+                        : undefined
+                    }
+                    tabIndex={isClickable ? 0 : undefined}
+                    className={`transition-colors hover:bg-slate-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${
                       isClickable ? 'cursor-pointer' : ''
                     } ${extraClass}`}
                   >
@@ -219,7 +252,7 @@ export function DataTable<T>({
             </tbody>
           )}
         </table>
-      </div>
+      </ScrollArea>
 
       {/* Pagination Bar */}
       {enablePagination && !isLoading && !isError && totalItems > 0 && (

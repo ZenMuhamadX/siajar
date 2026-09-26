@@ -258,14 +258,15 @@ export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToas
         <div className="flex items-center justify-end gap-1.5">
           {row.saved && (
             <button
+              aria-label="Hapus penugasan wali kelas"
               type="button"
               onClick={() => handleDeleteAssignment(row.classId)}
-              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition"
+              className="p-1.5 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-md transition"
               title="Hapus penugasan wali kelas"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
-          )}
+           )}
 
           <button
             type="button"
@@ -273,8 +274,8 @@ export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToas
             onClick={() => handleSaveClassAssignment(row.classId)}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs ${
               row.isChanged && row.selected
-                ? 'bg-slate-900 hover:bg-slate-800 text-white'
-                : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                ? 'bg-primary-600 hover:bg-primary-700 text-white'
+                : 'bg-slate-100 text-slate-600 border border-slate-200 cursor-not-allowed'
             }`}
           >
             {row.isProcessing ? (
@@ -304,7 +305,7 @@ export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToas
       {/* Filter / Selector Bar */}
       <div className="bg-white rounded-xl border border-slate-200/90 p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 shrink-0">
+          <div className="w-10 h-10 rounded-lg bg-primary-50 border border-primary-100 flex items-center justify-center text-primary-700 shrink-0">
             <Award className="w-5 h-5" />
           </div>
           <div>
@@ -330,7 +331,7 @@ export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToas
                 </option>
               ))}
             </select>
-            <Calendar className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
+            <Calendar className="w-4 h-4 text-slate-500 absolute left-2.5 top-2.5 pointer-events-none" />
           </div>
 
           {selectedAY?.status === 'ACTIVE' && (
@@ -348,7 +349,7 @@ export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToas
           <AlertCircle className="w-4 h-4 text-slate-600 shrink-0" />
           <span>Aturan Konseptual Penugasan Wali Kelas</span>
         </div>
-        <p className="text-[11px] leading-relaxed pl-6">
+        <p className="text-[13px] leading-relaxed pl-6">
           Wali kelas bertindak sebagai penanggung jawab administratif kelas. Status wali kelas{' '}
           <strong>tidak menentukan hak membuat agenda mengajar</strong>. Hak membuat agenda KBM
           reguler sepenuhnya merujuk pada <strong>Jadwal Pelajaran (Schedule)</strong>.

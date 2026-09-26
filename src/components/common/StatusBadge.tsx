@@ -70,8 +70,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       if (norm === 'BELUM') displayLabel = 'Belum Diisi';
     }
   } else if (['BADAL', 'SUBSTITUTE'].includes(norm)) {
-    bgClass = 'bg-purple-50 text-purple-700 border-purple-200/80';
-    dotClass = 'bg-purple-500';
+    bgClass = 'bg-primary-50 text-primary-700 border-primary-200/80';
+    dotClass = 'bg-primary-500';
     if (!label && norm === 'BADAL') displayLabel = 'Badal';
   } else if (['IN_PROGRESS', 'BERLANGSUNG'].includes(norm)) {
     bgClass = 'bg-blue-50 text-blue-700 border-blue-200/80';
@@ -88,7 +88,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
 
   const sizeClasses =
     size === 'sm'
-      ? 'text-[11px] px-2 py-0.5 font-medium'
+      ? 'text-[13px] px-2 py-0.5 font-medium'
       : 'text-xs px-2.5 py-1 font-semibold';
 
   return (

@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Loader2, BookOpen, Camera, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { useModalBehavior } from '../common/useModalBehavior';
 import { getAgendaById } from '../../services/agendaService';
 import { getEvidenceSignedUrl } from '../../services/evidenceService';
 import type { FullAgenda } from '../../types';
@@ -36,24 +37,17 @@ export const AgendaDetailDrawer: React.FC<AgendaDetailDrawerProps> = ({
   isAdmin = false,
   onAdminDeleteEvidence,
 }) => {
-  useEffect(() => {
-    if (!agendaId) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [agendaId, onClose]);
+  const panelRef = useRef<HTMLElement>(null);
 
-  // Kunci scroll halaman di belakang selama drawer terbuka.
-  useEffect(() => {
-    if (!agendaId) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, [agendaId]);
+  // Perilaku modal — ESC, kunci scroll, perangkap fokus, fokus awal, dan
+  // pengembalian fokus — dipakai bersama lewat hook. Sebelumnya drawer ini
+  // hanya menangani ESC dan scroll lock, sehingga Tab masih bisa keluar ke
+  // halaman di belakang panel. Lihat `useModalBehavior`.
+  useModalBehavior({
+    isOpen: Boolean(agendaId),
+    onClose,
+    containerRef: panelRef,
+  });
 
   if (!agendaId) return null;
 
@@ -67,10 +61,12 @@ export const AgendaDetailDrawer: React.FC<AgendaDetailDrawerProps> = ({
         onClick={onClose}
       />
       <aside
+        ref={panelRef}
         role="dialog"
-        aria-label="Detail agenda"
+        aria-modal="true"
+        tabIndex={-1}
         data-drawer-panel
-        className="fixed top-3 right-3 bottom-3 z-50 w-[calc(100%-1.5rem)] sm:w-[520px] max-h-[85vh] bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col overflow-hidden no-print"
+        className="fixed top-3 right-3 bottom-3 z-50 w-[calc(100%-1.5rem)] sm:w-[520px] max-h-[85vh] bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col overflow-hidden outline-none no-print"
       >
         {/* `key` membuat state lahir baru setiap agenda dibuka, jadi tidak perlu
             reset manual di dalam effect. */}
@@ -152,19 +148,20 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
             <BookOpen className="w-4 h-4 text-emerald-700" />
             Detail Agenda
           </h3>
-          <p className="text-[11px] text-slate-500 mt-0.5">
+          <p className="text-[13px] text-slate-500 mt-0.5">
             {agenda ? `${agenda.header.kelas} · ${agenda.header.tanggal}` : 'Memuat…'}
           </p>
         </div>
         <button
+          aria-label="Tutup (Esc)"
           type="button"
           onClick={onClose}
-          className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition shrink-0"
+          className="p-1.5 text-slate-600 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition shrink-0"
           title="Tutup (Esc)"
         >
           <X className="w-4 h-4" />
         </button>
-      </div>
+       </div>
 
       {/* Body */}
       {/* Body — hanya bagian ini yang scroll; `min-h-0` supaya `max-h-[85vh]`
@@ -190,18 +187,18 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
             {/* Ringkasan */}
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
-                <span className="text-[11px] text-slate-500 block">Guru</span>
+                <span className="text-[13px] text-slate-500 block">Guru</span>
                 <span className="font-semibold text-slate-800">
                   {guru}
                   {isBadal && (
-                    <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded">
+                    <span className="ml-1.5 px-1.5 py-0.5 text-[12px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded">
                       Badal
                     </span>
                   )}
                 </span>
               </div>
               <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
-                <span className="text-[11px] text-slate-500 block">Mata Pelajaran</span>
+                <span className="text-[13px] text-slate-500 block">Mata Pelajaran</span>
                 <span className="font-semibold text-slate-800">
                   {kbm[0]?.mapel || agenda.header.kelas}
                 </span>
@@ -210,17 +207,17 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
 
             {/* KBM */}
             <section className="space-y-2">
-              <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              <h4 className="text-[13px] font-bold uppercase tracking-wider text-slate-500">
                 KBM & Tugas
               </h4>
               {kbm.length === 0 ? (
-                <p className="text-xs text-slate-400 italic">Belum ada KBM pada agenda ini.</p>
+                <p className="text-xs text-slate-600 italic">Belum ada KBM pada agenda ini.</p>
               ) : (
                 <ul className="space-y-2">
                   {kbm.map((k, i) => (
                     <li key={i} className="p-3 bg-white border border-slate-200 rounded-xl text-xs">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 font-bold text-[10px]">
+                        <span className="px-1.5 py-0.5 rounded bg-primary-50 text-primary-700 border border-primary-100 font-bold text-[12px]">
                           Jam {k.jam_ke}
                         </span>
                         <span className="font-semibold text-slate-800">{k.mapel}</span>
@@ -239,7 +236,7 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
 
             {/* Absensi */}
             <section className="space-y-2">
-              <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              <h4 className="text-[13px] font-bold uppercase tracking-wider text-slate-500">
                 Kehadiran Siswa
               </h4>
               {absensi.length === 0 ? (
@@ -255,7 +252,7 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
                     >
                       <span className="text-slate-700">{a.nama_siswa || a.siswa?.nama_siswa || '-'}</span>
                       <span
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                        className={`px-1.5 py-0.5 rounded text-[12px] font-bold border ${
                           a.status === 'A'
                             ? 'bg-rose-50 text-rose-700 border-rose-200'
                             : a.status === 'I'
@@ -274,7 +271,7 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
             {/* Kejadian */}
             {kejadian.length > 0 && (
               <section className="space-y-2">
-                <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <h4 className="text-[13px] font-bold uppercase tracking-wider text-slate-500">
                   Catatan Kejadian
                 </h4>
                 <ul className="space-y-1.5 text-xs text-slate-700">
@@ -290,11 +287,12 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
             {/* Foto */}
             {agenda.evidence?.storage_path && (
               <section className="space-y-2">
-                <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <h4 className="text-[13px] font-bold uppercase tracking-wider text-slate-500">
                   Dokumentasi Foto
                 </h4>
                 {photoUrl ? (
                   <button
+                    aria-label="Perbesar foto"
                     type="button"
                     onClick={() => setIsPhotoOpen(true)}
                     className="block w-full border border-slate-200 rounded-xl overflow-hidden hover:border-emerald-300 transition"
@@ -302,8 +300,8 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
                   >
                     <img src={photoUrl} alt="Dokumentasi agenda" className="w-full object-cover" />
                   </button>
-                ) : (
-                  <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                 ) : (
+                  <p className="text-xs text-slate-600 flex items-center gap-1.5">
                     <Camera className="w-3.5 h-3.5" /> Foto tidak dapat dimuat
                   </p>
                 )}
@@ -329,7 +327,7 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
               onEdit(agendaId);
               onClose();
             }}
-            className="px-3.5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition"
+            className="px-3.5 py-2 text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition"
           >
             Koreksi Agenda
           </button>

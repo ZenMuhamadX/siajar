@@ -18,6 +18,7 @@ import { getAcademicYears } from '../../../services/scheduleService';
 import { getDaftarGuru } from '../../../services/agendaService';
 import type { Guru } from '../../../types';
 import type { AcademicYear } from '../../../types/schedule';
+import { ScrollArea } from '../../../components/common/ScrollArea';
 
 interface RekapMingguanPageProps {
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
@@ -135,7 +136,7 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
               </button>
               <button
                 onClick={handlePrint}
-                className="px-3 py-2 text-xs font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition flex items-center gap-1.5 shadow-xs"
+                className="px-3 py-2 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition flex items-center gap-1.5 shadow-xs"
               >
                 <Printer className="w-3.5 h-3.5" />
                 <span>Cetak Laporan</span>
@@ -148,11 +149,11 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
         {totals && (
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-              <span className="text-xs font-medium text-slate-400">JP Terjadwal</span>
+              <span className="text-xs font-medium text-slate-600">JP Terjadwal</span>
               <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
                 {totals.totalJpScheduled} JP
               </p>
-              <span className="text-[10px] text-slate-400">
+              <span className="text-[12px] text-slate-600">
                 Durasi: {formatMinutesToHourMin(totals.totalDurationScheduledMin)}
               </span>
             </div>
@@ -162,7 +163,7 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
               <p className="text-xl sm:text-2xl font-bold text-emerald-700 mt-1">
                 {totals.totalJpRealized} JP
               </p>
-              <span className="text-[10px] text-slate-400">
+              <span className="text-[12px] text-slate-600">
                 Durasi: {formatMinutesToHourMin(totals.totalDurationRealizedMin)}
               </span>
             </div>
@@ -172,7 +173,7 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
               <p className="text-xl sm:text-2xl font-bold text-amber-700 mt-1">
                 {totals.totalBadalIn} JP
               </p>
-              <span className="text-[10px] text-slate-400">
+              <span className="text-[12px] text-slate-600">
                 Masuk: {totals.totalBadalIn} | Keluar: {totals.totalBadalOut}
               </span>
             </div>
@@ -182,15 +183,15 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
               <p className="text-xl sm:text-2xl font-bold text-rose-700 mt-1">
                 {totals.totalNotRealized} JP
               </p>
-              <span className="text-[10px] text-slate-400">Slot jadwal tanpa agenda</span>
+              <span className="text-[12px] text-slate-600">Slot jadwal tanpa agenda</span>
             </div>
 
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs col-span-2 sm:col-span-1">
-              <span className="text-xs font-medium text-indigo-600">Persentase Realisasi</span>
-              <p className="text-xl sm:text-2xl font-bold text-indigo-700 mt-1">
+              <span className="text-xs font-medium text-primary-600">Persentase Realisasi</span>
+              <p className="text-xl sm:text-2xl font-bold text-primary-700 mt-1">
                 {totals.overallRealizationRate}%
               </p>
-              <span className="text-[10px] text-slate-400">Capaian mengajar minggu ini</span>
+              <span className="text-[12px] text-slate-600">Capaian mengajar minggu ini</span>
             </div>
           </div>
         )}
@@ -201,6 +202,7 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
             {/* Week Navigator */}
             <div className="flex items-center gap-2">
               <button
+                aria-label="Minggu Sebelumnya"
                 onClick={handlePrevWeek}
                 className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200 transition"
                 title="Minggu Sebelumnya"
@@ -208,13 +210,14 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
                 <ChevronLeft className="w-4 h-4" />
               </button>
 
-              <div className="px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 text-center">
+               <div className="px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 text-center">
                 <span>
                   {formatDateDisplay(weekRange.monday)} &mdash; {formatDateDisplay(weekRange.sunday)}
                 </span>
               </div>
 
               <button
+                aria-label="Minggu Berikutnya"
                 onClick={handleNextWeek}
                 className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200 transition"
                 title="Minggu Berikutnya"
@@ -222,9 +225,9 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
                 <ChevronRight className="w-4 h-4" />
               </button>
 
-              <button
+               <button
                 onClick={handleCurrentWeek}
-                className="px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg border border-slate-200 transition"
+                className="px-2.5 py-1 text-[13px] font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg border border-slate-200 transition"
               >
                 Minggu Ini
               </button>
@@ -273,15 +276,15 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
               <h3 className="font-bold text-slate-900 text-xs sm:text-sm tracking-tight truncate">
                 Rekapitulasi Mengajar Mingguan Per Guru
               </h3>
-              <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
+              <p className="text-[13px] text-slate-500 font-medium truncate mt-0.5">
                 Menampilkan {reportResult?.teacherSummaries.length || 0} tenaga pendidik
               </p>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <ScrollArea label="Tabel rekap mingguan">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[10px]">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[12px]">
                 <tr>
                   <th className="py-3 px-3 sm:px-4">Nama Guru</th>
                   <th className="py-3 px-3 sm:px-4 text-center w-24">JP Terjadwal</th>
@@ -341,22 +344,22 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
                       {/* Badal Masuk */}
                       <td className="py-3 px-3 sm:px-4 text-center">
                         {item.badalIn > 0 ? (
-                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                          <span className="px-2 py-0.5 rounded-full text-[13px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
                             +{item.badalIn}
                           </span>
                         ) : (
-                          <span className="text-slate-400">0</span>
+                          <span className="text-slate-600">0</span>
                         )}
                       </td>
 
                       {/* Badal Keluar */}
                       <td className="py-3 px-3 sm:px-4 text-center">
                         {item.badalOut > 0 ? (
-                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-orange-50 text-orange-700 border border-orange-200">
+                          <span className="px-2 py-0.5 rounded-full text-[13px] font-bold bg-orange-50 text-orange-700 border border-orange-200">
                             -{item.badalOut}
                           </span>
                         ) : (
-                          <span className="text-slate-400">0</span>
+                          <span className="text-slate-600">0</span>
                         )}
                       </td>
 
@@ -365,7 +368,7 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
                         {item.notRealized > 0 ? (
                           <span className="font-bold text-rose-600">{item.notRealized}</span>
                         ) : (
-                          <span className="text-slate-400">0</span>
+                          <span className="text-slate-600">0</span>
                         )}
                       </td>
 
@@ -410,14 +413,14 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
                     <td className="py-3 px-3 sm:px-4 text-center text-rose-700">
                       {totals.totalNotRealized}
                     </td>
-                    <td className="py-3 px-3 sm:px-4 text-center text-indigo-700">
+                    <td className="py-3 px-3 sm:px-4 text-center text-primary-700">
                       {totals.overallRealizationRate}%
                     </td>
                   </tr>
                 </tfoot>
               ) : null}
             </table>
-          </div>
+          </ScrollArea>
         </div>
       </div>
 
@@ -428,7 +431,7 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
         periodInfo={`${weekRange.monday} s.d. ${weekRange.sunday}`}
         academicYearName={activeAYName}
       >
-        <table className="w-full text-left text-[10px] border-collapse border border-slate-900">
+        <table className="w-full text-left text-[12px] border-collapse border border-slate-900">
           <thead className="bg-slate-100 border-b border-slate-900 font-bold uppercase text-center">
             <tr>
               <th className="p-1.5 border-r border-slate-900 w-8">No</th>

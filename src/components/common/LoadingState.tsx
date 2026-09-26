@@ -11,9 +11,15 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
   className = '',
 }) => {
   return (
-    <div className={`py-12 px-4 flex flex-col items-center justify-center text-center space-y-3 ${className}`}>
-      <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
-      <p className="text-xs text-slate-500 font-medium">{message}</p>
+    <div
+      // `role="status"` + `aria-live` supaya pengguna pembaca layar tahu data
+      // sedang dimuat. Sebelumnya spinner ini hanya terlihat secara visual.
+      role="status"
+      aria-live="polite"
+      className={`py-12 px-4 flex flex-col items-center justify-center text-center space-y-3 ${className}`}
+    >
+      <Loader2 className="w-6 h-6 animate-spin text-slate-500" aria-hidden="true" />
+      <p className="text-xs text-slate-600 font-medium">{message}</p>
     </div>
   );
 };

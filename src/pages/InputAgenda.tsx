@@ -480,6 +480,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
             {/* Date Navigation Bar */}
             <div className="flex items-center gap-1.5 self-start sm:self-auto bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
               <button
+                aria-label="Hari Sebelumnya"
                 type="button"
                 onClick={handlePrevDay}
                 className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition"
@@ -488,17 +489,18 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                 <ChevronLeft className="w-4 h-4" />
               </button>
 
-              <div className="flex items-center gap-1.5 px-2">
+               <div className="flex items-center gap-1.5 px-2">
                 <Calendar className="w-3.5 h-3.5 text-emerald-700" />
                 <input
                   type="date"
                   value={selectedDate}
                   onChange={(e) => handleSetDate(e.target.value)}
-                  className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-none cursor-pointer"
+                  className="text-xs font-bold text-slate-800 bg-transparent border-none cursor-pointer"
                 />
               </div>
 
               <button
+                aria-label="Hari Berikutnya"
                 type="button"
                 onClick={handleNextDay}
                 className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition"
@@ -507,11 +509,11 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                 <ChevronRight className="w-4 h-4" />
               </button>
 
-              {!isViewingToday && (
+               {!isViewingToday && (
                 <button
                   type="button"
                   onClick={handleSetToday}
-                  className="ml-1 px-2.5 py-1 text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition"
+                  className="ml-1 px-2.5 py-1 text-[13px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition"
                 >
                   Hari Ini
                 </button>
@@ -519,19 +521,40 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
             </div>
           </div>
 
-          {/* Subheader: Selected Date in Indonesian & Summary */}
-          <div className="mt-3 pt-3 border-t border-slate-200/60 flex flex-wrap items-center justify-between gap-2 text-xs">
-            <span className="font-semibold text-slate-700">
-              {formatDateIndo(selectedDate)}
-            </span>
+          {/* Subheader: tanggal terpilih + progres pengisian.
+              Progres sebelumnya hanya teks kecil abu-abu, padahal inilah
+              informasi yang paling dicari guru saat membuka halaman ini.
+              Sekarang jadi angka besar + bar yang bisa dibaca sekilas. */}
+          <div className="mt-3 pt-3 border-t border-slate-200/60 space-y-2.5">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <span className="text-sm font-bold text-slate-800">
+                {formatDateIndo(selectedDate)}
+              </span>
+
+              {totalSlotsCount > 0 && (
+                <span className="text-[13px] text-slate-600">
+                  <strong className="text-base font-bold text-emerald-700">
+                    {completedSlotsCount}
+                  </strong>{' '}
+                  dari {totalSlotsCount} slot selesai
+                </span>
+              )}
+            </div>
 
             {totalSlotsCount > 0 && (
-              <span className="text-[11px] text-slate-500">
-                Progress Agenda:{' '}
-                <strong className="text-emerald-700 font-bold">
-                  {completedSlotsCount} dari {totalSlotsCount} Selesai
-                </strong>
-              </span>
+              <div
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={totalSlotsCount}
+                aria-valuenow={completedSlotsCount}
+                aria-label={`Progres pengisian agenda: ${completedSlotsCount} dari ${totalSlotsCount} slot selesai`}
+                className="h-2.5 w-full bg-slate-200 rounded-full overflow-hidden"
+              >
+                <div
+                  className="h-full bg-emerald-500 rounded-full transition-[width] duration-300"
+                  style={{ width: `${(completedSlotsCount / totalSlotsCount) * 100}%` }}
+                />
+              </div>
             )}
           </div>
         </div>
@@ -540,20 +563,31 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
         <div className="p-4 sm:p-6 space-y-6">
           {/* Loading State */}
           {isLoading ? (
-            <div className="py-12 flex flex-col items-center justify-center gap-2 text-xs text-slate-500">
-              <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+            <div
+              className="py-12 flex flex-col items-center justify-center gap-2 text-xs text-slate-600"
+              role="status"
+              aria-live="polite"
+            >
+              <Loader2 className="w-6 h-6 animate-spin text-emerald-600" aria-hidden="true" />
               <span>Memuat timeline jadwal mengajar...</span>
             </div>
           ) : timelineData?.conflictDetected ? (
-            /* CASE: Conflict Detected */
-            <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl space-y-2">
-              <div className="flex items-start gap-2.5">
-                <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            /* CASE: Conflict Detected — status darurat dibuat sengaja berbeda
+               dari kartu biasa (border tebal + ikon berbingkai + role="alert")
+               supaya tidak terlewat saat guru memindai halaman. */
+            <div
+              role="alert"
+              className="p-4 bg-rose-50 border-2 border-rose-300 rounded-xl space-y-2"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-rose-100 border border-rose-200 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-rose-600" aria-hidden="true" />
+                </div>
                 <div>
-                  <h3 className="text-xs font-bold text-rose-900 uppercase tracking-wider">
+                  <h3 className="text-sm font-bold text-rose-900">
                     Jadwal Bertabrakan (Konflik)
                   </h3>
-                  <p className="text-xs text-rose-800 mt-1">
+                  <p className="text-[13px] text-rose-800 mt-1 leading-relaxed">
                     {timelineData.conflictMessage ||
                       'Terdapat jadwal yang bertabrakan pada waktu ini. Hubungi administrator.'}
                   </p>
@@ -589,7 +623,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
           ) : !timelineData || timelineData.slots.length === 0 ? (
             /* CASE: No Schedule on this day — still show substitute section below */
             <div className="py-6 text-center space-y-2">
-              <div className="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto">
+              <div className="w-12 h-12 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mx-auto">
                 <BookOpen className="w-6 h-6" />
               </div>
               <h3 className="text-sm font-bold text-slate-800">
@@ -622,7 +656,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                     </span>
                   </h2>
 
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[13px] text-slate-600">
                     {timelineData.slots.length} Slot Pembelajaran
                   </span>
                 </div>
@@ -681,7 +715,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                         <h2 className="text-xs font-bold text-amber-900">
                           Jadwal yang Tersedia untuk Badal
                         </h2>
-                        <p className="text-[11px] text-amber-700">
+                        <p className="text-[13px] text-amber-700">
                           Pilih jadwal yang akan Anda gantikan sekarang.
                         </p>
                       </div>
@@ -689,7 +723,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowBadalPanel(false)}
-                      className="text-[11px] text-amber-600 hover:text-amber-900 font-semibold px-2 py-1 hover:bg-amber-100 rounded-lg transition"
+                      className="text-[13px] text-amber-600 hover:text-amber-900 font-semibold px-2 py-1 hover:bg-amber-100 rounded-lg transition"
                     >
                       Tutup
                     </button>
@@ -714,9 +748,9 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                           <div className="space-y-1 text-xs">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="font-bold text-slate-900">{slot.schedule.class_id}</span>
-                              <span className="text-slate-400">&bull;</span>
+                              <span className="text-slate-600">&bull;</span>
                               <span className="font-semibold text-slate-800">{slot.schedule.subject_name}</span>
-                              <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[11px] font-mono">
+                              <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[13px] font-mono">
                                 {slot.schedule.start_time.slice(0, 5)} – {slot.schedule.end_time.slice(0, 5)}
                               </span>
                             </div>

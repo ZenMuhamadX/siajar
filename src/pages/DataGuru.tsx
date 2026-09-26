@@ -146,7 +146,7 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
           actions={
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
-                <UserCheck className="w-4 h-4 text-indigo-600" />
+                <UserCheck className="w-4 h-4 text-primary-600" />
                 <span>{guruList.length} Guru Terdaftar</span>
               </div>
               <button
@@ -170,7 +170,7 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
               width: '50px',
               align: 'center',
               accessor: (_item, idx) => (
-                <span className="text-slate-400 font-medium">{idx + 1}</span>
+                <span className="text-slate-600 font-medium">{idx + 1}</span>
               ),
             },
             {
@@ -198,22 +198,24 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
               accessor: (item) => (
                 <div className="flex items-center justify-end gap-1">
                   <button
+                    aria-label="Edit Data Guru"
                     type="button"
                     onClick={() => handleEditClick(item)}
-                    className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition"
+                    className="p-1.5 text-slate-600 hover:text-amber-600 hover:bg-amber-50 rounded-md transition"
                     title="Edit Data Guru"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
-                  <button
+                   <button
+                     aria-label="Hapus Data Guru"
                     type="button"
                     onClick={() => handleDelete(item.id, item.nama_guru)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition"
+                    className="p-1.5 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-md transition"
                     title="Hapus Data Guru"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
-                </div>
+                 </div>
               ),
             },
           ]}

@@ -342,6 +342,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
       <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <button
+            aria-label="Kembali ke Jadwal"
             type="button"
             onClick={onBack}
             className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition flex items-center justify-center shrink-0"
@@ -349,7 +350,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div>
+           <div>
             <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
               {existingAgenda ? 'Lihat / Edit Agenda Pembelajaran' : 'Isi Agenda Pembelajaran'}
             </h1>
@@ -373,18 +374,18 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
           {/* Badge badal */}
           {isSubstitute && (
             <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-amber-100 border border-amber-300 rounded-xl">
-              <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">🔄 Mode Guru Pengganti (Badal)</span>
+              <span className="text-[12px] font-bold text-amber-800 uppercase tracking-wider">🔄 Mode Guru Pengganti (Badal)</span>
             </div>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className={`p-3 bg-white border rounded-xl shadow-2xs ${isSubstitute ? 'border-amber-100' : 'border-emerald-100'}`}>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              <span className="text-[12px] font-bold text-slate-600 uppercase tracking-wider block">
                 Kelas
               </span>
               <span className="text-sm font-bold text-slate-900">{kelas}</span>
             </div>
             <div className={`p-3 bg-white border rounded-xl shadow-2xs ${isSubstitute ? 'border-amber-100' : 'border-emerald-100'}`}>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              <span className="text-[12px] font-bold text-slate-600 uppercase tracking-wider block">
                 Mata Pelajaran
               </span>
               <span className="text-sm font-bold text-slate-900">{subjectName}</span>
@@ -392,18 +393,18 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
             <div className={`p-3 bg-white border rounded-xl shadow-2xs ${isSubstitute ? 'border-amber-100' : 'border-emerald-100'}`}>
               {isSubstitute ? (
                 <>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  <span className="text-[12px] font-bold text-slate-600 uppercase tracking-wider block">
                     Guru Terjadwal
                   </span>
                   <span className="text-sm font-bold text-slate-500 line-through">{scheduledTeacherName}</span>
-                  <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block mt-1">
+                  <span className="text-[12px] font-bold text-amber-600 uppercase tracking-wider block mt-1">
                     Guru Pelaksana (Anda)
                   </span>
                   <span className="text-sm font-bold text-slate-900">{activeTeacherName}</span>
                 </>
               ) : (
                 <>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  <span className="text-[12px] font-bold text-slate-600 uppercase tracking-wider block">
                     Guru Pengampu
                   </span>
                   <span className="text-sm font-bold text-slate-900">{scheduledTeacherName}</span>
@@ -427,10 +428,14 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                <label
+                  htmlFor="agenda-materi"
+                  className="block text-xs font-bold text-slate-700 mb-1.5"
+                >
                   Materi / Bahasan Pembelajaran <span className="text-rose-500">*</span>
                 </label>
                 <textarea
+                  id="agenda-materi"
                   rows={4}
                   required
                   value={materi}
@@ -441,10 +446,14 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Tugas / PR <span className="text-slate-400 font-normal">(Opsional)</span>
+                <label
+                  htmlFor="agenda-tugas-pr"
+                  className="block text-xs font-bold text-slate-700 mb-1.5"
+                >
+                  Tugas / PR <span className="text-slate-600 font-normal">(Opsional)</span>
                 </label>
                 <input
+                  id="agenda-tugas-pr"
                   type="text"
                   value={tugasPr}
                   onChange={(e) => setTugasPr(e.target.value)}
@@ -459,7 +468,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
               <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                 <AlertCircle className="w-4 h-4 text-emerald-700" />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  III. Catatan Kejadian <span className="text-slate-400 font-normal">(Opsional)</span>
+                  III. Catatan Kejadian <span className="text-slate-600 font-normal">(Opsional)</span>
                 </h3>
               </div>
               <textarea
@@ -485,7 +494,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                 </div>
 
                 {/* Summary Badges */}
-                <div className="flex items-center gap-1.5 text-[11px]">
+                <div className="flex items-center gap-1.5 text-[13px]">
                   <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 font-bold rounded-md border border-emerald-200">
                     {presentCount} Hadir
                   </span>
@@ -502,7 +511,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
               </div>
 
               {isLoadingSiswa ? (
-                <div className="py-4 text-center text-xs text-slate-400">Memuat data siswa...</div>
+                <div className="py-4 text-center text-xs text-slate-600">Memuat data siswa...</div>
               ) : absensiList.length === 0 ? (
                 <div className="py-3 px-4 rounded-xl border border-emerald-200 bg-emerald-50/50 text-xs text-emerald-800 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -526,7 +535,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                         className="p-2.5 sm:p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white"
                       >
                         <div className="flex items-center gap-2 flex-1">
-                          <span className="text-slate-400 font-bold text-xs w-4 text-center">
+                          <span className="text-slate-600 font-bold text-xs w-4 text-center">
                             {idx + 1}.
                           </span>
                           <select
@@ -580,14 +589,15 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                           </div>
 
                           <button
+                            aria-label="Hapus"
                             type="button"
                             onClick={() => handleRemoveAbsensi(idx)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition"
+                            className="p-1.5 text-slate-600 hover:text-rose-600 rounded-lg transition"
                             title="Hapus"
                           >
                             <Trash2 className="w-4 h-4 text-rose-500" />
                           </button>
-                        </div>
+                         </div>
                       </div>
                     ))}
                   </div>
@@ -611,17 +621,17 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
                     IV. Dokumentasi Foto Mengajar
                   </h3>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                  <span className="text-[12px] font-bold px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
                     Wajib
                   </span>
                 </div>
                 {existingEvidence?.storage_path ? (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                     <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                     Status: Tersimpan (Final)
                   </span>
                 ) : (
-                  <span className="text-[11px] text-slate-500 font-medium">
+                  <span className="text-[13px] text-slate-500 font-medium">
                     Belum Ada Foto
                   </span>
                 )}
@@ -641,7 +651,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                     <button
                       type="button"
                       onClick={() => setIsLightboxOpen(true)}
-                      className="absolute bottom-2 right-2 px-2.5 py-1 bg-slate-900/80 hover:bg-slate-900 text-white text-[11px] font-medium rounded-md flex items-center gap-1 transition"
+                      className="absolute bottom-2 right-2 px-2.5 py-1 bg-slate-900/80 hover:bg-slate-900 text-white text-[13px] font-medium rounded-md flex items-center gap-1 transition"
                     >
                       <Eye className="w-3.5 h-3.5" />
                       <span>Perbesar</span>
@@ -653,9 +663,9 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                       <span className="w-2 h-2 rounded-full bg-emerald-500" />
                       <span>Foto dokumentasi sudah tersimpan.</span>
                     </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-600 pt-1 border-t border-slate-100">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[13px] text-slate-600 pt-1 border-t border-slate-100">
                       <div>
-                        <span className="text-slate-400 block">Diambil:</span>
+                        <span className="text-slate-600 block">Diambil:</span>
                         <span className="font-medium text-slate-700">
                           {existingEvidence.captured_at
                             ? new Date(existingEvidence.captured_at).toLocaleDateString('id-ID', {
@@ -669,7 +679,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                         </span>
                       </div>
                       <div>
-                        <span className="text-slate-400 block">Diupload:</span>
+                        <span className="text-slate-600 block">Diupload:</span>
                         <span className="font-medium text-slate-700">
                           {existingEvidence.uploaded_at
                             ? new Date(existingEvidence.uploaded_at).toLocaleDateString('id-ID', {
@@ -689,12 +699,12 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                 // State BELUM ADA FOTO: Call to action buka kamera langsung
                 <div className="p-4 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
                       <Camera className="w-5 h-5" />
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-800">Belum ada foto dokumentasi</p>
-                      <p className="text-[11px] text-slate-500">
+                      <p className="text-[13px] text-slate-500">
                         Ambil foto selfie pengajar langsung melalui kamera perangkat.
                       </p>
                     </div>
@@ -714,7 +724,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                     type="button"
                     onClick={() => nativeCameraInputRef.current?.click()}
                     disabled={isUploadingPhoto}
-                    className="w-full sm:w-auto px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 active:scale-98 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-xs disabled:opacity-50 shrink-0"
+                    className="w-full sm:w-auto px-4 py-2.5 bg-primary-700 hover:bg-primary-800 active:scale-98 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-xs disabled:opacity-50 shrink-0"
                   >
                     {isUploadingPhoto ? (
                       <>
@@ -758,7 +768,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-6 py-2.5 bg-emerald-700 hover:bg-emerald-800 active:scale-98 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-2 disabled:opacity-50"
+            className="px-6 py-2.5 bg-primary-700 hover:bg-primary-800 active:scale-98 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-2 disabled:opacity-50"
           >
             {isSubmitting ? (
               <>
@@ -788,7 +798,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
+              className="flex-1 py-2.5 px-4 bg-primary-700 hover:bg-primary-800 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
             >
               {isSubmitting ? (
                 <>

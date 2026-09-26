@@ -221,7 +221,7 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
       header: '#',
       align: 'center',
       width: '50px',
-      accessor: (t) => <span className="font-mono text-slate-400">{t.period_number}</span>,
+      accessor: (t) => <span className="font-mono text-slate-600">{t.period_number}</span>,
     },
     {
       key: 'label',
@@ -268,7 +268,7 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
       width: '110px',
       accessor: (t) => (
         <span
-          className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold ${
+          className={`inline-flex items-center px-2 py-0.5 rounded text-[13px] font-bold ${
             t.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
           }`}
         >
@@ -287,28 +287,30 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
             onClick={() => handleToggle(t)}
             className={`p-1.5 rounded-lg transition ${
               t.is_active
-                ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
-                : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
+                ? 'text-slate-600 hover:text-amber-600 hover:bg-amber-50'
+                : 'text-slate-600 hover:text-emerald-600 hover:bg-emerald-50'
             }`}
             title={t.is_active ? 'Nonaktifkan' : 'Aktifkan'}
           >
             <Power className="w-3.5 h-3.5" />
           </button>
           <button
+            aria-label="Edit"
             onClick={() => handleOpenEdit(t)}
-            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+            className="p-1.5 text-slate-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition"
             title="Edit"
           >
             <Edit2 className="w-3.5 h-3.5" />
           </button>
-          <button
+           <button
+             aria-label="Hapus"
             onClick={() => handleDelete(t)}
-            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+            className="p-1.5 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
             title="Hapus"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
-        </div>
+         </div>
       ),
     },
   ];
@@ -326,7 +328,7 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
               <select
                 value={selectedAYId}
                 onChange={(e) => handleAYChange(e.target.value)}
-                className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer"
+                className="bg-transparent font-bold text-slate-800 cursor-pointer"
               >
                 {academicYears.map((ay) => (
                   <option key={ay.id} value={ay.id}>
@@ -337,6 +339,7 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
             </div>
 
             <button
+              aria-label="Refresh"
               onClick={() => loadData()}
               className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 rounded-lg transition"
               title="Refresh"
@@ -344,9 +347,9 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
 
-            <button
+             <button
               onClick={handleOpenCreate}
-              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-sm"
+              className="px-3.5 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-sm"
             >
               <Plus className="w-4 h-4" />
               <span>Tambah JP</span>
@@ -363,12 +366,12 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
             <span>{`${templates.length} JP dikonfigurasi · `}</span>
             <span className="text-emerald-600 font-semibold">{`${activeCount} aktif`}</span>
             {activeCount < templates.length && (
-              <span className="text-slate-400">{` · ${templates.length - activeCount} nonaktif`}</span>
+              <span className="text-slate-600">{` · ${templates.length - activeCount} nonaktif`}</span>
             )}
           </>
         }
         headerRightContent={
-          <span className="text-slate-400 whitespace-nowrap">Tahun Ajaran: {selectedAY?.name}</span>
+          <span className="text-slate-600 whitespace-nowrap">Tahun Ajaran: {selectedAY?.name}</span>
         }
         columns={columns}
         data={templates}
@@ -502,7 +505,7 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
 
               {/* Duration preview */}
               {form.start_time && form.end_time && form.start_time < form.end_time && (
-                <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2 text-xs text-indigo-700">
+                <div className="flex items-center gap-2 bg-primary-50 border border-primary-100 rounded-lg px-3 py-2 text-xs text-primary-700">
                   <Clock className="w-3.5 h-3.5 shrink-0" />
                   <span>
                     Durasi: <strong>{calcDuration(form.start_time, form.end_time)} menit</strong>

@@ -18,7 +18,7 @@ export const NotFound: React.FC = () => {
         action={
           <Link
             to={home}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg text-xs transition shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg text-xs transition shadow-2xs"
           >
             {inAdmin ? 'Kembali ke Ringkasan' : 'Kembali ke Halaman Utama'}
           </Link>

@@ -142,7 +142,7 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
           actions={
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
-                <BookOpen className="w-4 h-4 text-indigo-600" />
+                <BookOpen className="w-4 h-4 text-primary-600" />
                 <span>{mapelList.length} Mata Pelajaran</span>
               </div>
               <button type="button" onClick={handleOpenCreate} className={formStyles.primaryBtn}>
@@ -161,7 +161,7 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
               width: '50px',
               align: 'center',
               accessor: (_item, idx) => (
-                <span className="text-slate-400 font-medium">{idx + 1}</span>
+                <span className="text-slate-600 font-medium">{idx + 1}</span>
               ),
             },
             {
@@ -189,22 +189,24 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
               accessor: (item) => (
                 <div className="flex items-center justify-end gap-1">
                   <button
+                    aria-label="Edit Mata Pelajaran"
                     type="button"
                     onClick={() => handleEditClick(item)}
-                    className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition"
+                    className="p-1.5 text-slate-600 hover:text-amber-600 hover:bg-amber-50 rounded-md transition"
                     title="Edit Mata Pelajaran"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
-                  <button
+                   <button
+                     aria-label="Hapus Mata Pelajaran"
                     type="button"
                     onClick={() => handleDelete(item.id, item.nama_mapel)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition"
+                    className="p-1.5 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-md transition"
                     title="Hapus Mata Pelajaran"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
-                </div>
+                 </div>
               ),
             },
           ]}

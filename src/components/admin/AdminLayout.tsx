@@ -53,7 +53,7 @@ export const AdminLayout: React.FC = () => {
                 <span className="font-bold text-slate-900 text-sm tracking-tight block leading-tight">
                   SIAJAR
                 </span>
-                <span className="text-[10px] text-slate-400 block leading-tight">
+                <span className="text-[12px] text-slate-600 block leading-tight">
                   Admin Portal
                 </span>
               </div>
@@ -63,7 +63,7 @@ export const AdminLayout: React.FC = () => {
           {/* Collapse toggle (desktop only) */}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="hidden md:flex p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition"
+            className="hidden md:flex p-1.5 text-slate-600 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition"
             title={isCollapsed ? 'Perluas Sidebar' : 'Ciutkan Sidebar'}
           >
             {isCollapsed ? (
@@ -76,7 +76,7 @@ export const AdminLayout: React.FC = () => {
           {/* Close button (mobile only) */}
           <button
             onClick={() => setIsMobileOpen(false)}
-            className="md:hidden p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+            className="md:hidden p-1.5 text-slate-600 hover:text-slate-600 rounded-lg"
           >
             <X className="w-5 h-5" />
           </button>
@@ -87,7 +87,7 @@ export const AdminLayout: React.FC = () => {
           {ADMIN_NAV_GROUPS.map((grp) => (
             <div key={grp.group} className="space-y-1">
               {!isCollapsed && (
-                <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                <p className="px-3 text-[12px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
                   {grp.group}
                 </p>
               )}
@@ -105,7 +105,7 @@ export const AdminLayout: React.FC = () => {
                     title={item.label}
                     onClick={() => setIsMobileOpen(false)}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition ${isActive
-                      ? 'bg-slate-900 text-white shadow-xs'
+                      ? 'bg-primary-600 text-white shadow-xs'
                       : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                       } ${isCollapsed ? 'justify-center px-0' : ''}`}
                   >
@@ -130,14 +130,15 @@ export const AdminLayout: React.FC = () => {
                   <p className="text-xs font-bold text-slate-800 truncate">
                     {activeTeacherName || 'Administrator'}
                   </p>
-                  <p className="text-[10px] text-slate-400">Superuser</p>
+                  <p className="text-[12px] text-slate-600">Superuser</p>
                 </div>
               </div>
 
               <button
+                aria-label="Keluar / Logout"
                 onClick={signOut}
                 title="Keluar / Logout"
-                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                className="p-2.5 min-w-10 min-h-10 inline-flex items-center justify-center text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
               >
                 <LogOut className="w-4 h-4" />
               </button>
@@ -145,13 +146,14 @@ export const AdminLayout: React.FC = () => {
           ) : (
             <div className="flex flex-col items-center gap-2 py-1">
               <button
+                aria-label="Keluar / Logout"
                 onClick={signOut}
                 title="Keluar / Logout"
-                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                className="p-2.5 min-w-10 min-h-10 inline-flex items-center justify-center text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
               >
                 <LogOut className="w-4 h-4" />
               </button>
-            </div>
+             </div>
           )}
         </div>
       </aside>
@@ -163,6 +165,7 @@ export const AdminLayout: React.FC = () => {
           <div className="flex items-center gap-3">
             {/* Mobile menu trigger */}
             <button
+              aria-label="Buka Menu"
               onClick={() => setIsMobileOpen(true)}
               className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg md:hidden"
               title="Buka Menu"
@@ -170,9 +173,9 @@ export const AdminLayout: React.FC = () => {
               <Menu className="w-5 h-5" />
             </button>
 
-            {/* Breadcrumb / Page Title */}
+             {/* Breadcrumb / Page Title */}
             <div>
-              <div className="flex items-center gap-1.5 text-xs text-slate-400">
+              <div className="flex items-center gap-1.5 text-xs text-slate-600">
                 <span>Admin</span>
                 <span>/</span>
                 <span className="font-semibold text-slate-800">
@@ -183,7 +186,7 @@ export const AdminLayout: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-[11px] font-bold rounded-full border border-slate-200">
+            <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-[13px] font-bold rounded-full border border-slate-200">
               Admin
             </span>
           </div>

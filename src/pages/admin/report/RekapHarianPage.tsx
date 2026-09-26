@@ -183,7 +183,7 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
   };
 
   const selectClass =
-    'px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-700 text-xs focus:outline-none';
+    'px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-700 text-xs';
 
   const columns: Column<DailyReportItem>[] = [
     {
@@ -194,17 +194,17 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
         item.startTime && item.endTime ? (
           <div className="whitespace-nowrap">
             <div className="flex items-center gap-1.5 font-mono font-medium text-slate-900">
-              <Clock className="w-3.5 h-3.5 text-slate-400" />
+              <Clock className="w-3.5 h-3.5 text-slate-500" />
               <span>
                 {item.startTime} - {item.endTime}
               </span>
             </div>
-            <span className="text-[10px] text-slate-400 block pl-5">
+            <span className="text-[12px] text-slate-600 block pl-5">
               {item.durationMinutes} menit
             </span>
           </div>
         ) : (
-          <span className="text-[11px] text-slate-400 italic">Di luar jadwal</span>
+          <span className="text-[13px] text-slate-600 italic">Di luar jadwal</span>
         ),
     },
     {
@@ -213,11 +213,11 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
       width: '130px',
       accessor: (item) => (
         <div>
-          <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-bold whitespace-nowrap">
+          <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[13px] font-bold whitespace-nowrap">
             {item.classId}
           </span>
           {item.isUnscheduledAgenda && (
-            <span className="block text-[9px] text-amber-600 font-normal mt-0.5">
+            <span className="block text-[12px] text-amber-600 font-normal mt-0.5">
               Tanpa Jadwal
             </span>
           )}
@@ -241,7 +241,7 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
         <span
           className={`font-semibold whitespace-nowrap ${
             item.isBadal
-              ? 'text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded text-[11px] border border-amber-200'
+              ? 'text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded text-[13px] border border-amber-200'
               : 'text-slate-800'
           }`}
         >
@@ -264,12 +264,12 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
       width: '130px',
       accessor: (item) =>
         item.hasDocumentation ? (
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+          <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
             <Camera className="w-3 h-3 text-emerald-600" />
             Ada
           </span>
         ) : (
-          <span className="text-[11px] text-slate-400">Tidak ada</span>
+          <span className="text-[13px] text-slate-600">Tidak ada</span>
         ),
     },
     {
@@ -279,17 +279,18 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
       width: '80px',
       accessor: (item) => (
         <button
+          aria-label="Lihat Detail Agenda"
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             setActiveItemForDetail(item);
           }}
-          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
+          className="p-1.5 text-slate-600 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
           title="Lihat Detail Agenda"
         >
           <Eye className="w-4 h-4" />
         </button>
-      ),
+       ),
     },
   ];
 
@@ -312,7 +313,7 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
               </button>
               <button
                 onClick={handlePrint}
-                className="px-3 py-2 text-xs font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition flex items-center gap-1.5 shadow-xs"
+                className="px-3 py-2 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition flex items-center gap-1.5 shadow-xs"
               >
                 <Printer className="w-3.5 h-3.5" />
                 <span>Cetak Laporan</span>
@@ -324,33 +325,33 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
         {/* Ringkasan Cepat Harian */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-            <span className="text-xs font-medium text-slate-400">Total Jadwal</span>
+            <span className="text-xs font-medium text-slate-600">Total Jadwal</span>
             <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{totalSlots} JP</p>
-            <span className="text-[10px] text-slate-400">Slot terjadwal hari ini</span>
+            <span className="text-[12px] text-slate-600">Slot terjadwal hari ini</span>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
             <span className="text-xs font-medium text-emerald-600">Terealisasi</span>
             <p className="text-xl sm:text-2xl font-bold text-emerald-700 mt-1">{completedSlots} JP</p>
-            <span className="text-[10px] text-slate-400">{realizeRate.toFixed(0)}% terlaksana</span>
+            <span className="text-[12px] text-slate-600">{realizeRate.toFixed(0)}% terlaksana</span>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
             <span className="text-xs font-medium text-amber-600">Badal (Pengganti)</span>
             <p className="text-xl sm:text-2xl font-bold text-amber-700 mt-1">{badalSlots} JP</p>
-            <span className="text-[10px] text-slate-400">Digantikan guru lain</span>
+            <span className="text-[12px] text-slate-600">Digantikan guru lain</span>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
             <span className="text-xs font-medium text-rose-600">Belum Terealisasi</span>
             <p className="text-xl sm:text-2xl font-bold text-rose-700 mt-1">{missingSlots} JP</p>
-            <span className="text-[10px] text-slate-400">Agenda belum diisi</span>
+            <span className="text-[12px] text-slate-600">Agenda belum diisi</span>
           </div>
         </div>
 
         {/* Agenda di luar jadwal: tetap terlihat, tapi tidak dihitung sebagai JP */}
         {unscheduledCount > 0 && (
-          <div className="flex items-start gap-2 px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900">
+          <div className="flex items-start gap-2 px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[13px] text-amber-900">
             <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
             <p>
               <strong>{unscheduledCount} agenda</strong> dibuat tanpa slot jadwal (tidak punya jam
@@ -371,7 +372,7 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
                   type="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="text-xs font-bold text-slate-800 bg-transparent focus:outline-none cursor-pointer"
+                  className="text-xs font-bold text-slate-800 bg-transparent cursor-pointer"
                 />
               </div>
 
@@ -379,7 +380,7 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
                 value={selectedAYId}
                 onChange={(e) => setSelectedAYId(e.target.value)}
                 title="Tahun ajaran"
-                className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 text-xs font-bold focus:outline-none"
+                className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 text-xs font-bold"
               >
                 {academicYears.map((ay) => (
                   <option key={ay.id} value={ay.id}>
@@ -464,7 +465,7 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
         periodInfo={selectedDate}
         academicYearName={activeAYName}
       >
-        <table className="w-full text-left text-[10px] border-collapse border border-slate-900">
+        <table className="w-full text-left text-[12px] border-collapse border border-slate-900">
           <thead className="bg-slate-100 border-b border-slate-900 font-bold uppercase">
             <tr>
               <th className="p-1.5 border-r border-slate-900 text-center w-8">No</th>

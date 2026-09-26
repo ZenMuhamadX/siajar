@@ -149,7 +149,7 @@ export const AcademicYearPage: React.FC<AcademicYearPageProps> = ({ showToast })
         <div className="flex items-center gap-2">
           <span className="font-bold text-slate-900 text-sm">{ay.name}</span>
           {ay.status === 'ACTIVE' && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+            <span className="px-1.5 py-0.5 rounded text-[12px] font-bold bg-emerald-100 text-emerald-800">
               Aktif Sekarang
             </span>
           )}
@@ -209,7 +209,7 @@ export const AcademicYearPage: React.FC<AcademicYearPageProps> = ({ showToast })
               <button
                 type="button"
                 onClick={() => handleActivate(ay)}
-                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition inline-flex items-center gap-1 shadow-xs"
+                className="px-2.5 py-1 bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold rounded-lg transition inline-flex items-center gap-1 shadow-xs"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>Aktifkan</span>
@@ -239,15 +239,16 @@ export const AcademicYearPage: React.FC<AcademicYearPageProps> = ({ showToast })
         action={
           <div className="flex items-center gap-2">
             <button
+              aria-label="Refresh"
               onClick={fetchYears}
               className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-slate-200 transition"
               title="Refresh"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
-            <button
+             <button
               onClick={() => setIsModalOpen(true)}
-              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-xs"
+              className="px-3.5 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-xs"
             >
               <Plus className="w-4 h-4" />
               <span>Tambah Tahun Ajaran</span>

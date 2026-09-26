@@ -52,14 +52,14 @@ export const Pagination: React.FC<PaginationProps> = ({
     >
       {/* Left: Info & Page Size */}
       <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
-        <p className="text-[11px] text-slate-500 whitespace-nowrap">
+        <p className="text-[13px] text-slate-500 whitespace-nowrap">
           Menampilkan <span className="font-semibold text-slate-800">{startItem}</span>–
           <span className="font-semibold text-slate-800">{endItem}</span> dari{' '}
           <span className="font-semibold text-slate-800">{totalItems}</span> data
         </p>
 
         {onPageSizeChange && (
-          <div className="flex items-center gap-1 text-[11px] text-slate-500">
+          <div className="flex items-center gap-1 text-[13px] text-slate-500">
             <span className="hidden md:inline">Baris:</span>
             <select
               value={pageSize}
@@ -80,32 +80,34 @@ export const Pagination: React.FC<PaginationProps> = ({
       <div className="flex items-center gap-1">
         {/* First page */}
         <button
+          aria-label="Halaman Pertama"
           type="button"
           onClick={() => onPageChange(1)}
           disabled={currentPage <= 1}
-          className="p-1 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition"
+          className="p-1 min-w-10 min-h-10 inline-flex items-center justify-center rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition"
           title="Halaman Pertama"
         >
           <ChevronsLeft className="w-4 h-4" />
         </button>
 
-        {/* Previous page */}
+         {/* Previous page */}
         <button
+          aria-label="Halaman Sebelumnya"
           type="button"
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage <= 1}
-          className="p-1 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition"
+          className="p-1 min-w-10 min-h-10 inline-flex items-center justify-center rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition"
           title="Halaman Sebelumnya"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
 
-        {/* Page numbers (hidden on tiny screens) */}
+         {/* Page numbers (hidden on tiny screens) */}
         <div className="hidden sm:flex items-center gap-1">
           {getPageNumbers().map((p, idx) => {
             if (typeof p === 'string') {
               return (
-                <span key={`ell-${idx}`} className="px-1.5 py-0.5 text-slate-400">
+                <span key={`ell-${idx}`} className="px-1.5 py-0.5 text-slate-600">
                   {p}
                 </span>
               );
@@ -116,9 +118,9 @@ export const Pagination: React.FC<PaginationProps> = ({
                 key={p}
                 type="button"
                 onClick={() => onPageChange(p)}
-                className={`min-w-7 h-7 px-2 text-xs font-semibold rounded-md transition ${
+                className={`min-w-10 h-10 px-2 text-xs font-semibold rounded-md transition ${
                   isActive
-                    ? 'bg-slate-900 text-white shadow-2xs'
+                    ? 'bg-primary-600 text-white shadow-2xs'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
@@ -129,32 +131,34 @@ export const Pagination: React.FC<PaginationProps> = ({
         </div>
 
         {/* Mobile current page indicator */}
-        <span className="sm:hidden px-2 text-[11px] font-semibold text-slate-700">
+        <span className="sm:hidden px-2 text-[13px] font-semibold text-slate-700">
           {currentPage} / {totalPages || 1}
         </span>
 
         {/* Next page */}
         <button
+          aria-label="Halaman Berikutnya"
           type="button"
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage >= totalPages}
-          className="p-1 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition"
+          className="p-1 min-w-10 min-h-10 inline-flex items-center justify-center rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition"
           title="Halaman Berikutnya"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
 
-        {/* Last page */}
+         {/* Last page */}
         <button
+          aria-label="Halaman Terakhir"
           type="button"
           onClick={() => onPageChange(totalPages)}
           disabled={currentPage >= totalPages}
-          className="p-1 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition"
+          className="p-1 min-w-10 min-h-10 inline-flex items-center justify-center rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition"
           title="Halaman Terakhir"
         >
           <ChevronsRight className="w-4 h-4" />
         </button>
-      </div>
+       </div>
     </div>
   );
 };

@@ -1,5 +1,61 @@
 @import "tailwindcss";
 
+/* ── Skala Tipografi ──────────────────────────────────────────────────────
+ * Skala bawaan Tailwind dikalibrasi untuk UI desktop padat. Konteks pemakaian
+ * aplikasi ini berbeda: guru membaca di HP, sering sambil berdiri di depan
+ * kelas, kadang di ruangan bercahaya redup. Dengan skala lama, body text ada di
+ * 12px (text-xs) dan caption di 10–11px — di bawah ambang nyaman baca, apalagi
+ * untuk pengguna berusia lebih tua.
+ *
+ * Alih-alih menyunting ~500 lokasi pemakaian satu per satu, skala dinaikkan di
+ * level token: seluruh `text-xs`, `text-sm`, `text-lg`, … di aplikasi ikut naik
+ * otomatis, termasuk yang ada di dalam template literal.
+ *
+ * Catatan: `--text-*--line-height` WAJIB ditulis ulang. Kalau hanya ukuran font
+ * yang diubah, line-height bawaan (yang dihitung untuk font lebih kecil) tetap
+ * terpakai dan baris jadi terlalu rapat — yang justru merusak keterbacaan.
+ * `--text-base` sengaja tidak diubah karena sudah 16px.
+ */
+@theme {
+  --text-xs: 0.875rem;              /* 12px → 14px */
+  --text-xs--line-height: 1.25rem;
+  --text-sm: 0.9375rem;             /* 14px → 15px */
+  --text-sm--line-height: 1.375rem;
+  --text-lg: 1.1875rem;             /* 18px → 19px */
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.375rem;              /* 20px → 22px */
+  --text-xl--line-height: 1.875rem;
+  --text-2xl: 1.625rem;             /* 24px → 26px */
+  --text-2xl--line-height: 2rem;
+
+  /* ── Warna Aksi Utama ───────────────────────────────────────────────────
+   * Sebelumnya "tombol utama" muncul dalam EMPAT warna berbeda: `slate-900`
+   * (19×), `indigo-600` (6×), `emerald-600` (3×), dan `purple-600` (3×).
+   * Akibatnya pengguna tidak bisa menebak mana aksi utama hanya dari warnanya
+   * — warna berhenti bermakna.
+   *
+   * Sekarang semua aksi utama memakai satu skala ini, sehingga mengganti aksen
+   * seluruh aplikasi cukup mengubah nilai di sini.
+   *
+   * Pembagian makna yang berlaku setelah ini:
+   *   primary (indigo) — aksi utama, navigasi aktif, cincin fokus
+   *   emerald          — sukses / selesai / sedang berlangsung (status)
+   *   amber            — peringatan, badal, terlewat
+   *   rose             — bahaya / gagal
+   *   blue             — informasi
+   *   slate            — netral, tombol sekunder
+   */
+  --color-primary-50: #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #4f46e5;
+  --color-primary-700: #4338ca;
+  --color-primary-800: #3730a3;
+  --color-primary-900: #312e81;
+}
+
 @layer base {
   body {
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -16,6 +72,22 @@
     textarea {
       font-size: 16px !important;
     }
+  }
+
+  /* ── Indikator Fokus Keyboard ───────────────────────────────────────────
+   * Sebelumnya hanya dua komponen yang punya gaya fokus sendiri, sementara 16
+   * tempat memakai `focus:outline-none` tanpa indikator pengganti — pengguna
+   * keyboard kehilangan jejak posisinya di halaman.
+   *
+   * Aturan ini menutup semuanya sekaligus. Ia berada di `@layer base`, jadi
+   * komponen yang sudah punya cincin fokus sendiri tetap menang: utilitas
+   * `focus:outline-none` dan `focus:ring-*` berada di layer utilities yang
+   * prioritasnya lebih tinggi. Artinya aturan ini hanya muncul di tempat yang
+   * memang belum punya indikator apa pun.
+   */
+  :focus-visible {
+    outline: 2px solid var(--color-primary-600);
+    outline-offset: 2px;
   }
 }
 

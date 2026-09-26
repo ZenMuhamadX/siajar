@@ -231,7 +231,7 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
       accessor: (slot) => (
         <div className="font-mono text-slate-700 whitespace-nowrap">
           {slot.schedule.start_time.slice(0, 5)} – {slot.schedule.end_time.slice(0, 5)}
-          <span className="block text-[10px] text-slate-400 font-sans">
+          <span className="block text-[12px] text-slate-600 font-sans">
             JP {slot.schedule.period_number}
           </span>
         </div>
@@ -279,7 +279,7 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition ${
                 isFilled
                   ? 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-                  : 'bg-slate-900 text-white hover:bg-slate-700'
+                  : 'bg-primary-600 text-white hover:bg-primary-700'
               }`}
             >
               {isFilled ? <Edit3 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
@@ -294,10 +294,10 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
   if (isFormOpen) {
     return (
       <div className="space-y-4">
-        <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <p className="text-xs font-bold text-indigo-900">Mode administrator</p>
-            <p className="text-xs text-indigo-800 mt-0.5">
+            <p className="text-xs font-bold text-primary-900">Mode administrator</p>
+            <p className="text-xs text-primary-800 mt-0.5">
               Mengisi / mengoreksi agenda atas nama{' '}
               <strong>{teacherNameForForm}</strong>
               {selectedSlot ? ` · ${selectedSlot.schedule.class_id}` : directEdit ? ` · ${directEdit.header.kelas}` : ''}
@@ -306,7 +306,7 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
           <button
             type="button"
             onClick={handleCloseForm}
-            className="self-start text-xs font-semibold text-indigo-700 hover:text-indigo-900 px-3 py-1.5 rounded-lg border border-indigo-200 bg-white"
+            className="self-start text-xs font-semibold text-primary-700 hover:text-primary-900 px-3 py-1.5 rounded-lg border border-primary-200 bg-white"
           >
             Kembali ke daftar
           </button>
@@ -334,19 +334,19 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white border border-slate-200 rounded-xl p-4">
-          <p className="text-[11px] font-medium text-slate-500">Slot jadwal</p>
+          <p className="text-[13px] font-medium text-slate-500">Slot jadwal</p>
           <p className="text-2xl font-bold text-slate-900 mt-1">{slots.length}</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl p-4">
-          <p className="text-[11px] font-medium text-slate-500">Sudah diisi</p>
+          <p className="text-[13px] font-medium text-slate-500">Sudah diisi</p>
           <p className="text-2xl font-bold text-emerald-700 mt-1">{filledCount}</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl p-4">
-          <p className="text-[11px] font-medium text-slate-500">Belum diisi</p>
+          <p className="text-[13px] font-medium text-slate-500">Belum diisi</p>
           <p className="text-2xl font-bold text-amber-700 mt-1">{emptyCount}</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl p-4">
-          <p className="text-[11px] font-medium text-slate-500">Tanggal</p>
+          <p className="text-[13px] font-medium text-slate-500">Tanggal</p>
           <p className="text-sm font-bold text-slate-900 mt-2 leading-snug">{formatDateIndo(selectedDate)}</p>
         </div>
       </div>
@@ -359,6 +359,7 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
           <>
             <div className="flex items-center gap-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200">
               <button
+                aria-label="Hari sebelumnya"
                 type="button"
                 onClick={() => shiftDate(-1)}
                 className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-white rounded-lg"
@@ -366,16 +367,17 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <div className="flex items-center gap-1.5 px-2">
+               <div className="flex items-center gap-1.5 px-2">
                 <Calendar className="w-3.5 h-3.5 text-slate-500" />
                 <input
                   type="date"
                   value={selectedDate}
                   onChange={(e) => handleSetDate(e.target.value)}
-                  className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-none cursor-pointer"
+                  className="text-xs font-bold text-slate-800 bg-transparent border-none cursor-pointer"
                 />
               </div>
               <button
+                aria-label="Hari berikutnya"
                 type="button"
                 onClick={() => shiftDate(1)}
                 className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-white rounded-lg"
@@ -383,11 +385,11 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
-              {selectedDate !== todayStr && (
+               {selectedDate !== todayStr && (
                 <button
                   type="button"
                   onClick={() => handleSetDate(todayStr)}
-                  className="ml-1 px-2.5 py-1 text-[11px] font-bold bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50"
+                  className="ml-1 px-2.5 py-1 text-[13px] font-bold bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50"
                 >
                   Hari ini
                 </button>

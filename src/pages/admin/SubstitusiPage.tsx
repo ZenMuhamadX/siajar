@@ -126,11 +126,11 @@ export const SubstitusiPage: React.FC<SubstitusiPageProps> = ({ showToast }) => 
       width: '130px',
       accessor: (sub) => {
         const sch = sub.schedule;
-        if (!sch) return <span className="text-slate-400">—</span>;
+        if (!sch) return <span className="text-slate-600">—</span>;
         return (
           <span className="font-mono text-slate-700 whitespace-nowrap">
             {sch.start_time.slice(0, 5)} – {sch.end_time.slice(0, 5)}
-            <span className="block text-[10px] text-slate-400 font-sans">
+            <span className="block text-[12px] text-slate-600 font-sans">
               JP {sch.period_number}
             </span>
           </span>
@@ -144,11 +144,11 @@ export const SubstitusiPage: React.FC<SubstitusiPageProps> = ({ showToast }) => 
       width: '150px',
       accessor: (sub) => {
         const sch = sub.schedule;
-        if (!sch) return <span className="text-slate-400 italic">—</span>;
+        if (!sch) return <span className="text-slate-600 italic">—</span>;
         return (
           <div className="whitespace-nowrap">
             <span className="font-bold text-slate-900 text-xs block">{sch.class_id}</span>
-            <span className="text-slate-500 text-[11px]">{sch.subject_name}</span>
+            <span className="text-slate-500 text-[13px]">{sch.subject_name}</span>
           </div>
         );
       },
@@ -181,7 +181,7 @@ export const SubstitusiPage: React.FC<SubstitusiPageProps> = ({ showToast }) => 
         <div className="max-w-xs">
           <span className="font-medium text-slate-700">{sub.reason}</span>
           {sub.reason_detail && (
-            <p className="text-[11px] text-slate-400 italic mt-0.5">{sub.reason_detail}</p>
+            <p className="text-[13px] text-slate-600 italic mt-0.5">{sub.reason_detail}</p>
           )}
         </div>
       ),
@@ -211,7 +211,7 @@ export const SubstitusiPage: React.FC<SubstitusiPageProps> = ({ showToast }) => 
               type="button"
               onClick={() => handleCancel(sub)}
               disabled={cancellingId === sub.id}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition disabled:opacity-50"
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-[13px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition disabled:opacity-50"
               title="Batalkan badal"
             >
               {cancellingId === sub.id ? (
@@ -238,7 +238,7 @@ export const SubstitusiPage: React.FC<SubstitusiPageProps> = ({ showToast }) => 
       <FilterBar
         filters={
           <>
-            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-slate-500 uppercase tracking-wider">
               Dari Tanggal
               <input
                 type="date"
@@ -247,7 +247,7 @@ export const SubstitusiPage: React.FC<SubstitusiPageProps> = ({ showToast }) => 
                 className={formStyles.select}
               />
             </label>
-            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-slate-500 uppercase tracking-wider">
               Sampai Tanggal
               <input
                 type="date"
@@ -258,13 +258,13 @@ export const SubstitusiPage: React.FC<SubstitusiPageProps> = ({ showToast }) => 
             </label>
 
             {/* Stats & Toggle */}
-            <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full font-semibold text-[11px]">
+            <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full font-semibold text-[13px]">
               {activeCount} Badal Aktif
             </span>
             {cancelledCount > 0 && (
               <button
                 onClick={() => setShowCancelled((v) => !v)}
-                className="px-2.5 py-1 bg-slate-100 text-slate-600 border border-slate-200 rounded-full font-semibold text-[11px] flex items-center gap-1 hover:bg-slate-200 transition"
+                className="px-2.5 py-1 bg-slate-100 text-slate-600 border border-slate-200 rounded-full font-semibold text-[13px] flex items-center gap-1 hover:bg-slate-200 transition"
               >
                 {cancelledCount} Dibatalkan
                 {showCancelled ? (
@@ -279,7 +279,7 @@ export const SubstitusiPage: React.FC<SubstitusiPageProps> = ({ showToast }) => 
         actions={
           <button
             onClick={fetchData}
-            className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 transition shadow-xs"
+            className="px-3.5 py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 transition shadow-xs"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             Tampilkan

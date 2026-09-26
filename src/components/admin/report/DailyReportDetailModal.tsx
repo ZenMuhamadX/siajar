@@ -1,6 +1,6 @@
-import React from 'react';
-import { createPortal } from 'react-dom';
+import React, { useId } from 'react';
 import { X, Clock, User, BookOpen, Camera, ExternalLink, AlertCircle } from 'lucide-react';
+import { ModalShell } from '../../common/ModalShell';
 import type { DailyReportItem } from '../../../services/reportService';
 
 interface DailyReportDetailModalProps {
@@ -24,6 +24,8 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
   item,
   onOpenPhotoLightbox,
 }) => {
+  const titleId = useId();
+
   if (!isOpen || !item) return null;
 
   const formatDateIndo = (dateStr: string) => {
@@ -97,14 +99,17 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
   const absensi = agenda?.absensi || [];
   const evidence = agenda?.evidence;
 
-  // Portal ke `document.body` — lihat catatan di `index.css` soal `main` yang
-  // punya `transform` dari `animation: fade-in-up`.
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-2xs overflow-y-auto no-print">
-      <div
-        data-modal-card
-        className="bg-white rounded-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto"
-      >
+  // Sebelumnya modal ini punya markup portal sendiri tanpa `role="dialog"`,
+  // tanpa ESC, dan tanpa perangkap fokus. Sekarang dari `ModalShell`.
+  return (
+    <ModalShell
+      isOpen={isOpen}
+      onClose={onClose}
+      size="lg"
+      ariaLabelledBy={titleId}
+      backdropClassName="bg-black/60 backdrop-blur-2xs"
+      cardClassName="shadow-2xl"
+    >
         {/* Modal Header */}
         <div className="shrink-0 px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
           <div>
@@ -112,17 +117,20 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
               <span className="text-xs font-bold px-2 py-0.5 rounded bg-slate-900 text-white">
                 {item.classId}
               </span>
-              <h2 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+              <h2 id={titleId} className="text-sm sm:text-base font-bold text-slate-900 truncate">
                 {item.subjectName}
               </h2>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">{formatDateIndo(item.date)}</p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-lg transition"
+            aria-label="Tutup detail laporan"
+            title="Tutup"
+            className="p-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 rounded-lg transition"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -133,14 +141,14 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
           {/* Status & Jadwal Ringkas */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
             <div>
-              <span className="text-[11px] font-medium text-slate-400 block">Waktu</span>
+              <span className="text-[13px] font-medium text-slate-600 block">Waktu</span>
               {item.startTime && item.endTime ? (
                 <>
                   <span className="font-semibold text-slate-800 flex items-center gap-1 mt-0.5">
                     <Clock className="w-3.5 h-3.5 text-slate-500" />
                     {item.startTime} - {item.endTime}
                   </span>
-                  <span className="text-[10px] text-slate-400">({item.durationMinutes} menit)</span>
+                  <span className="text-[12px] text-slate-600">({item.durationMinutes} menit)</span>
                 </>
               ) : (
                 <span className="font-semibold text-slate-500 italic text-xs">
@@ -150,19 +158,19 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
             </div>
 
             <div>
-              <span className="text-[11px] font-medium text-slate-400 block">Status</span>
+              <span className="text-[13px] font-medium text-slate-600 block">Status</span>
               <div className="mt-1">{getStatusBadge(item.status)}</div>
             </div>
 
             <div className="col-span-2 sm:col-span-2 space-y-1">
-              <span className="text-[11px] font-medium text-slate-400 block">Penugasan Guru</span>
+              <span className="text-[13px] font-medium text-slate-600 block">Penugasan Guru</span>
               <div className="text-xs space-y-0.5">
                 <div className="flex items-center gap-1 text-slate-600">
-                  <span className="text-slate-400 text-[10px] w-14">Terjadwal:</span>
+                  <span className="text-slate-600 text-[12px] w-14">Terjadwal:</span>
                   <span className="font-semibold text-slate-800">{item.scheduledTeacherName}</span>
                 </div>
                 <div className="flex items-center gap-1 text-slate-600">
-                  <span className="text-slate-400 text-[10px] w-14">Aktual:</span>
+                  <span className="text-slate-600 text-[12px] w-14">Aktual:</span>
                   <span
                     className={`font-semibold ${
                       item.isBadal ? 'text-amber-700 bg-amber-50 px-1 rounded' : 'text-slate-800'
@@ -187,7 +195,7 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
                 Alasan: <span className="font-semibold">{item.substitution.reason}</span>
                 {item.substitution.reason_detail ? ` (${item.substitution.reason_detail})` : ''}
               </p>
-              <p className="text-[11px] text-amber-700">
+              <p className="text-[13px] text-amber-700">
                 Dibuat oleh: {item.substitution.created_by} pada{' '}
                 {formatDateTimeIndo(item.substitution.created_at)}
               </p>
@@ -211,13 +219,13 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
                       <span className="font-bold text-slate-800">
                         {k.mapel} {k.jam_ke ? `(Jam ${k.jam_ke})` : ''}
                       </span>
-                      <span className="text-[11px] text-slate-500 font-medium">
+                      <span className="text-[13px] text-slate-500 font-medium">
                         Pengampu: {k.nama_guru}
                       </span>
                     </div>
                     <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{k.materi}</p>
                     {k.tugas_pr && (
-                      <p className="text-[11px] text-indigo-700 bg-indigo-50 p-1.5 rounded">
+                      <p className="text-[13px] text-primary-700 bg-primary-50 p-1.5 rounded">
                         Tugas/PR: {k.tugas_pr}
                       </p>
                     )}
@@ -225,7 +233,7 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
                 ))}
               </div>
             ) : (
-              <div className="p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center text-slate-400 text-xs">
+              <div className="p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center text-slate-600 text-xs">
                 {item.status === 'BELUM_TEREALISASI'
                   ? 'Agenda pembelajaran belum diisi oleh guru.'
                   : 'Tidak ada rincian materi.'}
@@ -242,7 +250,7 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
             {absensi.length > 0 ? (
               <div className="border border-slate-200 rounded-xl overflow-hidden">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[11px]">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[13px]">
                     <tr>
                       <th className="py-2 px-3">Nama Siswa</th>
                       <th className="py-2 px-3 text-center">Status</th>
@@ -256,17 +264,17 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
                         </td>
                         <td className="py-2 px-3 text-center">
                           {a.status === 'S' && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                            <span className="px-2 py-0.5 rounded text-[12px] font-bold bg-amber-100 text-amber-800">
                               Sakit
                             </span>
                           )}
                           {a.status === 'I' && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
+                            <span className="px-2 py-0.5 rounded text-[12px] font-bold bg-blue-100 text-blue-800">
                               Izin
                             </span>
                           )}
                           {a.status === 'A' && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
+                            <span className="px-2 py-0.5 rounded text-[12px] font-bold bg-rose-100 text-rose-800">
                               Alpha
                             </span>
                           )}
@@ -319,24 +327,24 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
 
                 <div className="text-xs space-y-1 text-slate-600">
                   <p>
-                    <span className="text-slate-400">Pengambil Foto:</span>{' '}
+                    <span className="text-slate-600">Pengambil Foto:</span>{' '}
                     <span className="font-semibold text-slate-800">
                       {evidence?.actual_teacher_name || item.actualTeacherName}
                     </span>
                   </p>
                   <p>
-                    <span className="text-slate-400">Waktu Capture:</span>{' '}
+                    <span className="text-slate-600">Waktu Capture:</span>{' '}
                     <span className="font-medium text-slate-700">
                       {formatDateTimeIndo(evidence?.captured_at || evidence?.uploaded_at)}
                     </span>
                   </p>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[13px] text-slate-600">
                     Klik foto untuk memperbesar dan melihat metadata lengkap.
                   </p>
                 </div>
               </div>
             ) : (
-              <div className="p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center text-slate-400 text-xs">
+              <div className="p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center text-slate-600 text-xs">
                 Tidak ada dokumentasi foto untuk jadwal/agenda ini.
               </div>
             )}
@@ -347,13 +355,11 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
         <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition"
+            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-semibold transition"
           >
             Tutup
           </button>
         </div>
-      </div>
-    </div>,
-    document.body,
+    </ModalShell>
   );
 };

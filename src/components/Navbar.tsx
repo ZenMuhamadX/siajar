@@ -42,7 +42,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenKotakSaran, onOpenSchedule
                 <h1 className="font-bold text-slate-900 leading-tight text-xs sm:text-base">
                   SDIT AS-SYIFA
                 </h1>
-                <p className="text-[10px] sm:text-xs text-slate-500">Agenda Pembelajaran</p>
+                <p className="text-[12px] sm:text-xs text-slate-500">Agenda Pembelajaran</p>
               </div>
             </div>
 
@@ -76,10 +76,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenKotakSaran, onOpenSchedule
               {onOpenSchedule && (
                 <button
                   onClick={onOpenSchedule}
-                  className="px-2.5 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition"
+                  className="px-2.5 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 transition"
                   title="Lihat Jadwal Mengajar Saya"
                 >
-                  <CalendarDays className="w-3.5 h-3.5 text-purple-600" />
+                  <CalendarDays className="w-3.5 h-3.5 text-primary-600" />
                   <span>Jadwal Saya</span>
                 </button>
               )}
@@ -97,13 +97,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenKotakSaran, onOpenSchedule
             <div className="flex items-center gap-2 sm:gap-3">
               {/* Teacher Info */}
               <div className="flex flex-col items-end">
-                <span className="text-[11px] sm:text-xs font-bold text-slate-800 max-w-30 sm:max-w-37.5 truncate">
+                <span className="text-[13px] sm:text-xs font-bold text-slate-800 max-w-30 sm:max-w-37.5 truncate">
                   {activeTeacherName || 'Guru'}
                 </span>
-                <span className="text-[9px] sm:text-[10px] text-slate-400 font-medium flex items-center gap-0.5">
+                <span className="text-[12px] sm:text-[12px] text-slate-600 font-medium flex items-center gap-0.5">
                   {isAdmin ? (
                     <>
-                      <ShieldCheck className="w-2.5 h-2.5 text-purple-600" /> Superuser
+                      <ShieldCheck className="w-2.5 h-2.5 text-primary-600" /> Superuser
                     </>
                   ) : (
                     <>
@@ -115,13 +115,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenKotakSaran, onOpenSchedule
 
               {/* Logout Button */}
               <button
+                aria-label="Ganti Guru / Logout"
                 onClick={signOut}
                 title="Ganti Guru / Logout"
-                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
+                className="p-2.5 min-w-10 min-h-10 inline-flex items-center justify-center text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
               >
                 <LogOut className="w-4 h-4" />
               </button>
-            </div>
+             </div>
           </div>
         </div>
       </header>
@@ -133,33 +134,33 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenKotakSaran, onOpenSchedule
           end
           className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition min-h-[44px] ${
             currentView === 'agenda'
-              ? 'text-emerald-700 font-bold bg-emerald-50/50'
+              ? 'text-primary-700 font-bold bg-primary-50/50'
               : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <FileEdit className={`w-5 h-5 mb-0.5 ${currentView === 'agenda' ? 'stroke-[2.5]' : ''}`} />
-          <span className="text-[10px]">Isi Agenda</span>
+          <span className="text-[12px]">Isi Agenda</span>
         </NavLink>
 
         <NavLink
           to="/riwayat"
           className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition min-h-[44px] ${
             currentView === 'riwayat'
-              ? 'text-emerald-700 font-bold bg-emerald-50/50'
+              ? 'text-primary-700 font-bold bg-primary-50/50'
               : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <History className={`w-5 h-5 mb-0.5 ${currentView === 'riwayat' ? 'stroke-[2.5]' : ''}`} />
-          <span className="text-[10px]">Riwayat</span>
+          <span className="text-[12px]">Riwayat</span>
         </NavLink>
 
         {onOpenSchedule && (
           <button
             onClick={onOpenSchedule}
-            className="flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg text-purple-700 hover:text-purple-900 transition min-h-[44px]"
+            className="flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg text-primary-700 hover:text-primary-900 transition min-h-[44px]"
           >
             <CalendarDays className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px]">Jadwal</span>
+            <span className="text-[12px]">Jadwal</span>
           </button>
         )}
 
@@ -168,7 +169,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenKotakSaran, onOpenSchedule
           className="flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg text-slate-500 hover:text-slate-800 transition min-h-[44px]"
         >
           <MessageSquarePlus className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px]">Saran</span>
+          <span className="text-[12px]">Saran</span>
         </button>
       </nav>
     </>

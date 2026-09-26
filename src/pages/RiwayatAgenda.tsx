@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getRekapAgenda, deleteAgenda } from '../services/agendaService';
 import { getEvidenceSignedUrl } from '../services/evidenceService';
 import { PhotoLightboxModal } from '../components/PhotoLightboxModal';
+import { ScrollArea } from '../components/common/ScrollArea';
 import type { FullAgenda } from '../types';
 import { Edit2, Trash2, RefreshCw, Camera, Eye } from 'lucide-react';
 
@@ -120,7 +121,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
       {/* List Agendas */}
       {isLoading ? (
         <div className="bg-white border border-slate-300 rounded-lg p-10 text-center text-xs text-slate-500">
-          <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-slate-400" />
+          <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-slate-500" />
           Memuat data riwayat...
         </div>
       ) : agendas.length === 0 ? (
@@ -148,7 +149,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                       {formatDateIndo(agenda.header.tanggal)}
                     </span>
                     {isToday && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded">
+                      <span className="text-[12px] font-bold px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded">
                         Hari Ini
                       </span>
                     )}
@@ -164,13 +165,14 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                         <span>Koreksi / Edit</span>
                       </button>
                     ) : (
-                      <span className="text-[11px] text-slate-400 italic">
+                      <span className="text-[13px] text-slate-600 italic">
                         Terkunci
                       </span>
                     )}
 
                     {isAdmin && (
                       <button
+                        aria-label="Hapus Agenda"
                         onClick={() =>
                           handleDelete(
                             agenda.header.id,
@@ -178,12 +180,12 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                             agenda.header.tanggal
                           )
                         }
-                        className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
+                        className="p-1 text-slate-600 hover:text-rose-600 rounded transition"
                         title="Hapus Agenda"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
-                    )}
+                     )}
                   </div>
                 </div>
 
@@ -211,7 +213,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <span className="font-bold text-[11px] px-2 py-0.5 bg-slate-200 text-slate-800 rounded-md">
+                              <span className="font-bold text-[13px] px-2 py-0.5 bg-slate-200 text-slate-800 rounded-md">
                                 Jam {k.jam_ke}
                               </span>
                               <span className="font-bold text-slate-800 text-xs">
@@ -219,13 +221,13 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                               </span>
                             </div>
                             {k.is_badal && (
-                              <span className="px-1.5 py-0.2 text-[9px] font-bold bg-amber-100 text-amber-800 rounded">
+                              <span className="px-1.5 py-0.2 text-[12px] font-bold bg-amber-100 text-amber-800 rounded">
                                 Badal
                               </span>
                             )}
                           </div>
 
-                          <div className="text-slate-500 text-[11px]">
+                          <div className="text-slate-500 text-[13px]">
                             Guru: <span className="text-slate-700 font-medium">{k.nama_guru || '-'}</span>
                           </div>
 
@@ -234,7 +236,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                           </div>
 
                           {k.tugas_pr && (
-                            <div className="text-[11px] text-slate-600 bg-amber-50/80 border border-amber-200/60 rounded-md p-2">
+                            <div className="text-[13px] text-slate-600 bg-amber-50/80 border border-amber-200/60 rounded-md p-2">
                               <strong>Tugas/PR:</strong> {k.tugas_pr}
                             </div>
                           )}
@@ -264,17 +266,17 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                               }
                             />
                           ) : (
-                            <div className="w-12 h-12 rounded-lg bg-slate-200 flex items-center justify-center shrink-0 text-slate-400">
+                            <div className="w-12 h-12 rounded-lg bg-slate-200 flex items-center justify-center shrink-0 text-slate-600">
                               <Camera className="w-5 h-5" />
                             </div>
                           )}
                           <div className="min-w-0">
-                            <p className="font-bold text-slate-800 text-[11px] truncate flex items-center gap-1">
+                            <p className="font-bold text-slate-800 text-[13px] truncate flex items-center gap-1">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                               <span>Bukti foto tersedia</span>
                             </p>
                             {agenda.evidence.uploaded_at && (
-                              <p className="text-[10px] text-slate-500 mt-0.5">
+                              <p className="text-[12px] text-slate-500 mt-0.5">
                                 Diunggah{' '}
                                 {new Date(agenda.evidence.uploaded_at).toLocaleDateString('id-ID', {
                                   hour: '2-digit',
@@ -297,7 +299,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                                 title: `Bukti Foto Mengajar - ${agenda.header.kelas}`,
                               })
                             }
-                            className="px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold rounded-lg text-[11px] flex items-center gap-1 shrink-0 transition"
+                            className="px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold rounded-lg text-[13px] flex items-center gap-1 shrink-0 transition"
                           >
                             <Eye className="w-3.5 h-3.5 text-slate-600" />
                             <span>Lihat</span>
@@ -305,7 +307,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                         )}
                       </div>
                     ) : (
-                      <div className="p-2 bg-slate-50/60 border border-slate-200/70 rounded-lg text-[11px] text-slate-400 italic">
+                      <div className="p-2 bg-slate-50/60 border border-slate-200/70 rounded-lg text-[13px] text-slate-600 italic">
                         Bukti foto belum tersedia
                       </div>
                     )}
@@ -314,7 +316,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                   {/* Absensi & Kejadian Note */}
                   <div className="space-y-2 pt-1 border-t border-slate-100 text-xs">
                     <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
-                      <span className="font-bold text-slate-700 block mb-1 text-[11px] uppercase tracking-wider">
+                      <span className="font-bold text-slate-700 block mb-1 text-[13px] uppercase tracking-wider">
                         Ketidakhadiran Siswa:
                       </span>
                       {agenda.absensi && agenda.absensi.length > 0 ? (
@@ -322,11 +324,11 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                           {agenda.absensi.map((ab, abIdx) => (
                             <span
                               key={abIdx}
-                              className="px-2 py-0.5 bg-white border border-slate-200 rounded-md text-[11px] font-medium text-slate-800 flex items-center gap-1"
+                              className="px-2 py-0.5 bg-white border border-slate-200 rounded-md text-[13px] font-medium text-slate-800 flex items-center gap-1"
                             >
                               <span>{ab.nama_siswa}</span>
                               <span
-                                className={`font-bold px-1 rounded text-[10px] ${
+                                className={`font-bold px-1 rounded text-[12px] ${
                                   ab.status === 'S'
                                     ? 'bg-blue-100 text-blue-800'
                                     : ab.status === 'I'
@@ -340,7 +342,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                           ))}
                         </div>
                       ) : (
-                        <span className="text-emerald-700 font-medium text-[11px]">
+                        <span className="text-emerald-700 font-medium text-[13px]">
                           ✓ Nihil (Semua siswa hadir)
                         </span>
                       )}
@@ -350,7 +352,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                       agenda.kejadian.length > 0 &&
                       agenda.kejadian[0].uraian_kejadian && (
                         <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
-                          <span className="font-bold text-slate-700 block mb-1 text-[11px] uppercase tracking-wider">
+                          <span className="font-bold text-slate-700 block mb-1 text-[13px] uppercase tracking-wider">
                             Catatan Kejadian:
                           </span>
                           <p className="text-slate-700 leading-relaxed text-xs">
@@ -363,7 +365,8 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
 
                 {/* Table KBM Sheet Style (Desktop >= md) */}
                 <div className="hidden md:block p-3 sm:p-4 space-y-3">
-                  <div className="overflow-x-auto border border-slate-200 rounded">
+                  <div className="border border-slate-200 rounded">
+                    <ScrollArea label="Tabel kegiatan belajar mengajar">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="bg-slate-100/80 text-slate-700 font-semibold border-b border-slate-200">
@@ -386,7 +389,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                                 <div className="flex items-center gap-1.5">
                                   <span>{k.nama_guru || '-'}</span>
                                   {k.is_badal && (
-                                    <span className="px-1 py-0.2 text-[9px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-300">
+                                    <span className="px-1 py-0.2 text-[12px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-300">
                                       Badal
                                     </span>
                                   )}
@@ -406,6 +409,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                         })}
                       </tbody>
                     </table>
+                    </ScrollArea>
                   </div>
 
                   {/* Bukti Foto Mengajar (Desktop) */}
@@ -426,7 +430,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                             }
                           />
                         ) : (
-                          <div className="w-12 h-12 rounded bg-slate-200 flex items-center justify-center shrink-0 text-slate-400">
+                          <div className="w-12 h-12 rounded bg-slate-200 flex items-center justify-center shrink-0 text-slate-600">
                             <Camera className="w-5 h-5" />
                           </div>
                         )}
@@ -436,7 +440,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                             <span>Bukti Foto Mengajar Tersedia</span>
                           </p>
                           {agenda.evidence.uploaded_at && (
-                            <p className="text-[11px] text-slate-500 mt-0.5">
+                            <p className="text-[13px] text-slate-500 mt-0.5">
                               Diunggah:{' '}
                               {new Date(agenda.evidence.uploaded_at).toLocaleDateString('id-ID', {
                                 hour: '2-digit',
@@ -482,7 +486,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                           {agenda.absensi.map((ab, abIdx) => (
                             <span
                               key={abIdx}
-                              className="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-[11px] font-medium text-slate-800"
+                              className="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-[13px] font-medium text-slate-800"
                             >
                               {ab.nama_siswa} ({ab.status})
                             </span>

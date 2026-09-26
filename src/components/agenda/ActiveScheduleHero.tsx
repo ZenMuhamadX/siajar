@@ -22,7 +22,7 @@ export const ActiveScheduleHero: React.FC<ActiveScheduleHeroProps> = ({
 
       <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-2">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-700/80 border border-emerald-500/30 rounded-full text-[11px] font-bold text-emerald-100 tracking-wide uppercase">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-700/80 border border-emerald-500/30 rounded-full text-[13px] font-bold text-emerald-100 tracking-wide uppercase">
             <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping inline-block" />
             <span>Jadwal Sedang Berlangsung</span>
           </div>

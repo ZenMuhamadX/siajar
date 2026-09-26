@@ -31,7 +31,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     <div
       className={`py-12 px-4 flex flex-col items-center justify-center text-center max-w-sm mx-auto space-y-3 ${className}`}
     >
-      <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-400">
+      <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-600">
         {icon || (isFiltered ? <SearchX className="w-5 h-5" /> : <Inbox className="w-5 h-5" />)}
       </div>
 
@@ -39,7 +39,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         <h4 className="text-xs sm:text-sm font-bold text-slate-800 tracking-tight">
           {title || defaultTitle}
         </h4>
-        <p className="text-[11px] sm:text-xs text-slate-500 leading-relaxed">
+        <p className="text-[13px] sm:text-xs text-slate-500 leading-relaxed">
           {description || defaultDesc}
         </p>
       </div>

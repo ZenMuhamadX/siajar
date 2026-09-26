@@ -92,13 +92,14 @@ export const KotakSaranList: React.FC<KotakSaranListProps> = ({ showToast }) => 
         description={`Total ${saranList.length} masukan tersimpan`}
         action={
           <button
+            aria-label="Refresh"
             onClick={fetchSaran}
             title="Refresh"
             className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-slate-200 transition"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
-        }
+         }
       />
 
       {/* Filter kategori standar */}
@@ -149,29 +150,30 @@ export const KotakSaranList: React.FC<KotakSaranListProps> = ({ showToast }) => 
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-slate-200 text-slate-700">
+                    <span className="px-2 py-0.5 text-[12px] font-bold rounded bg-slate-200 text-slate-700">
                       {item.kategori}
                     </span>
                     <span className="text-xs font-semibold text-slate-800 flex items-center gap-1">
-                      <User className="w-3 h-3 text-slate-400" />
+                      <User className="w-3 h-3 text-slate-500" />
                       {item.is_anonim ? 'Anonim' : item.nama_guru}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                    <span className="text-[12px] text-slate-600 flex items-center gap-1">
                       <Calendar className="w-3 h-3 text-slate-300" />
                       {formatDateIndo(item.created_at)}
                     </span>
                     {item.id && (
                       <button
+                        aria-label="Hapus Saran"
                         onClick={() => handleDelete(item.id)}
-                        className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
+                        className="p-1 text-slate-600 hover:text-rose-600 rounded transition"
                         title="Hapus Saran"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
-                    )}
+                     )}
                   </div>
                 </div>
 

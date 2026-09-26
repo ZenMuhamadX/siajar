@@ -154,7 +154,7 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
           }}
           filters={
             <div className="flex items-center gap-1.5">
-              <span className="text-slate-400 text-xs">Kelas:</span>
+              <span className="text-slate-600 text-xs">Kelas:</span>
               <select
                 value={selectedFilterKelas}
                 onChange={(e) => setSelectedFilterKelas(e.target.value)}
@@ -172,7 +172,7 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
           actions={
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
-                <Users className="w-4 h-4 text-indigo-600" />
+                <Users className="w-4 h-4 text-primary-600" />
                 <span>{siswaList.length} Siswa</span>
               </div>
               <button type="button" onClick={handleOpenCreate} className={formStyles.primaryBtn}>
@@ -191,7 +191,7 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
               width: '50px',
               align: 'center',
               accessor: (_item, idx) => (
-                <span className="text-slate-400 font-medium">{idx + 1}</span>
+                <span className="text-slate-600 font-medium">{idx + 1}</span>
               ),
             },
             {
@@ -210,7 +210,7 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
               width: '100px',
               align: 'center',
               accessor: (item) => (
-                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 font-bold rounded-md border border-emerald-200/80 text-[10px]">
+                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 font-bold rounded-md border border-emerald-200/80 text-[12px]">
                   {item.kelas}
                 </span>
               ),
@@ -230,22 +230,24 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
               accessor: (item) => (
                 <div className="flex items-center justify-end gap-1">
                   <button
+                    aria-label="Edit Siswa"
                     type="button"
                     onClick={() => handleEditClick(item)}
-                    className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition"
+                    className="p-1.5 text-slate-600 hover:text-amber-600 hover:bg-amber-50 rounded-md transition"
                     title="Edit Siswa"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
-                  <button
+                   <button
+                     aria-label="Hapus Siswa"
                     type="button"
                     onClick={() => handleDelete(item.id, item.nama_siswa)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition"
+                    className="p-1.5 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-md transition"
                     title="Hapus Siswa"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
-                </div>
+                 </div>
               ),
             },
           ]}

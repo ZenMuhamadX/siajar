@@ -229,6 +229,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               </span>
             )}
             <button
+              aria-label="Segarkan Data"
               onClick={() => fetchDashboardData(true)}
               disabled={isRefreshing}
               className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-slate-200 transition flex items-center gap-1.5 text-xs font-semibold disabled:opacity-60"
@@ -239,7 +240,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               />
               <span>{isRefreshing ? 'Menyegarkan…' : 'Segarkan'}</span>
             </button>
-          </div>
+           </div>
         }
       />
 
@@ -271,11 +272,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   key={card.label}
                   type="button"
                   onClick={() => onNavigateTab(card.tab, card.view)}
-                  className="group bg-white p-4 sm:p-5 rounded-xl border border-slate-200/90 shadow-2xs hover:border-indigo-300 hover:shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 cursor-pointer transition flex flex-col justify-between text-left w-full"
+                  className="group bg-white p-4 sm:p-5 rounded-xl border border-slate-200/90 shadow-2xs hover:border-primary-300 hover:shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 cursor-pointer transition flex flex-col justify-between text-left w-full"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-medium text-slate-600">{card.label}</span>
-                    <span className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 group-hover:bg-indigo-50 group-hover:text-indigo-600 flex items-center justify-center transition">
+                    <span className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 group-hover:bg-primary-50 group-hover:text-primary-600 flex items-center justify-center transition">
                       {card.icon}
                     </span>
                   </div>
@@ -284,7 +285,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   </p>
                   <span className="flex items-center gap-1 text-[12px] text-slate-500 mt-1">
                     <span className="truncate">{card.caption}</span>
-                    <ArrowUpRight className="w-3.5 h-3.5 shrink-0 opacity-0 group-hover:opacity-100 transition text-indigo-500" />
+                    <ArrowUpRight className="w-3.5 h-3.5 shrink-0 opacity-0 group-hover:opacity-100 transition text-primary-600" />
                   </span>
                 </button>
               )
@@ -304,7 +305,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       : `${formatDateIndo(todayStr)} • hari libur sekolah`}
                   </p>
                 </div>
-                <CalendarDays className="w-4 h-4 text-slate-400" />
+                <CalendarDays className="w-4 h-4 text-slate-500" />
               </div>
 
               {isInitialLoad ? (
@@ -325,7 +326,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                     <button
                       type="button"
                       onClick={() => onNavigateTab('jadwal')}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold rounded-lg transition"
                     >
                       <span>Buka Jadwal</span>
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -337,10 +338,10 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   {sedangBerlangsung.map((slot) => (
                     <div
                       key={slot.id}
-                      className="p-3 rounded-lg bg-indigo-50 border border-indigo-100 space-y-1"
+                      className="p-3 rounded-lg bg-primary-50 border border-primary-100 space-y-1"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-[11px] font-bold text-indigo-700">
+                        <span className="font-mono text-[13px] font-bold text-primary-700">
                           {slot.start_time.slice(0, 5)} – {slot.end_time.slice(0, 5)}
                         </span>
                         <StatusBadge status="IN_PROGRESS" label="Berlangsung" />
@@ -355,7 +356,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   {jadwalBerikutnya && (
                     <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70 space-y-1">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-[11px] font-bold text-slate-600">
+                        <span className="font-mono text-[13px] font-bold text-slate-600">
                           {jadwalBerikutnya.start_time.slice(0, 5)} –{' '}
                           {jadwalBerikutnya.end_time.slice(0, 5)}
                         </span>
@@ -393,7 +394,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 </div>
                 <button
                   onClick={() => onNavigateTab('rekap', 'harian')}
-                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 shrink-0"
+                  className="text-xs font-semibold text-primary-600 hover:text-primary-700 flex items-center gap-1 shrink-0"
                 >
                   <span className="hidden sm:inline">Lihat Rekap Harian</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -499,7 +500,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   5 jurnal pembelajaran yang terakhir dicatat
                 </p>
               </div>
-              <Clock className="w-4 h-4 text-slate-400" />
+              <Clock className="w-4 h-4 text-slate-500" />
             </div>
 
             {isInitialLoad ? (
@@ -520,13 +521,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                     key={agenda.header.id}
                     type="button"
                     onClick={() => onNavigateTab('rekap', 'jurnal')}
-                    className="group p-3 rounded-lg bg-slate-50 border border-slate-200/70 hover:border-indigo-300 hover:bg-white text-left transition space-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                    className="group p-3 rounded-lg bg-slate-50 border border-slate-200/70 hover:border-primary-300 hover:bg-white text-left transition space-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-bold text-slate-900 text-sm">
                         {agenda.header.kelas}
                       </span>
-                      <span className="text-[11px] text-slate-500 font-mono">
+                      <span className="text-[13px] text-slate-500 font-mono">
                         {formatDateIndo(agenda.header.tanggal)}
                       </span>
                     </div>
@@ -535,7 +536,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                         {agenda.kbm.length} sesi pembelajaran
                         {agenda.kbm[0]?.nama_guru ? ` • ${agenda.kbm[0].nama_guru}` : ''}
                       </span>
-                      <ArrowRight className="w-3.5 h-3.5 shrink-0 opacity-0 group-hover:opacity-100 transition text-indigo-500" />
+                      <ArrowRight className="w-3.5 h-3.5 shrink-0 opacity-0 group-hover:opacity-100 transition text-primary-600" />
                     </p>
                   </button>
                 ))}
