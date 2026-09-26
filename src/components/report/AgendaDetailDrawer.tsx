@@ -148,7 +148,7 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
             <BookOpen className="w-4 h-4 text-emerald-700" />
             Detail Agenda
           </h3>
-          <p className="text-[13px] text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-600 mt-0.5">
             {agenda ? `${agenda.header.kelas} · ${agenda.header.tanggal}` : 'Memuat…'}
           </p>
         </div>
@@ -169,7 +169,7 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
           tidak diteruskan ke halaman di belakang. */}
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 space-y-5 leading-relaxed">
         {isLoading && (
-          <div className="py-10 flex flex-col items-center gap-2 text-xs text-slate-500">
+          <div className="py-10 flex flex-col items-center gap-2 text-xs text-slate-600">
             <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
             <span>Memuat detail agenda...</span>
           </div>
@@ -187,18 +187,18 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
             {/* Ringkasan */}
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
-                <span className="text-[13px] text-slate-500 block">Guru</span>
+                <span className="text-xs text-slate-600 block">Guru</span>
                 <span className="font-semibold text-slate-800">
                   {guru}
                   {isBadal && (
-                    <span className="ml-1.5 px-1.5 py-0.5 text-[12px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded">
+                    <span className="ml-1.5 px-1.5 py-0.5 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded">
                       Badal
                     </span>
                   )}
                 </span>
               </div>
               <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
-                <span className="text-[13px] text-slate-500 block">Mata Pelajaran</span>
+                <span className="text-xs text-slate-600 block">Mata Pelajaran</span>
                 <span className="font-semibold text-slate-800">
                   {kbm[0]?.mapel || agenda.header.kelas}
                 </span>
@@ -207,7 +207,7 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
 
             {/* KBM */}
             <section className="space-y-2">
-              <h4 className="text-[13px] font-bold uppercase tracking-wider text-slate-500">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                 KBM & Tugas
               </h4>
               {kbm.length === 0 ? (
@@ -217,7 +217,7 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
                   {kbm.map((k, i) => (
                     <li key={i} className="p-3 bg-white border border-slate-200 rounded-xl text-xs">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="px-1.5 py-0.5 rounded bg-primary-50 text-primary-700 border border-primary-100 font-bold text-[12px]">
+                        <span className="px-1.5 py-0.5 rounded bg-primary-50 text-primary-700 border border-primary-100 font-bold text-xs">
                           Jam {k.jam_ke}
                         </span>
                         <span className="font-semibold text-slate-800">{k.mapel}</span>
@@ -236,7 +236,7 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
 
             {/* Absensi */}
             <section className="space-y-2">
-              <h4 className="text-[13px] font-bold uppercase tracking-wider text-slate-500">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                 Kehadiran Siswa
               </h4>
               {absensi.length === 0 ? (
@@ -252,7 +252,7 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
                     >
                       <span className="text-slate-700">{a.nama_siswa || a.siswa?.nama_siswa || '-'}</span>
                       <span
-                        className={`px-1.5 py-0.5 rounded text-[12px] font-bold border ${
+                        className={`px-1.5 py-0.5 rounded text-xs font-bold border ${
                           a.status === 'A'
                             ? 'bg-rose-50 text-rose-700 border-rose-200'
                             : a.status === 'I'
@@ -271,7 +271,7 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
             {/* Kejadian */}
             {kejadian.length > 0 && (
               <section className="space-y-2">
-                <h4 className="text-[13px] font-bold uppercase tracking-wider text-slate-500">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                   Catatan Kejadian
                 </h4>
                 <ul className="space-y-1.5 text-xs text-slate-700">
@@ -287,7 +287,7 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
             {/* Foto */}
             {agenda.evidence?.storage_path && (
               <section className="space-y-2">
-                <h4 className="text-[13px] font-bold uppercase tracking-wider text-slate-500">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                   Dokumentasi Foto
                 </h4>
                 {photoUrl ? (

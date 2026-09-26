@@ -52,14 +52,14 @@ export const Pagination: React.FC<PaginationProps> = ({
     >
       {/* Left: Info & Page Size */}
       <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
-        <p className="text-[13px] text-slate-500 whitespace-nowrap">
+        <p className="text-xs text-slate-600 whitespace-nowrap">
           Menampilkan <span className="font-semibold text-slate-800">{startItem}</span>–
           <span className="font-semibold text-slate-800">{endItem}</span> dari{' '}
           <span className="font-semibold text-slate-800">{totalItems}</span> data
         </p>
 
         {onPageSizeChange && (
-          <div className="flex items-center gap-1 text-[13px] text-slate-500">
+          <div className="flex items-center gap-1 text-xs text-slate-600">
             <span className="hidden md:inline">Baris:</span>
             <select
               value={pageSize}
@@ -131,7 +131,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         </div>
 
         {/* Mobile current page indicator */}
-        <span className="sm:hidden px-2 text-[13px] font-semibold text-slate-700">
+        <span className="sm:hidden px-2 text-xs font-semibold text-slate-700">
           {currentPage} / {totalPages || 1}
         </span>
 

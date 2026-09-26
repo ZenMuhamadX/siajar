@@ -51,7 +51,7 @@ export const ReportPrintLayout: React.FC<ReportPrintLayoutProps> = ({
             <p className="text-xs text-slate-600">
               SISTEM INFORMASI AGENDA DAN JURNAL MENGAJAR (SIAJAR)
             </p>
-            <p className="text-[12px] text-slate-500">
+            <p className="text-xs text-slate-600">
               Jl. H. Saadi No. 02, Cikarang Kota, Kec. Cikarang Utara, Kab. Bekasi, Jawa Barat, 17530
             </p>
           </div>
@@ -64,7 +64,7 @@ export const ReportPrintLayout: React.FC<ReportPrintLayoutProps> = ({
           {title}
         </h2>
         {subtitle && <p className="text-xs text-slate-600 mt-0.5">{subtitle}</p>}
-        <div className="flex items-center justify-center gap-4 text-[13px] text-slate-600 mt-1">
+        <div className="flex items-center justify-center gap-4 text-xs text-slate-600 mt-1">
           <span>
             Periode: <strong className="text-slate-800">{periodInfo}</strong>
           </span>
@@ -88,7 +88,7 @@ export const ReportPrintLayout: React.FC<ReportPrintLayoutProps> = ({
               <p className="font-medium">Waka Kurikulum</p>
               <div className="h-16" />
               <p className="font-bold underline">Abdulloh, S.Pd., Gr.</p>
-              {/* <p className="text-[12px] text-slate-500">NIP. 198506122010011005</p> */}
+              {/* <p className="text-xs text-slate-600">NIP. 198506122010011005</p> */}
             </div>
 
             {/* Kanan: Kepala Sekolah & Tanggal */}
@@ -97,14 +97,14 @@ export const ReportPrintLayout: React.FC<ReportPrintLayoutProps> = ({
               <p className="font-medium">Kepala Sekolah</p>
               <div className="h-16" />
               <p className="font-bold underline">Fitri Nurhasanah, S.Pd., Gr.</p>
-              {/* <p className="text-[12px] text-slate-500">NIP. 197804152005011003</p> */}
+              {/* <p className="text-xs text-slate-600">NIP. 197804152005011003</p> */}
             </div>
           </div>
         )}
 
         {/* Footer Dokumen */}
         {/* Digabung: ukuran & kontras dari branch ini, nama sekolah dari dev. */}
-        <div className="mt-8 pt-2 border-t border-slate-200 text-[12px] text-slate-600 flex justify-between">
+        <div className="mt-8 pt-2 border-t border-slate-200 text-xs text-slate-600 flex justify-between">
           <span>Dicetak otomatis melalui SIAJAR - {schoolName}</span>
           <span>Halaman 1 / 1</span>
         </div>

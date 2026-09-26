@@ -312,7 +312,7 @@ export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToas
             <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
               Tahun Ajaran Aktif
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-600 mt-0.5">
               Penugasan wali kelas terikat secara spesifik pada periode tahun ajaran.
             </p>
           </div>
@@ -349,7 +349,7 @@ export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToas
           <AlertCircle className="w-4 h-4 text-slate-600 shrink-0" />
           <span>Aturan Konseptual Penugasan Wali Kelas</span>
         </div>
-        <p className="text-[13px] leading-relaxed pl-6">
+        <p className="text-xs leading-relaxed pl-6">
           Wali kelas bertindak sebagai penanggung jawab administratif kelas. Status wali kelas{' '}
           <strong>tidak menentukan hak membuat agenda mengajar</strong>. Hak membuat agenda KBM
           reguler sepenuhnya merujuk pada <strong>Jadwal Pelajaran (Schedule)</strong>.

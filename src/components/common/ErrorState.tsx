@@ -28,7 +28,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
 
       <div className="space-y-1">
         <h4 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">{title}</h4>
-        <p className="text-[13px] sm:text-xs text-slate-600 leading-relaxed">{message}</p>
+        <p className="text-xs sm:text-xs text-slate-600 leading-relaxed">{message}</p>
       </div>
 
       {onRetry && (

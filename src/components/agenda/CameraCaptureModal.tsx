@@ -299,7 +299,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
               <div className="w-12 h-12 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center backdrop-blur-md">
                 <RefreshCw className="w-5 h-5 text-white" aria-hidden="true" />
               </div>
-              <span className="text-[13px] font-medium">Ulang</span>
+              <span className="text-xs font-medium">Ulang</span>
             </button>
 
             <button
@@ -310,7 +310,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
               <div className="w-14 h-14 rounded-full bg-emerald-500 hover:bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
                 <Check className="w-7 h-7 text-white" aria-hidden="true" />
               </div>
-              <span className="text-[13px] font-bold text-white">Gunakan</span>
+              <span className="text-xs font-bold text-white">Gunakan</span>
             </button>
           </div>
         ) : (

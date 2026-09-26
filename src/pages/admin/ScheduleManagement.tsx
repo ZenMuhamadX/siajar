@@ -480,7 +480,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
     <span className="font-semibold text-slate-800">{DAY_TRANSLATION_MAP[item.day]}</span>
   );
   const cellTime = (item: ScheduleItem) => (
-    <span className="font-mono text-[13px] text-slate-600 whitespace-nowrap">
+    <span className="font-mono text-xs text-slate-600 whitespace-nowrap">
       {item.start_time.slice(0, 5)} – {item.end_time.slice(0, 5)}
     </span>
   );
@@ -635,22 +635,22 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
       {/* Summary KPI Cards (mengikuti filter yang sedang aktif) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs">
-          <p className="text-[13px] font-medium text-slate-500">Total Slot Jadwal</p>
+          <p className="text-xs font-medium text-slate-500">Total Slot Jadwal</p>
           <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{kpiSource.length}</p>
-          <p className="text-[13px] text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-600 mt-0.5">
             {isFiltered ? `dari ${schedules.length} total` : 'seluruh tahun ajaran aktif'}
           </p>
         </div>
         <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs">
-          <p className="text-[13px] font-medium text-slate-500">Jadwal Aktif</p>
+          <p className="text-xs font-medium text-slate-500">Jadwal Aktif</p>
           <p className="text-xl sm:text-2xl font-bold text-emerald-700 mt-1">{activeCount}</p>
         </div>
         <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs">
-          <p className="text-[13px] font-medium text-slate-500">Draft / Diarsipkan</p>
+          <p className="text-xs font-medium text-slate-500">Draft / Diarsipkan</p>
           <p className="text-xl sm:text-2xl font-bold text-slate-600 mt-1">{draftOrArchiveCount}</p>
         </div>
         <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs">
-          <p className="text-[13px] font-medium text-slate-500">Guru Terjadwal</p>
+          <p className="text-xs font-medium text-slate-500">Guru Terjadwal</p>
           <p className="text-xl sm:text-2xl font-bold text-primary-700 mt-1">{uniqueTeachersCount}</p>
         </div>
       </div>
@@ -773,7 +773,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
         keyExtractor={(item) => item.id}
         {...sharedTableProps}
         headerRightContent={
-          <span className="text-[13px] font-semibold text-slate-500">
+          <span className="text-xs font-semibold text-slate-500">
             {filteredSchedules.length}
             {isFiltered ? ` dari ${schedules.length}` : ''} slot jadwal
           </span>
@@ -801,7 +801,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
         footer={(formId) => (
           <>
             <div className="flex items-center gap-2">
-              <label className="text-[13px] font-semibold text-slate-500">Status</label>
+              <label className="text-xs font-semibold text-slate-500">Status</label>
               <select
                 value={formData.status}
                 onChange={(e) =>
@@ -879,7 +879,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
                           <button
                             type="button"
                             onClick={() => onNavigateTab?.('slot_waktu')}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-[13px] font-semibold rounded-md transition"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-md transition"
                           >
                             <Clock className="w-3 h-3" />
                             <span>Buka Slot Waktu (JP)</span>

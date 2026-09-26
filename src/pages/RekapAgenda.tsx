@@ -297,7 +297,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
         align: 'center',
         width: '90px',
         accessor: (r) => (
-          <span className="inline-block px-2 py-0.5 bg-slate-800 text-white font-bold text-[13px] rounded print:border print:border-black print:text-black print:bg-white">
+          <span className="inline-block px-2 py-0.5 bg-slate-800 text-white font-bold text-xs rounded print:border print:border-black print:text-black print:bg-white">
             {r.kelas}
           </span>
         ),
@@ -325,7 +325,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
             <div className="flex items-center gap-1 flex-wrap">
               <span className="font-medium text-slate-800">{namaGuru}</span>
               {isBadal && (
-                <span className="px-1 text-[12px] font-bold border border-amber-400 text-amber-700 rounded">
+                <span className="px-1 text-xs font-bold border border-amber-400 text-amber-700 rounded">
                   Badal
                 </span>
               )}
@@ -351,7 +351,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
         accessor: (r) => {
           const jam = (r.kbm || []).map((k) => k.jam_ke).filter(Boolean);
           return (
-            <span className="text-[13px] font-semibold text-slate-700">
+            <span className="text-xs font-semibold text-slate-700">
               {jam.length ? jam.join(', ') : '-'}
             </span>
           );
@@ -364,22 +364,22 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
         width: '130px',
         accessor: (r) => {
           const absensi = r.absensi || [];
-          if (absensi.length === 0) return <span className="text-[13px] text-emerald-600">Hadir lengkap</span>;
+          if (absensi.length === 0) return <span className="text-xs text-emerald-600">Hadir lengkap</span>;
           const count = (status: 'S' | 'I' | 'A') => absensi.filter((x) => x.status === status).length;
           return (
             <div className="flex items-center justify-center gap-1 flex-wrap">
               {count('S') > 0 && (
-                <span className="px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded text-[12px] font-bold">
+                <span className="px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded text-xs font-bold">
                   S {count('S')}
                 </span>
               )}
               {count('I') > 0 && (
-                <span className="px-1.5 py-0.5 bg-sky-50 border border-sky-200 text-sky-700 rounded text-[12px] font-bold">
+                <span className="px-1.5 py-0.5 bg-sky-50 border border-sky-200 text-sky-700 rounded text-xs font-bold">
                   I {count('I')}
                 </span>
               )}
               {count('A') > 0 && (
-                <span className="px-1.5 py-0.5 bg-rose-50 border border-rose-200 text-rose-700 rounded text-[12px] font-bold">
+                <span className="px-1.5 py-0.5 bg-rose-50 border border-rose-200 text-rose-700 rounded text-xs font-bold">
                   A {count('A')}
                 </span>
               )}
@@ -400,14 +400,14 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
                 e.stopPropagation();
                 setDetailAgendaId(r.id);
               }}
-              className="px-2 py-1 text-[13px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded transition inline-flex items-center gap-1"
+              className="px-2 py-1 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded transition inline-flex items-center gap-1"
               title="Lihat foto di detail agenda"
             >
               <Camera className="h-3 w-3 text-emerald-700" />
               <span>Ada</span>
             </button>
           ) : (
-            <span className="text-[13px] text-slate-600" title="Belum ada bukti foto">
+            <span className="text-xs text-slate-600" title="Belum ada bukti foto">
               -
             </span>
           ),
@@ -499,7 +499,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
                     setPeriodeType(opt.value);
                     setPage(1);
                   }}
-                  className={`px-2.5 py-1 rounded whitespace-nowrap transition text-[13px] sm:text-xs ${
+                  className={`px-2.5 py-1 rounded whitespace-nowrap transition text-xs sm:text-xs ${
                     periodeType === opt.value
                       ? 'bg-white text-slate-900 font-bold shadow-xs'
                       : 'text-slate-500 hover:text-slate-800'
@@ -512,7 +512,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
 
             {periodeType === 'custom' && (
               <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 w-full sm:w-auto">
-                <span className="text-slate-600 text-[12px] shrink-0">Dari:</span>
+                <span className="text-slate-600 text-xs shrink-0">Dari:</span>
                 <input
                   type="date"
                   value={customStartDate}
@@ -522,7 +522,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
                   }}
                   className="bg-transparent font-medium text-slate-800 text-xs w-full"
                 />
-                <span className="text-slate-600 text-[12px] shrink-0">S.d:</span>
+                <span className="text-slate-600 text-xs shrink-0">S.d:</span>
                 <input
                   type="date"
                   value={customEndDate}
@@ -576,7 +576,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
             </div>
 
             {periodeType !== 'custom' && (
-              <span className="flex items-center gap-1.5 text-[13px] text-slate-500 whitespace-nowrap">
+              <span className="flex items-center gap-1.5 text-xs text-slate-600 whitespace-nowrap">
                 <Calendar className="w-3.5 h-3.5" />
                 {formatSimpleDate(dateRange.startDate)} – {formatSimpleDate(dateRange.endDate)}
               </span>
@@ -622,7 +622,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
         ).map((s) => (
           <div key={s.code} className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between">
             <div>
-              <p className="text-[13px] text-slate-500 font-medium">{s.label}</p>
+              <p className="text-xs text-slate-600 font-medium">{s.label}</p>
               <p className={`text-lg font-bold ${s.tone}`}>{s.value}</p>
             </div>
             <span className="w-6 h-6 rounded bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-xs">
@@ -688,7 +688,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
             </div>
           }
         >
-          <table className="w-full text-left text-[12px] border-collapse border border-slate-900">
+          <table className="w-full text-left text-xs border-collapse border border-slate-900">
             <thead className="bg-slate-100 border-b border-slate-900 font-bold uppercase">
               <tr>
                 <th className="p-1.5 border-r border-slate-900 text-center w-8">No</th>

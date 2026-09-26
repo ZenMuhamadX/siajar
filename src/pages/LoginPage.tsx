@@ -76,41 +76,52 @@ export const LoginPage: React.FC = () => {
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
               {schoolName}
             </h1>
-            <p className="text-xs text-slate-500 font-medium">
+            <p className="text-xs text-slate-600 font-medium">
               Sistem Manajemen Pembelajaran {schoolName}
             </p>
           </div>
 
-          {/* Mode Tabs (Guru vs Admin Superuser) */}
-          <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+          {/* Mode Tabs (Guru vs Admin Superuser).
+              Sebelumnya kedua tab memakai warna aksen berbeda (emerald vs red)
+              sementara tombol kirim memakai `primary` — tiga warna untuk satu
+              halaman, dan merah pada tab admin terbaca sebagai "bahaya" padahal
+              itu sekadar pilihan peran. Sekarang penandanya bobot + ikon, dan
+              warna aksi tetap satu. */}
+          <div
+            role="group"
+            aria-label="Pilih jenis akun"
+            className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold"
+          >
             <button
               type="button"
+              aria-pressed={mode === 'teacher'}
               onClick={() => {
                 setMode('teacher');
                 setErrorMsg('');
               }}
               className={`flex-1 py-2 rounded-lg transition flex items-center justify-center gap-1.5 ${
                 mode === 'teacher'
-                  ? 'bg-white text-emerald-700 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-white text-primary-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <User className="w-3.5 h-3.5" />
+              <User className="w-4 h-4" aria-hidden="true" />
               <span>Guru</span>
             </button>
             <button
               type="button"
+              aria-pressed={mode === 'admin'}
               onClick={() => {
                 setMode('admin');
                 setErrorMsg('');
               }}
               className={`flex-1 py-2 rounded-lg transition flex items-center justify-center gap-1.5 ${
                 mode === 'admin'
-                  ? 'bg-white text-red-700 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-white text-primary-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Shield className="w-3.5 h-3.5" />
+              <Shield className="w-4 h-4" aria-hidden="true" />
               <span>Admin</span>
             </button>
           </div>
@@ -175,21 +186,20 @@ export const LoginPage: React.FC = () => {
                   placeholder="Masukkan kode sekolah"
                   value={kode}
                   onChange={(e) => setKode(e.target.value)}
-                  className={`w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:bg-white transition ${
-                    mode === 'admin' ? 'focus:ring-primary-500' : 'focus:ring-primary-500'
-                  }`}
+                  className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition"
                 />
-                <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" aria-hidden="true" />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-2.5 p-0.5 text-slate-600 hover:text-slate-600 transition rounded"
+                  aria-label={showPassword ? 'Sembunyikan kode sekolah' : 'Tampilkan kode sekolah'}
                   title={showPassword ? 'Sembunyikan' : 'Lihat'}
+                  className="absolute right-2 top-1.5 p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition rounded-lg"
                 >
                   {showPassword ? (
-                    <EyeOff className="w-4 h-4" />
+                    <EyeOff className="w-4 h-4" aria-hidden="true" />
                   ) : (
-                    <Eye className="w-4 h-4" />
+                    <Eye className="w-4 h-4" aria-hidden="true" />
                   )}
                 </button>
               </div>
@@ -198,20 +208,16 @@ export const LoginPage: React.FC = () => {
             <button
               type="submit"
               disabled={isSubmitting || (mode === 'teacher' && daftarGuru.length === 0)}
-              className={`w-full py-3 text-white font-bold rounded-xl text-sm shadow-sm hover:shadow transition flex items-center justify-center gap-2 disabled:opacity-50 mt-2 ${
-                mode === 'admin'
-                  ? 'bg-primary-600 hover:bg-primary-700'
-                  : 'bg-primary-600 hover:bg-primary-700'
-              }`}
+              className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl text-sm shadow-sm hover:shadow transition flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
                   <span>Memverifikasi...</span>
                 </>
               ) : (
                 <>
-                  <LogIn className="w-4 h-4" />
+                  <LogIn className="w-4 h-4" aria-hidden="true" />
                   <span>{mode === 'admin' ? 'Masuk sebagai Admin' : 'Masuk sebagai Guru'}</span>
                 </>
               )}
@@ -219,7 +225,7 @@ export const LoginPage: React.FC = () => {
           </form>
 
           <div className="pt-2 text-center border-t border-slate-100">
-            <p className="text-[11px] text-slate-400">
+            <p className="text-xs text-slate-600">
               Akses khusus Guru & Pengembang {schoolName}
             </p>
           </div>

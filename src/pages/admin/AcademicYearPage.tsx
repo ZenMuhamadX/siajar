@@ -149,7 +149,7 @@ export const AcademicYearPage: React.FC<AcademicYearPageProps> = ({ showToast })
         <div className="flex items-center gap-2">
           <span className="font-bold text-slate-900 text-sm">{ay.name}</span>
           {ay.status === 'ACTIVE' && (
-            <span className="px-1.5 py-0.5 rounded text-[12px] font-bold bg-emerald-100 text-emerald-800">
+            <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-800">
               Aktif Sekarang
             </span>
           )}

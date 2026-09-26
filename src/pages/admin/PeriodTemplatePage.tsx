@@ -268,7 +268,7 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
       width: '110px',
       accessor: (t) => (
         <span
-          className={`inline-flex items-center px-2 py-0.5 rounded text-[13px] font-bold ${
+          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
             t.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
           }`}
         >

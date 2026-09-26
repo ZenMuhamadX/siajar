@@ -121,7 +121,7 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
                 {item.subjectName}
               </h2>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">{formatDateIndo(item.date)}</p>
+            <p className="text-xs text-slate-600 mt-0.5">{formatDateIndo(item.date)}</p>
           </div>
           <button
             type="button"
@@ -141,14 +141,14 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
           {/* Status & Jadwal Ringkas */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
             <div>
-              <span className="text-[13px] font-medium text-slate-600 block">Waktu</span>
+              <span className="text-xs font-medium text-slate-600 block">Waktu</span>
               {item.startTime && item.endTime ? (
                 <>
                   <span className="font-semibold text-slate-800 flex items-center gap-1 mt-0.5">
                     <Clock className="w-3.5 h-3.5 text-slate-500" />
                     {item.startTime} - {item.endTime}
                   </span>
-                  <span className="text-[12px] text-slate-600">({item.durationMinutes} menit)</span>
+                  <span className="text-xs text-slate-600">({item.durationMinutes} menit)</span>
                 </>
               ) : (
                 <span className="font-semibold text-slate-500 italic text-xs">
@@ -158,19 +158,19 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
             </div>
 
             <div>
-              <span className="text-[13px] font-medium text-slate-600 block">Status</span>
+              <span className="text-xs font-medium text-slate-600 block">Status</span>
               <div className="mt-1">{getStatusBadge(item.status)}</div>
             </div>
 
             <div className="col-span-2 sm:col-span-2 space-y-1">
-              <span className="text-[13px] font-medium text-slate-600 block">Penugasan Guru</span>
+              <span className="text-xs font-medium text-slate-600 block">Penugasan Guru</span>
               <div className="text-xs space-y-0.5">
                 <div className="flex items-center gap-1 text-slate-600">
-                  <span className="text-slate-600 text-[12px] w-14">Terjadwal:</span>
+                  <span className="text-slate-600 text-xs w-14">Terjadwal:</span>
                   <span className="font-semibold text-slate-800">{item.scheduledTeacherName}</span>
                 </div>
                 <div className="flex items-center gap-1 text-slate-600">
-                  <span className="text-slate-600 text-[12px] w-14">Aktual:</span>
+                  <span className="text-slate-600 text-xs w-14">Aktual:</span>
                   <span
                     className={`font-semibold ${
                       item.isBadal ? 'text-amber-700 bg-amber-50 px-1 rounded' : 'text-slate-800'
@@ -195,7 +195,7 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
                 Alasan: <span className="font-semibold">{item.substitution.reason}</span>
                 {item.substitution.reason_detail ? ` (${item.substitution.reason_detail})` : ''}
               </p>
-              <p className="text-[13px] text-amber-700">
+              <p className="text-xs text-amber-700">
                 Dibuat oleh: {item.substitution.created_by} pada{' '}
                 {formatDateTimeIndo(item.substitution.created_at)}
               </p>
@@ -219,13 +219,13 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
                       <span className="font-bold text-slate-800">
                         {k.mapel} {k.jam_ke ? `(Jam ${k.jam_ke})` : ''}
                       </span>
-                      <span className="text-[13px] text-slate-500 font-medium">
+                      <span className="text-xs text-slate-600 font-medium">
                         Pengampu: {k.nama_guru}
                       </span>
                     </div>
                     <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{k.materi}</p>
                     {k.tugas_pr && (
-                      <p className="text-[13px] text-primary-700 bg-primary-50 p-1.5 rounded">
+                      <p className="text-xs text-primary-700 bg-primary-50 p-1.5 rounded">
                         Tugas/PR: {k.tugas_pr}
                       </p>
                     )}
@@ -250,7 +250,7 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
             {absensi.length > 0 ? (
               <div className="border border-slate-200 rounded-xl overflow-hidden">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[13px]">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs">
                     <tr>
                       <th className="py-2 px-3">Nama Siswa</th>
                       <th className="py-2 px-3 text-center">Status</th>
@@ -264,17 +264,17 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
                         </td>
                         <td className="py-2 px-3 text-center">
                           {a.status === 'S' && (
-                            <span className="px-2 py-0.5 rounded text-[12px] font-bold bg-amber-100 text-amber-800">
+                            <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800">
                               Sakit
                             </span>
                           )}
                           {a.status === 'I' && (
-                            <span className="px-2 py-0.5 rounded text-[12px] font-bold bg-blue-100 text-blue-800">
+                            <span className="px-2 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-800">
                               Izin
                             </span>
                           )}
                           {a.status === 'A' && (
-                            <span className="px-2 py-0.5 rounded text-[12px] font-bold bg-rose-100 text-rose-800">
+                            <span className="px-2 py-0.5 rounded text-xs font-bold bg-rose-100 text-rose-800">
                               Alpha
                             </span>
                           )}
@@ -285,7 +285,7 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
                 </table>
               </div>
             ) : (
-              <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100">
+              <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
                 Semua siswa hadir (atau belum ada data ketidakhadiran tercatat).
               </p>
             )}
@@ -338,7 +338,7 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
                       {formatDateTimeIndo(evidence?.captured_at || evidence?.uploaded_at)}
                     </span>
                   </p>
-                  <p className="text-[13px] text-slate-600">
+                  <p className="text-xs text-slate-600">
                     Klik foto untuk memperbesar dan melihat metadata lengkap.
                   </p>
                 </div>

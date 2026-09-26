@@ -153,7 +153,7 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
               <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
                 {totals.totalJpScheduled} JP
               </p>
-              <span className="text-[12px] text-slate-600">
+              <span className="text-xs text-slate-600">
                 Durasi: {formatMinutesToHourMin(totals.totalDurationScheduledMin)}
               </span>
             </div>
@@ -163,7 +163,7 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
               <p className="text-xl sm:text-2xl font-bold text-emerald-700 mt-1">
                 {totals.totalJpRealized} JP
               </p>
-              <span className="text-[12px] text-slate-600">
+              <span className="text-xs text-slate-600">
                 Durasi: {formatMinutesToHourMin(totals.totalDurationRealizedMin)}
               </span>
             </div>
@@ -173,7 +173,7 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
               <p className="text-xl sm:text-2xl font-bold text-amber-700 mt-1">
                 {totals.totalBadalIn} JP
               </p>
-              <span className="text-[12px] text-slate-600">
+              <span className="text-xs text-slate-600">
                 Masuk: {totals.totalBadalIn} | Keluar: {totals.totalBadalOut}
               </span>
             </div>
@@ -183,7 +183,7 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
               <p className="text-xl sm:text-2xl font-bold text-rose-700 mt-1">
                 {totals.totalNotRealized} JP
               </p>
-              <span className="text-[12px] text-slate-600">Slot jadwal tanpa agenda</span>
+              <span className="text-xs text-slate-600">Slot jadwal tanpa agenda</span>
             </div>
 
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs col-span-2 sm:col-span-1">
@@ -191,7 +191,7 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
               <p className="text-xl sm:text-2xl font-bold text-primary-700 mt-1">
                 {totals.overallRealizationRate}%
               </p>
-              <span className="text-[12px] text-slate-600">Capaian mengajar minggu ini</span>
+              <span className="text-xs text-slate-600">Capaian mengajar minggu ini</span>
             </div>
           </div>
         )}
@@ -227,7 +227,7 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
 
                <button
                 onClick={handleCurrentWeek}
-                className="px-2.5 py-1 text-[13px] font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg border border-slate-200 transition"
+                className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg border border-slate-200 transition"
               >
                 Minggu Ini
               </button>
@@ -276,7 +276,7 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
               <h3 className="font-bold text-slate-900 text-xs sm:text-sm tracking-tight truncate">
                 Rekapitulasi Mengajar Mingguan Per Guru
               </h3>
-              <p className="text-[13px] text-slate-500 font-medium truncate mt-0.5">
+              <p className="text-xs text-slate-600 font-medium truncate mt-0.5">
                 Menampilkan {reportResult?.teacherSummaries.length || 0} tenaga pendidik
               </p>
             </div>
@@ -284,7 +284,7 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
 
           <ScrollArea label="Tabel rekap mingguan">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[12px]">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-xs">
                 <tr>
                   <th className="py-3 px-3 sm:px-4">Nama Guru</th>
                   <th className="py-3 px-3 sm:px-4 text-center w-24">JP Terjadwal</th>
@@ -344,7 +344,7 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
                       {/* Badal Masuk */}
                       <td className="py-3 px-3 sm:px-4 text-center">
                         {item.badalIn > 0 ? (
-                          <span className="px-2 py-0.5 rounded-full text-[13px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
                             +{item.badalIn}
                           </span>
                         ) : (
@@ -355,7 +355,7 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
                       {/* Badal Keluar */}
                       <td className="py-3 px-3 sm:px-4 text-center">
                         {item.badalOut > 0 ? (
-                          <span className="px-2 py-0.5 rounded-full text-[13px] font-bold bg-orange-50 text-orange-700 border border-orange-200">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-orange-50 text-orange-700 border border-orange-200">
                             -{item.badalOut}
                           </span>
                         ) : (
@@ -431,7 +431,7 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
         periodInfo={`${weekRange.monday} s.d. ${weekRange.sunday}`}
         academicYearName={activeAYName}
       >
-        <table className="w-full text-left text-[12px] border-collapse border border-slate-900">
+        <table className="w-full text-left text-xs border-collapse border border-slate-900">
           <thead className="bg-slate-100 border-b border-slate-900 font-bold uppercase text-center">
             <tr>
               <th className="p-1.5 border-r border-slate-900 w-8">No</th>

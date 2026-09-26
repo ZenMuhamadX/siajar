@@ -17,6 +17,14 @@
  * `--text-base` sengaja tidak diubah karena sudah 16px.
  */
 @theme {
+  /* `--text-2xs` = satu-satunya langkah di bawah `text-xs`, khusus lencana/meta.
+   * Tanpa langkah ini, ukuran 11–13px ditulis sebagai nilai literal
+   * (`text-[13px]`) yang tidak dibaca dari token — sehingga saat skala naik,
+   * nilai literal tetap kecil dan hierarki jadi terbalik (label lebih kecil
+   * daripada isi yang diberi label). */
+  --text-2xs: 0.75rem;              /* 12px — lencana/meta saja */
+  --text-2xs--line-height: 1rem;
+
   --text-xs: 0.875rem;              /* 12px → 14px */
   --text-xs--line-height: 1.25rem;
   --text-sm: 0.9375rem;             /* 14px → 15px */
@@ -54,6 +62,37 @@
   --color-primary-700: #4338ca;
   --color-primary-800: #3730a3;
   --color-primary-900: #312e81;
+}
+
+:root {
+  /* ── Tinggi tumpukan tetap bawah ────────────────────────────────────────
+   * Sebelumnya bilah navigasi bawah (HP) dan bilah "Simpan Agenda" di form
+   * agenda memakai angka yang tidak saling tahu: navigasi `bottom-0` setinggi
+   * ±72px dengan `z-40`, sementara bilah simpan duduk di `bottom-14` (56px)
+   * dengan `z-30`. Akibatnya 16px bagian bawah bilah simpan — termasuk tepi
+   * tombol simpan — tertimpa navigasi, karena z-index navigasi lebih tinggi.
+   *
+   * Sekarang keduanya membaca satu nilai: apa pun yang harus duduk DI ATAS
+   * navigasi memakai `bottom-[var(--bottom-nav-h)]`, dan konten yang bisa
+   * tergulir di belakangnya memberi ruang sebesar nilai yang sama.
+   * Nilai 4.75rem (76px) = pt-1.5 + tinggi item (min 44px) + safe-area iOS. */
+  --bottom-nav-h: 4.75rem;
+}
+
+@layer base {
+  /* ── Petunjuk di dalam kolom isian ──────────────────────────────────────
+   * Warna bawaan Tailwind v4 adalah `color-mix(in oklab, currentcolor 50%,
+   * transparent)`. Di atas latar putih, teks `slate-800` yang dipudarkan 50%
+   * hanya mencapai kontras ≈3,0:1 — gagal WCAG AA (butuh 4,5:1).
+   *
+   * Ini penting karena di form agenda placeholder adalah SATU-SATUNYA
+   * petunjuk pengisian (tidak ada teks bantuan di bawah kolom). Nilai
+   * `slate-500` memberi ≈4,8:1, masih jelas lebih pudar daripada isi asli
+   * sehingga tetap terbaca sebagai contoh, bukan sebagai isian. */
+  ::placeholder {
+    color: var(--color-slate-500);
+    opacity: 1;
+  }
 }
 
 @layer base {

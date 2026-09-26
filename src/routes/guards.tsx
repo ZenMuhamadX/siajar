@@ -8,7 +8,7 @@ export const AuthLoading: React.FC = () => (
   <div className="min-h-screen bg-slate-50 flex items-center justify-center">
     <div className="text-center space-y-2">
       <Loader2 className="w-6 h-6 text-slate-600 animate-spin mx-auto" />
-      <p className="text-xs text-slate-500">Memeriksa sesi...</p>
+      <p className="text-xs text-slate-600">Memeriksa sesi...</p>
     </div>
   </div>
 );

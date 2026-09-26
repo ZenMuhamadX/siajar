@@ -472,48 +472,53 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
               <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
                 Isi Agenda Mengajar
               </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-slate-600 mt-0.5">
                 Guru: <strong className="text-slate-700">{activeTeacherName || 'Guru'}</strong>
               </p>
             </div>
 
-            {/* Date Navigation Bar */}
-            <div className="flex items-center gap-1.5 self-start sm:self-auto bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+            {/* Date Navigation Bar.
+                Tombol panah sebelumnya hanya `p-1.5` (≈28px) — di bawah ambang
+                sentuh 44px, padahal ini kendali yang paling sering dipakai guru
+                untuk pindah hari. Sekarang 44px, dan tanggal terpilih dibaca
+                sebagai satu kesatuan dengan `aria-label`. */}
+            <div className="flex items-center gap-1 self-start sm:self-auto bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
               <button
-                aria-label="Hari Sebelumnya"
+                aria-label="Hari sebelumnya"
                 type="button"
                 onClick={handlePrevDay}
-                className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition"
+                className="p-2.5 min-w-11 min-h-11 inline-flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition"
                 title="Hari Sebelumnya"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-4 h-4" aria-hidden="true" />
               </button>
 
-               <div className="flex items-center gap-1.5 px-2">
-                <Calendar className="w-3.5 h-3.5 text-emerald-700" />
+              <div className="flex items-center gap-1.5 px-1">
+                <Calendar className="w-4 h-4 text-emerald-700 shrink-0" aria-hidden="true" />
                 <input
                   type="date"
                   value={selectedDate}
                   onChange={(e) => handleSetDate(e.target.value)}
-                  className="text-xs font-bold text-slate-800 bg-transparent border-none cursor-pointer"
+                  aria-label="Pilih tanggal agenda"
+                  className="text-xs font-bold text-slate-800 bg-transparent border-none cursor-pointer min-h-11"
                 />
               </div>
 
               <button
-                aria-label="Hari Berikutnya"
+                aria-label="Hari berikutnya"
                 type="button"
                 onClick={handleNextDay}
-                className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition"
+                className="p-2.5 min-w-11 min-h-11 inline-flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition"
                 title="Hari Berikutnya"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-4 h-4" aria-hidden="true" />
               </button>
 
-               {!isViewingToday && (
+              {!isViewingToday && (
                 <button
                   type="button"
                   onClick={handleSetToday}
-                  className="ml-1 px-2.5 py-1 text-[13px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition"
+                  className="ml-0.5 px-3 min-h-11 text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition"
                 >
                   Hari Ini
                 </button>
@@ -532,7 +537,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
               </span>
 
               {totalSlotsCount > 0 && (
-                <span className="text-[13px] text-slate-600">
+                <span className="text-xs text-slate-600">
                   <strong className="text-base font-bold text-emerald-700">
                     {completedSlotsCount}
                   </strong>{' '}
@@ -587,7 +592,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                   <h3 className="text-sm font-bold text-rose-900">
                     Jadwal Bertabrakan (Konflik)
                   </h3>
-                  <p className="text-[13px] text-rose-800 mt-1 leading-relaxed">
+                  <p className="text-xs text-rose-800 mt-1 leading-relaxed">
                     {timelineData.conflictMessage ||
                       'Terdapat jadwal yang bertabrakan pada waktu ini. Hubungi administrator.'}
                   </p>
@@ -603,7 +608,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
               <h3 className="text-sm font-bold text-slate-800">
                 Akhir Pekan (Sabtu / Minggu)
               </h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              <p className="text-xs text-slate-600 max-w-sm mx-auto">
                 Tidak ada jadwal pembelajaran reguler pada hari akhir pekan.
               </p>
             </div>
@@ -616,7 +621,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
               <h3 className="text-sm font-bold text-slate-800">
                 Tidak Ada Tahun Ajaran Aktif
               </h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              <p className="text-xs text-slate-600 max-w-sm mx-auto">
                 Tahun ajaran belum diaktifkan oleh administrator.
               </p>
             </div>
@@ -629,7 +634,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
               <h3 className="text-sm font-bold text-slate-800">
                 Tidak Ada Jadwal Mengajar
               </h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              <p className="text-xs text-slate-600 max-w-sm mx-auto">
                 Anda tidak memiliki jadwal mengajar pada tanggal {formatDateIndo(selectedDate)}.
               </p>
             </div>
@@ -656,7 +661,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                     </span>
                   </h2>
 
-                  <span className="text-[13px] text-slate-600">
+                  <span className="text-xs text-slate-600">
                     {timelineData.slots.length} Slot Pembelajaran
                   </span>
                 </div>
@@ -685,24 +690,37 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
           {isBadalRelevant && (
             <div className="mt-2">
               {!showBadalPanel ? (
-                /* Collapsed: show trigger button with count hint */
-                <div className="flex items-center justify-center">
+                /* Collapsed: show trigger button with count hint.
+                   Sebelumnya tombol ini muncul begitu saja tanpa penjelasan
+                   konsekuensi, padahal "menjadi guru pengganti" mengubah
+                   catatan siapa yang mengajar. Kalimat pengantar di bawah
+                   menyebutkan akibatnya sebelum guru menekan. */
+                <div className="flex flex-col items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => setShowBadalPanel(true)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold border transition ${
+                    className={`flex items-center gap-2 px-4 py-2.5 min-h-10 rounded-xl text-xs font-bold border transition ${
                       hasBadalCandidates
-                        ? 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100'
-                        : 'bg-slate-50 border-slate-200 text-slate-500 cursor-default'
+                        ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 cursor-default'
                     }`}
                     disabled={!hasBadalCandidates}
-                    title={hasBadalCandidates ? 'Lihat jadwal yang dapat dibadal' : 'Tidak ada jadwal yang tersedia untuk badal saat ini'}
+                    title={
+                      hasBadalCandidates
+                        ? 'Lihat jadwal yang dapat dibadal'
+                        : 'Tidak ada jadwal yang tersedia untuk badal saat ini'
+                    }
                   >
-                    <Users className="w-3.5 h-3.5" />
+                    <Users className="w-4 h-4" aria-hidden="true" />
                     {hasBadalCandidates
                       ? `Menjadi Guru Pengganti (${availableOtherSlots.length} slot tersedia)`
                       : 'Tidak ada jadwal yang bisa dibadal saat ini'}
                   </button>
+                  <p className="text-xs text-slate-600 text-center max-w-md">
+                    {hasBadalCandidates
+                      ? 'Untuk jam yang sedang berlangsung dan belum ada penggantinya. Jadwal asli tidak berubah — Anda hanya tercatat sebagai pelaksana.'
+                      : 'Hanya jam pelajaran yang sedang berlangsung dan belum punya pengganti yang bisa dibadal.'}
+                  </p>
                 </div>
               ) : (
                 /* Expanded: show candidate list */
@@ -710,12 +728,12 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                   {/* Panel header */}
                   <div className="px-4 py-3 bg-amber-50 border-b border-amber-200 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4 text-amber-700 shrink-0" />
+                      <Users className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
                       <div>
-                        <h2 className="text-xs font-bold text-amber-900">
+                        <h2 className="text-sm font-bold text-amber-900">
                           Jadwal yang Tersedia untuk Badal
                         </h2>
-                        <p className="text-[13px] text-amber-700">
+                        <p className="text-xs text-amber-800">
                           Pilih jadwal yang akan Anda gantikan sekarang.
                         </p>
                       </div>
@@ -723,7 +741,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowBadalPanel(false)}
-                      className="text-[13px] text-amber-600 hover:text-amber-900 font-semibold px-2 py-1 hover:bg-amber-100 rounded-lg transition"
+                      className="text-xs text-amber-800 hover:text-amber-900 font-semibold px-3 py-2 min-h-10 hover:bg-amber-100 rounded-lg transition"
                     >
                       Tutup
                     </button>
@@ -731,12 +749,16 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
 
                   <div className="p-3 space-y-2.5 bg-amber-50/20">
                     {isLoadingOther ? (
-                      <div className="py-4 flex items-center justify-center gap-2 text-xs text-slate-500">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Memuat...</span>
+                      <div
+                        className="py-4 flex items-center justify-center gap-2 text-xs text-slate-600"
+                        role="status"
+                        aria-live="polite"
+                      >
+                        <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                        <span>Memuat…</span>
                       </div>
                     ) : availableOtherSlots.length === 0 ? (
-                      <p className="py-4 text-center text-xs text-slate-500">
+                      <p className="py-4 text-center text-xs text-slate-600">
                         Tidak ada jadwal yang tersedia untuk dibadal saat ini.
                       </p>
                     ) : (
@@ -747,23 +769,32 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                         >
                           <div className="space-y-1 text-xs">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-bold text-slate-900">{slot.schedule.class_id}</span>
-                              <span className="text-slate-600">&bull;</span>
-                              <span className="font-semibold text-slate-800">{slot.schedule.subject_name}</span>
-                              <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[13px] font-mono">
-                                {slot.schedule.start_time.slice(0, 5)} – {slot.schedule.end_time.slice(0, 5)}
+                              <span className="font-bold text-slate-900">
+                                {slot.schedule.class_id}
+                              </span>
+                              <span className="text-slate-500" aria-hidden="true">
+                                &bull;
+                              </span>
+                              <span className="font-semibold text-slate-800">
+                                {slot.schedule.subject_name}
+                              </span>
+                              <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-xs font-mono tabular-nums">
+                                {slot.schedule.start_time.slice(0, 5)} –{' '}
+                                {slot.schedule.end_time.slice(0, 5)}
                               </span>
                             </div>
-                            <p className="text-slate-500">
+                            <p className="text-slate-600">
                               Guru terjadwal:{' '}
-                              <span className="font-medium text-slate-700">{slot.schedule.teacher_name}</span>
+                              <span className="font-medium text-slate-800">
+                                {slot.schedule.teacher_name}
+                              </span>
                             </p>
                           </div>
 
                           <button
                             type="button"
                             onClick={() => handleOpenSubstitutionTarget(slot)}
-                            className="shrink-0 px-3.5 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition"
+                            className="shrink-0 px-3.5 py-2 min-h-10 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition"
                           >
                             Saya yang Gantikan
                           </button>

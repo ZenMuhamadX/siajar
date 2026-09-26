@@ -88,6 +88,21 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
   const nativeCameraInputRef = useRef<HTMLInputElement>(null);
 
+  // Syarat simpan. Foto dokumentasi wajib, tetapi sebelumnya hal itu baru
+  // ketahuan setelah guru menekan Simpan dan seluruh isian ditolak. Sekarang
+  // syaratnya ditampilkan lebih dulu, dan saat belum lengkap tombol simpan
+  // mengarahkan guru ke bagian yang kurang alih-alih gagal diam-diam.
+  const photoSectionRef = useRef<HTMLDivElement>(null);
+  const [isPhotoHighlighted, setIsPhotoHighlighted] = useState(false);
+  const isPhotoReady = Boolean(existingEvidence?.storage_path);
+  const isMateriReady = Boolean(materi.trim());
+
+  const focusPhotoSection = () => {
+    photoSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setIsPhotoHighlighted(true);
+    window.setTimeout(() => setIsPhotoHighlighted(false), 2600);
+  };
+
   // Initialize data when form opens or slot changes
   useEffect(() => {
     if (existingAgenda) {
@@ -282,22 +297,27 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validasi materi
-    if (!materi.trim()) {
-      showToast('error', 'Mohon isi Materi Pembelajaran.');
+    // Validasi materi — arahkan fokus ke kolomnya, bukan sekadar memberi pesan
+    // di sudut layar yang jauh dari sumber masalah.
+    if (!isMateriReady) {
+      showToast('error', 'Materi pembelajaran belum diisi.');
+      document.getElementById('agenda-materi')?.focus();
       return;
     }
 
-    // Validasi foto dokumentasi WAJIB ADA (STAGE 4)
-    if (!existingEvidence || !existingEvidence.storage_path) {
-      showToast('error', 'Foto dokumentasi belum diambil. Ambil foto selfie guru terlebih dahulu.');
+    // Foto dokumentasi wajib. Bila belum ada, guru diarahkan ke bagian foto
+    // (sorot + gulir) supaya penyebabnya terlihat, bukan hanya diberitahukan.
+    const evidence = existingEvidence;
+    if (!evidence?.storage_path) {
+      showToast('info', 'Ambil foto dokumentasi dulu sebelum menyimpan agenda.');
+      focusPhotoSection();
       return;
     }
 
     setIsSubmitting(true);
     try {
       const scheduleId = schedule?.id || existingAgenda?.header.schedule_id || null;
-      const agendaId = existingAgenda?.header.id || existingEvidence.agenda_id;
+      const agendaId = existingAgenda?.header.id || evidence.agenda_id;
 
       await simpanAgenda({
         agendaId,
@@ -340,6 +360,12 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   const presentCount = Math.max(0, siswaKelas.length - absensiList.length);
 
   return (
+    /* Ruang bawah harus melewati DUA elemen tetap di HP: navigasi bawah
+       (`--bottom-nav-h` = 76px) dan bilah simpan di atasnya (≈95px) → total
+       ≈171px. `<main>` di TeacherShell sudah menyumbang `pb-24` (96px), jadi
+       sisa yang dibutuhkan di sini ≈75px; dipakai 96px (`pb-24`) sebagai
+       margin aman. Sebelumnya hanya `pb-24` (96px) — kurang 75px, sehingga
+       baris terakhir form bisa tersembunyi di balik bilah simpan. */
     <div className="space-y-4 pb-24 md:pb-6">
       {/* Top Header Card */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -357,7 +383,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
             <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
               {existingAgenda ? 'Lihat / Edit Agenda Pembelajaran' : 'Isi Agenda Pembelajaran'}
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-600 mt-0.5">
               {schoolName} &bull; {targetDate}
             </p>
           </div>
@@ -377,18 +403,18 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
           {/* Badge badal */}
           {isSubstitute && (
             <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-amber-100 border border-amber-300 rounded-xl">
-              <span className="text-[12px] font-bold text-amber-800 uppercase tracking-wider">🔄 Mode Guru Pengganti (Badal)</span>
+              <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">🔄 Mode Guru Pengganti (Badal)</span>
             </div>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className={`p-3 bg-white border rounded-xl shadow-2xs ${isSubstitute ? 'border-amber-100' : 'border-emerald-100'}`}>
-              <span className="text-[12px] font-bold text-slate-600 uppercase tracking-wider block">
+              <span className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
                 Kelas
               </span>
               <span className="text-sm font-bold text-slate-900">{kelas}</span>
             </div>
             <div className={`p-3 bg-white border rounded-xl shadow-2xs ${isSubstitute ? 'border-amber-100' : 'border-emerald-100'}`}>
-              <span className="text-[12px] font-bold text-slate-600 uppercase tracking-wider block">
+              <span className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
                 Mata Pelajaran
               </span>
               <span className="text-sm font-bold text-slate-900">{subjectName}</span>
@@ -396,18 +422,18 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
             <div className={`p-3 bg-white border rounded-xl shadow-2xs ${isSubstitute ? 'border-amber-100' : 'border-emerald-100'}`}>
               {isSubstitute ? (
                 <>
-                  <span className="text-[12px] font-bold text-slate-600 uppercase tracking-wider block">
+                  <span className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
                     Guru Terjadwal
                   </span>
-                  <span className="text-sm font-bold text-slate-500 line-through">{scheduledTeacherName}</span>
-                  <span className="text-[12px] font-bold text-amber-600 uppercase tracking-wider block mt-1">
+                  <span className="text-sm font-bold text-slate-600 line-through">{scheduledTeacherName}</span>
+                  <span className="text-xs font-bold text-amber-600 uppercase tracking-wider block mt-1">
                     Guru Pelaksana (Anda)
                   </span>
                   <span className="text-sm font-bold text-slate-900">{activeTeacherName}</span>
                 </>
               ) : (
                 <>
-                  <span className="text-[12px] font-bold text-slate-600 uppercase tracking-wider block">
+                  <span className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
                     Guru Pengampu
                   </span>
                   <span className="text-sm font-bold text-slate-900">{scheduledTeacherName}</span>
@@ -496,8 +522,8 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                   </h3>
                 </div>
 
-                {/* Summary Badges */}
-                <div className="flex items-center gap-1.5 text-[13px]">
+                {/* Ringkasan kehadiran — sekaligus legenda arti kode status */}
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
                   <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 font-bold rounded-md border border-emerald-200">
                     {presentCount} Hadir
                   </span>
@@ -508,23 +534,25 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                     {absensiList.filter((a) => a.status === 'I').length} Izin
                   </span>
                   <span className="px-2 py-0.5 bg-rose-50 text-rose-800 font-semibold rounded-md border border-rose-200">
-                    {absensiList.filter((a) => a.status === 'A').length} Alpha
+                    {absensiList.filter((a) => a.status === 'A').length} Alpa
                   </span>
                 </div>
               </div>
 
               {isLoadingSiswa ? (
-                <div className="py-4 text-center text-xs text-slate-600">Memuat data siswa...</div>
+                <div className="py-4 text-center text-xs text-slate-600" role="status" aria-live="polite">
+                  Memuat data siswa…
+                </div>
               ) : absensiList.length === 0 ? (
                 <div className="py-3 px-4 rounded-xl border border-emerald-200 bg-emerald-50/50 text-xs text-emerald-800 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
                     <span>Semua siswa hadir ({siswaKelas.length} siswa)</span>
                   </div>
                   <button
                     type="button"
                     onClick={handleAddAbsensi}
-                    className="text-xs font-bold text-emerald-700 underline shrink-0 hover:text-emerald-900"
+                    className="text-xs font-bold text-emerald-800 underline shrink-0 hover:text-emerald-900 px-2 py-2 min-h-10"
                   >
                     + Catat Absen
                   </button>
@@ -538,10 +566,14 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                         className="p-2.5 sm:p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white"
                       >
                         <div className="flex items-center gap-2 flex-1">
-                          <span className="text-slate-600 font-bold text-xs w-4 text-center">
+                          <span className="text-slate-600 font-bold text-xs w-5 text-center shrink-0">
                             {idx + 1}.
                           </span>
+                          <label className="sr-only" htmlFor={`absen-siswa-${idx}`}>
+                            Nama siswa tidak hadir baris {idx + 1}
+                          </label>
                           <select
+                            id={`absen-siswa-${idx}`}
                             value={item.siswa_id}
                             onChange={(e) => handleAbsensiChange(idx, 'siswa_id', e.target.value)}
                             className={`${formStyles.select} flex-1 font-medium`}
@@ -554,87 +586,116 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                           </select>
                         </div>
 
-                        <div className="flex items-center justify-between sm:justify-end gap-2 pl-6 sm:pl-0">
-                          <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 text-xs font-bold">
+                        <div className="flex items-center justify-between sm:justify-end gap-2 sm:pl-0">
+                          {/* Sebelumnya tombolnya hanya bertuliskan "S / I / A"
+                              dengan arti yang hanya muncul di ringkasan bagian
+                              atas, dan tanpa penanda mana yang sedang aktif —
+                              pembaca layar mendengar "S", "I", "A" tanpa konteks.
+                              Sekarang labelnya lengkap dan keadaannya diumumkan. */}
+                          <div
+                            role="group"
+                            aria-label={`Status kehadiran baris ${idx + 1}`}
+                            className="inline-flex rounded-lg border border-slate-300 p-0.5 bg-slate-50 text-xs font-bold"
+                          >
                             <button
                               type="button"
+                              aria-pressed={item.status === 'S'}
                               onClick={() => handleAbsensiChange(idx, 'status', 'S')}
-                              className={`px-2.5 py-1 rounded-md transition ${
+                              className={`px-2.5 py-2 min-h-10 rounded-md transition ${
                                 item.status === 'S'
                                   ? 'bg-blue-600 text-white shadow-xs'
-                                  : 'text-slate-600 hover:text-slate-900'
+                                  : 'text-slate-700 hover:text-slate-900 hover:bg-white'
                               }`}
                             >
-                              S
+                              Sakit
                             </button>
                             <button
                               type="button"
+                              aria-pressed={item.status === 'I'}
                               onClick={() => handleAbsensiChange(idx, 'status', 'I')}
-                              className={`px-2.5 py-1 rounded-md transition ${
+                              className={`px-2.5 py-2 min-h-10 rounded-md transition ${
                                 item.status === 'I'
                                   ? 'bg-amber-500 text-white shadow-xs'
-                                  : 'text-slate-600 hover:text-slate-900'
+                                  : 'text-slate-700 hover:text-slate-900 hover:bg-white'
                               }`}
                             >
-                              I
+                              Izin
                             </button>
                             <button
                               type="button"
+                              aria-pressed={item.status === 'A'}
                               onClick={() => handleAbsensiChange(idx, 'status', 'A')}
-                              className={`px-2.5 py-1 rounded-md transition ${
+                              className={`px-2.5 py-2 min-h-10 rounded-md transition ${
                                 item.status === 'A'
                                   ? 'bg-rose-600 text-white shadow-xs'
-                                  : 'text-slate-600 hover:text-slate-900'
+                                  : 'text-slate-700 hover:text-slate-900 hover:bg-white'
                               }`}
                             >
-                              A
+                              Alpa
                             </button>
                           </div>
 
                           <button
-                            aria-label="Hapus"
+                            aria-label={`Hapus siswa tidak hadir baris ${idx + 1}`}
                             type="button"
                             onClick={() => handleRemoveAbsensi(idx)}
-                            className="p-1.5 text-slate-600 hover:text-rose-600 rounded-lg transition"
+                            className="p-2 min-w-10 min-h-10 inline-flex items-center justify-center text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                             title="Hapus"
                           >
-                            <Trash2 className="w-4 h-4 text-rose-500" />
+                            <Trash2 className="w-4 h-4 text-rose-500" aria-hidden="true" />
                           </button>
-                         </div>
+                        </div>
                       </div>
                     ))}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleAddAbsensi}
-                    className="w-full py-2 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-xl flex items-center justify-center gap-1.5 transition"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Tambah Siswa Tidak Hadir</span>
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button
+                      type="button"
+                      onClick={handleAddAbsensi}
+                      className="flex-1 py-2.5 min-h-10 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-xl flex items-center justify-center gap-1.5 transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+                      <span>Tambah Siswa Tidak Hadir</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAbsensiList([])}
+                      className="py-2.5 min-h-10 px-3 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl flex items-center justify-center gap-1.5 transition"
+                    >
+                      <UserCheck className="w-3.5 h-3.5" aria-hidden="true" />
+                      <span>Semua Hadir</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
 
             {/* SECTION IV: DOKUMENTASI FOTO GURU */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-xs space-y-4">
+            <div
+              ref={photoSectionRef}
+              className={`bg-white border rounded-2xl p-4 sm:p-6 shadow-xs space-y-4 transition-all duration-300 ${
+                isPhotoHighlighted
+                  ? 'border-rose-400 ring-4 ring-rose-200'
+                  : 'border-slate-200'
+              }`}
+            >
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
                     IV. Dokumentasi Foto Mengajar
                   </h3>
-                  <span className="text-[12px] font-bold px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                  <span className="text-xs font-bold px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
                     Wajib
                   </span>
                 </div>
                 {existingEvidence?.storage_path ? (
-                  <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                     <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                     Status: Tersimpan (Final)
                   </span>
                 ) : (
-                  <span className="text-[13px] text-slate-500 font-medium">
+                  <span className="text-xs text-slate-600 font-medium">
                     Belum Ada Foto
                   </span>
                 )}
@@ -654,7 +715,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                     <button
                       type="button"
                       onClick={() => setIsLightboxOpen(true)}
-                      className="absolute bottom-2 right-2 px-2.5 py-1 bg-slate-900/80 hover:bg-slate-900 text-white text-[13px] font-medium rounded-md flex items-center gap-1 transition"
+                      className="absolute bottom-2 right-2 px-2.5 py-1 bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-medium rounded-md flex items-center gap-1 transition"
                     >
                       <Eye className="w-3.5 h-3.5" />
                       <span>Perbesar</span>
@@ -666,7 +727,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                       <span className="w-2 h-2 rounded-full bg-emerald-500" />
                       <span>Foto dokumentasi sudah tersimpan.</span>
                     </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[13px] text-slate-600 pt-1 border-t border-slate-100">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 pt-1 border-t border-slate-100">
                       <div>
                         <span className="text-slate-600 block">Diambil:</span>
                         <span className="font-medium text-slate-700">
@@ -707,7 +768,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-800">Belum ada foto dokumentasi</p>
-                      <p className="text-[13px] text-slate-500">
+                      <p className="text-xs text-slate-600">
                         Ambil foto selfie pengajar langsung melalui kamera perangkat.
                       </p>
                     </div>
@@ -759,65 +820,140 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
         />
 
         {/* Desktop Save Bar */}
-        <div className="hidden md:flex p-4 bg-white border border-slate-200 rounded-2xl items-center justify-between shadow-xs">
+        <div className="hidden md:flex p-4 bg-white border border-slate-200 rounded-2xl items-center justify-between gap-4 shadow-xs">
           <button
             type="button"
             onClick={onBack}
-            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+            className="px-4 py-2.5 min-h-10 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
           >
             Batal / Kembali ke Jadwal
           </button>
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="px-6 py-2.5 bg-primary-700 hover:bg-primary-800 active:scale-98 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-2 disabled:opacity-50"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Menyimpan...</span>
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                <span>{existingAgenda ? 'Simpan Perubahan' : 'Simpan Agenda'}</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Mobile Sticky Save Bar */}
-        <div className="md:hidden fixed bottom-14 left-0 right-0 z-30 bg-white/95 backdrop-blur-xs border-t border-slate-200 px-4 py-2.5 shadow-lg no-print">
-          <div className="max-w-md mx-auto flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={onBack}
-              className="px-3 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-xl"
-            >
-              Kembali
-            </button>
-
+          <div className="flex items-center gap-3">
+            <SaveChecklist materi={isMateriReady} foto={isPhotoReady} onFixFoto={focusPhotoSection} />
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 py-2.5 px-4 bg-primary-700 hover:bg-primary-800 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
+              className="px-6 py-2.5 min-h-10 bg-primary-700 hover:bg-primary-800 active:scale-98 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-2 disabled:opacity-50"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Menyimpan...</span>
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                  <span>Menyimpan…</span>
                 </>
               ) : (
                 <>
-                  <Save className="w-4 h-4" />
-                  <span>{existingAgenda ? 'Simpan Edit' : 'Simpan Agenda'}</span>
+                  <Save className="w-4 h-4" aria-hidden="true" />
+                  <span>
+                    {!isPhotoReady
+                      ? 'Ambil Foto Dokumentasi Dulu'
+                      : existingAgenda
+                      ? 'Simpan Perubahan'
+                      : 'Simpan Agenda'}
+                  </span>
                 </>
               )}
             </button>
+          </div>
+        </div>
+
+        {/* Mobile Sticky Save Bar.
+            `bottom` membaca `--bottom-nav-h` (tinggi navigasi bawah), bukan
+            angka tetap 56px, supaya bilah ini tidak pernah tertimpa navigasi.
+            `z-40` menyamai navigasi: keduanya kini tidak beririsan, dan bila
+            suatu saat beririsan, bilah simpan yang menang — aksi utama guru
+            tidak boleh kalah dari menu. */}
+        <div className="md:hidden fixed bottom-[var(--bottom-nav-h)] left-0 right-0 z-40 bg-white/95 backdrop-blur-xs border-t border-slate-200 px-3 py-2.5 shadow-lg no-print">
+          <div className="max-w-md mx-auto space-y-2">
+            <SaveChecklist materi={isMateriReady} foto={isPhotoReady} onFixFoto={focusPhotoSection} />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onBack}
+                className="px-3 py-2.5 min-h-10 bg-slate-100 text-slate-700 text-xs font-semibold rounded-xl shrink-0"
+              >
+                Kembali
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex-1 py-2.5 min-h-10 px-4 bg-primary-700 hover:bg-primary-800 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                    <span>Menyimpan…</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" aria-hidden="true" />
+                    <span>
+                      {!isPhotoReady
+                        ? 'Ambil Foto Dulu'
+                        : existingAgenda
+                        ? 'Simpan Edit'
+                        : 'Simpan Agenda'}
+                    </span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </form>
     </div>
   );
 };
+
+/* -------------------------------------------------------------------------- */
+/* Daftar periksa syarat simpan                                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Syarat simpan ditampilkan SEBELUM guru menekan Simpan.
+ *
+ * Sebelumnya foto dokumentasi bersifat wajib tetapi tidak pernah disebutkan di
+ * dekat tombolnya — guru mengisi semuanya, menekan Simpan, lalu ditolak lewat
+ * notifikasi di sudut layar. Yang belum lengkap kini terlihat sekilas, dan
+ * dapat ditekan untuk langsung menuju bagiannya.
+ */
+const SaveChecklist: React.FC<{
+  materi: boolean;
+  foto: boolean;
+  onFixFoto: () => void;
+}> = ({ materi, foto, onFixFoto }) => (
+  <ul className="flex items-center gap-2 text-xs" aria-label="Kelengkapan sebelum menyimpan">
+    <li>
+      <span
+        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-semibold ${
+          materi
+            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+            : 'bg-rose-50 text-rose-800 border-rose-200'
+        }`}
+      >
+        <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+        Materi
+        <span className="sr-only">{materi ? ': sudah diisi' : ': belum diisi'}</span>
+      </span>
+    </li>
+    <li>
+      {foto ? (
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-semibold bg-emerald-50 text-emerald-800 border-emerald-200">
+          <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+          Foto
+          <span className="sr-only">: sudah ada</span>
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={onFixFoto}
+          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-semibold bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100 transition"
+        >
+          <Camera className="w-3.5 h-3.5" aria-hidden="true" />
+          Foto belum ada
+        </button>
+      )}
+    </li>
+  </ul>
+);

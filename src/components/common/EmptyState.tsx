@@ -39,7 +39,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         <h4 className="text-xs sm:text-sm font-bold text-slate-800 tracking-tight">
           {title || defaultTitle}
         </h4>
-        <p className="text-[13px] sm:text-xs text-slate-500 leading-relaxed">
+        <p className="text-xs sm:text-xs text-slate-600 leading-relaxed">
           {description || defaultDesc}
         </p>
       </div>

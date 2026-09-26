@@ -71,7 +71,7 @@ export const FormModal: React.FC<FormModalProps> = ({
           <h3 id={titleId} className="font-bold text-slate-900 text-sm sm:text-base">
             {title}
           </h3>
-          {subtitle && <p className="text-[13px] text-slate-500 mt-0.5">{subtitle}</p>}
+          {subtitle && <p className="text-xs text-slate-600 mt-0.5">{subtitle}</p>}
         </div>
         <button
           type="button"

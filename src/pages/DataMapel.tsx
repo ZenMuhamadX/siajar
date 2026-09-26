@@ -141,7 +141,7 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
           onResetFilters={() => setSearchQuery('')}
           actions={
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
+              <div className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold">
                 <BookOpen className="w-4 h-4 text-primary-600" />
                 <span>{mapelList.length} Mata Pelajaran</span>
               </div>

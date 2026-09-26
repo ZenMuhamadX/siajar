@@ -137,7 +137,7 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
               <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
                 {totals.totalJpScheduled} JP
               </p>
-              <span className="text-[12px] text-slate-600">
+              <span className="text-xs text-slate-600">
                 Durasi: {formatMinutesToHourMin(totals.totalDurationScheduledMin)}
               </span>
             </div>
@@ -147,7 +147,7 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
               <p className="text-xl sm:text-2xl font-bold text-emerald-700 mt-1">
                 {totals.totalJpRealized} JP
               </p>
-              <span className="text-[12px] text-slate-600">
+              <span className="text-xs text-slate-600">
                 Durasi: {formatMinutesToHourMin(totals.totalDurationRealizedMin)}
               </span>
             </div>
@@ -157,7 +157,7 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
               <p className="text-xl sm:text-2xl font-bold text-primary-700 mt-1">
                 {formatMinutesToHourMin(totals.totalDurationRealizedMin)}
               </p>
-              <span className="text-[12px] text-slate-600">Total sesi pembelajaran</span>
+              <span className="text-xs text-slate-600">Total sesi pembelajaran</span>
             </div>
 
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
@@ -165,7 +165,7 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
               <p className="text-xl sm:text-2xl font-bold text-amber-700 mt-1">
                 {totals.totalBadalIn} JP
               </p>
-              <span className="text-[12px] text-slate-600">
+              <span className="text-xs text-slate-600">
                 Masuk {totals.totalBadalIn} · Keluar {totals.totalBadalOut}
               </span>
             </div>
@@ -175,7 +175,7 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
               <p className="text-xl sm:text-2xl font-bold text-rose-700 mt-1">
                 {totals.totalNotRealized} JP
               </p>
-              <span className="text-[12px] text-slate-600">
+              <span className="text-xs text-slate-600">
                 Capaian: {totals.overallRealizationRate}%
               </span>
             </div>
@@ -192,7 +192,7 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             {/* Bulan */}
             <div>
-              <label className="block text-[13px] font-bold text-slate-600 uppercase mb-1">
+              <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
                 Bulan
               </label>
               <select
@@ -210,7 +210,7 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
 
             {/* Tahun */}
             <div>
-              <label className="block text-[13px] font-bold text-slate-600 uppercase mb-1">
+              <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
                 Tahun
               </label>
               <input
@@ -225,7 +225,7 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
 
             {/* Tahun Ajaran */}
             <div>
-              <label className="block text-[13px] font-bold text-slate-600 uppercase mb-1">
+              <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
                 Tahun Ajaran
               </label>
               <select
@@ -243,7 +243,7 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
 
             {/* Guru */}
             <div>
-              <label className="block text-[13px] font-bold text-slate-600 uppercase mb-1">
+              <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
                 Guru
               </label>
               <select
@@ -269,7 +269,7 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
               <h3 className="font-bold text-slate-900 text-xs sm:text-sm tracking-tight truncate">
                 Rekapitulasi Mengajar Bulanan &bull; {reportResult?.monthName} {selectedYear}
               </h3>
-              <p className="text-[13px] text-slate-500 font-medium truncate mt-0.5">
+              <p className="text-xs text-slate-600 font-medium truncate mt-0.5">
                 Menampilkan {reportResult?.teacherSummaries.length || 0} tenaga pendidik
               </p>
             </div>
@@ -277,7 +277,7 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
 
           <ScrollArea label="Tabel rekap bulanan">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[12px]">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-xs">
                 <tr>
                   <th className="py-3 px-3 sm:px-4">Nama Guru</th>
                   <th className="py-3 px-3 sm:px-4 text-center w-24">JP Terjadwal</th>
@@ -324,7 +324,7 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
                       </td>
                       <td className="py-3 px-3 sm:px-4 text-center">
                         {item.badalIn > 0 ? (
-                          <span className="px-2 py-0.5 rounded-full text-[13px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
                             +{item.badalIn}
                           </span>
                         ) : (
@@ -333,7 +333,7 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
                       </td>
                       <td className="py-3 px-3 sm:px-4 text-center">
                         {item.badalOut > 0 ? (
-                          <span className="px-2 py-0.5 rounded-full text-[13px] font-bold bg-orange-50 text-orange-700 border border-orange-200">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-orange-50 text-orange-700 border border-orange-200">
                             -{item.badalOut}
                           </span>
                         ) : (
@@ -401,7 +401,7 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
         periodInfo={`${reportResult?.monthName || ''} ${selectedYear}`}
         academicYearName={activeAYName}
       >
-        <table className="w-full text-left text-[12px] border-collapse border border-slate-900">
+        <table className="w-full text-left text-xs border-collapse border border-slate-900">
           <thead className="bg-slate-100 border-b border-slate-900 font-bold uppercase text-center">
             <tr>
               <th className="p-1.5 border-r border-slate-900 w-8">No</th>

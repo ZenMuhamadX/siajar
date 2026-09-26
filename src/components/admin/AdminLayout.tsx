@@ -53,7 +53,7 @@ export const AdminLayout: React.FC = () => {
                 <span className="font-bold text-slate-900 text-sm tracking-tight block leading-tight">
                   SIAJAR
                 </span>
-                <span className="text-[12px] text-slate-600 block leading-tight">
+                <span className="text-xs text-slate-600 block leading-tight">
                   Admin Portal
                 </span>
               </div>
@@ -87,7 +87,7 @@ export const AdminLayout: React.FC = () => {
           {ADMIN_NAV_GROUPS.map((grp) => (
             <div key={grp.group} className="space-y-1">
               {!isCollapsed && (
-                <p className="px-3 text-[12px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                <p className="px-3 text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
                   {grp.group}
                 </p>
               )}
@@ -130,7 +130,7 @@ export const AdminLayout: React.FC = () => {
                   <p className="text-xs font-bold text-slate-800 truncate">
                     {activeTeacherName || 'Administrator'}
                   </p>
-                  <p className="text-[12px] text-slate-600">Superuser</p>
+                  <p className="text-xs text-slate-600">Superuser</p>
                 </div>
               </div>
 
@@ -186,7 +186,7 @@ export const AdminLayout: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-[13px] font-bold rounded-full border border-slate-200">
+            <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs font-bold rounded-full border border-slate-200">
               Admin
             </span>
           </div>

@@ -221,7 +221,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         action={
           <div className="flex items-center gap-3">
             {lastUpdated && !isLoading && (
-              <span className="hidden sm:inline text-[12px] text-slate-500">
+              <span className="hidden sm:inline text-xs text-slate-600">
                 Diperbarui {lastUpdated.toLocaleTimeString('id-ID', {
                   hour: '2-digit',
                   minute: '2-digit',
@@ -283,7 +283,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   <p className="text-2xl sm:text-3xl font-bold text-slate-900 mt-2">
                     {card.value}
                   </p>
-                  <span className="flex items-center gap-1 text-[12px] text-slate-500 mt-1">
+                  <span className="flex items-center gap-1 text-xs text-slate-600 mt-1">
                     <span className="truncate">{card.caption}</span>
                     <ArrowUpRight className="w-3.5 h-3.5 shrink-0 opacity-0 group-hover:opacity-100 transition text-primary-600" />
                   </span>
@@ -299,7 +299,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Jadwal Hari Ini</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-xs text-slate-600 mt-0.5">
                     {dayKey
                       ? `${formatDateIndo(todayStr)} • ${jadwalHariIni.length} slot mengajar`
                       : `${formatDateIndo(todayStr)} • hari libur sekolah`}
@@ -341,7 +341,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       className="p-3 rounded-lg bg-primary-50 border border-primary-100 space-y-1"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-[13px] font-bold text-primary-700">
+                        <span className="font-mono text-xs font-bold text-primary-700">
                           {slot.start_time.slice(0, 5)} – {slot.end_time.slice(0, 5)}
                         </span>
                         <StatusBadge status="IN_PROGRESS" label="Berlangsung" />
@@ -356,7 +356,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   {jadwalBerikutnya && (
                     <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70 space-y-1">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-[13px] font-bold text-slate-600">
+                        <span className="font-mono text-xs font-bold text-slate-600">
                           {jadwalBerikutnya.start_time.slice(0, 5)} –{' '}
                           {jadwalBerikutnya.end_time.slice(0, 5)}
                         </span>
@@ -365,14 +365,14 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       <p className="text-sm font-semibold text-slate-800">
                         {jadwalBerikutnya.subject_name}
                       </p>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-slate-600">
                         {jadwalBerikutnya.class_id} • {jadwalBerikutnya.teacher_name}
                       </p>
                     </div>
                   )}
 
                   {sedangBerlangsung.length === 0 && !jadwalBerikutnya && (
-                    <p className="text-xs text-slate-500 italic py-4 text-center">
+                    <p className="text-xs text-slate-600 italic py-4 text-center">
                       Semua jadwal hari ini sudah selesai. {jadwalHariIni.length} slot tercatat.
                     </p>
                   )}
@@ -387,7 +387,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   <h3 className="text-sm font-bold text-slate-900">
                     Status Pengisian Agenda Hari Ini
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-xs text-slate-600 mt-0.5">
                     {formatDateIndo(todayStr)} &bull; {agendasHariIni.length} agenda pembelajaran
                     dibuat hari ini
                   </p>
@@ -447,7 +447,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       </span>
 
                       {listGuruSudahMengisi.length === 0 ? (
-                        <p className="text-xs text-slate-500 italic py-3 text-center">
+                        <p className="text-xs text-slate-600 italic py-3 text-center">
                           Belum ada guru terjadwal yang mengisi agenda hari ini.
                         </p>
                       ) : (
@@ -472,7 +472,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       </span>
 
                       {listGuruBelumMengisi.length === 0 ? (
-                        <p className="text-xs text-slate-500 italic py-3 text-center">
+                        <p className="text-xs text-slate-600 italic py-3 text-center">
                           🎉 Semua guru yang mengajar hari ini sudah mengisi agenda!
                         </p>
                       ) : (
@@ -496,7 +496,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Agenda Terbaru</h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-slate-600 mt-0.5">
                   5 jurnal pembelajaran yang terakhir dicatat
                 </p>
               </div>
@@ -527,11 +527,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       <span className="font-bold text-slate-900 text-sm">
                         {agenda.header.kelas}
                       </span>
-                      <span className="text-[13px] text-slate-500 font-mono">
+                      <span className="text-xs text-slate-600 font-mono">
                         {formatDateIndo(agenda.header.tanggal)}
                       </span>
                     </div>
-                    <p className="text-[12px] text-slate-600 flex items-center justify-between gap-2">
+                    <p className="text-xs text-slate-600 flex items-center justify-between gap-2">
                       <span className="truncate">
                         {agenda.kbm.length} sesi pembelajaran
                         {agenda.kbm[0]?.nama_guru ? ` • ${agenda.kbm[0].nama_guru}` : ''}

@@ -95,7 +95,7 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({ children, className = ''
       />
 
       {canScrollRight && (
-        <p className="sm:hidden mt-1.5 flex items-center justify-center gap-1.5 text-[12px] text-slate-600">
+        <p className="sm:hidden mt-1.5 flex items-center justify-center gap-1.5 text-xs text-slate-600">
           <ArrowLeftRight className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
           <span>Geser ke samping untuk kolom lainnya</span>
         </p>

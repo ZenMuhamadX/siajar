@@ -150,7 +150,7 @@ export const KotakSaranList: React.FC<KotakSaranListProps> = ({ showToast }) => 
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="px-2 py-0.5 text-[12px] font-bold rounded bg-slate-200 text-slate-700">
+                    <span className="px-2 py-0.5 text-xs font-bold rounded bg-slate-200 text-slate-700">
                       {item.kategori}
                     </span>
                     <span className="text-xs font-semibold text-slate-800 flex items-center gap-1">
@@ -160,7 +160,7 @@ export const KotakSaranList: React.FC<KotakSaranListProps> = ({ showToast }) => 
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="text-[12px] text-slate-600 flex items-center gap-1">
+                    <span className="text-xs text-slate-600 flex items-center gap-1">
                       <Calendar className="w-3 h-3 text-slate-300" />
                       {formatDateIndo(item.created_at)}
                     </span>

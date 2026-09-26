@@ -233,6 +233,28 @@ const AGENDA_DETAIL_SELECT = `
       agenda_evidence (*)
     `;
 
+/**
+ * Varian select untuk "agenda milik satu guru".
+ *
+ * `agenda_kbm` di-join secara `!inner` supaya penyaringan nama guru terjadi di
+ * server. Tanpa `!inner`, filter pada relasi hanya menyaring baris relasinya —
+ * baris `agenda_header` tetap terkirim semua.
+ *
+ * Efek sampingnya disengaja: `kbm` yang dikembalikan hanya baris milik guru
+ * tersebut, sehingga halaman "Riwayat Agenda Saya" tidak lagi menampilkan jam
+ * mengajar guru lain pada agenda yang sama.
+ */
+const AGENDA_DETAIL_SELECT_BY_TEACHER = `
+      *,
+      agenda_kbm!inner (*),
+      agenda_absensi (
+        *,
+        siswa:siswa_id (*)
+      ),
+      agenda_kejadian (*),
+      agenda_evidence (*)
+    `;
+
 /** Ubah satu baris `agenda_header` (dengan relasinya) menjadi bentuk `FullAgenda`. */
 function mapAgendaRow(item: any): FullAgenda {
   const rawEvidence = Array.isArray(item.agenda_evidence)
@@ -288,11 +310,25 @@ export async function getRekapAgenda(filters?: {
   /** Batasi jumlah baris (untuk "terbaru" / dashboard) — opsional. */
   limit?: number;
 }): Promise<FullAgenda[]> {
+  // Guru "Administrator" bukan guru sungguhan — jangan disaring sebagai nama.
+  const teacherName =
+    filters?.nama_guru && filters.nama_guru !== 'Administrator'
+      ? filters.nama_guru.trim()
+      : null;
+
   let query = supabase
     .from('agenda_header')
-    .select(AGENDA_DETAIL_SELECT)
+    .select(teacherName ? AGENDA_DETAIL_SELECT_BY_TEACHER : AGENDA_DETAIL_SELECT)
     .order('tanggal', { ascending: false })
     .order('created_at', { ascending: false });
+
+  // Penyaringan guru di sisi server. Sebelumnya filter ini dijalankan di
+  // browser setelah SELURUH riwayat sekolah terunduh — halaman "Riwayat Saya"
+  // jadi mengunduh data semua guru, sepanjang waktu, hanya untuk menampilkan
+  // beberapa baris milik sendiri.
+  if (teacherName) {
+    query = query.eq('agenda_kbm.nama_guru', teacherName);
+  }
 
   if (filters?.kelas && filters.kelas !== 'SEMUA') {
     query = query.eq('kelas', filters.kelas);
@@ -313,16 +349,7 @@ export async function getRekapAgenda(filters?: {
   const { data, error } = await query;
   if (error) throw error;
 
-  let results: FullAgenda[] = (data || []).map(mapAgendaRow);
-
-  if (filters?.nama_guru && filters.nama_guru !== 'Administrator') {
-    const teacherName = filters.nama_guru.trim();
-    results = results.filter((agenda) =>
-      agenda.kbm.some((k) => k.nama_guru === teacherName)
-    );
-  }
-
-  return results;
+  return (data || []).map(mapAgendaRow);
 }
 
 /**

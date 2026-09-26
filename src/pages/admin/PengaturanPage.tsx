@@ -123,7 +123,7 @@ const ColorField: React.FC<{
         className="w-24 font-mono uppercase"
         aria-label={`${label} (kode hex)`}
       />
-      <span className="text-[11px] text-slate-400">{hint}</span>
+      <span className="text-xs text-slate-600">{hint}</span>
     </div>
   </div>
 );
@@ -150,7 +150,7 @@ const ToggleField: React.FC<{
     />
     <span>
       <span className="block text-xs font-semibold text-slate-700">{label}</span>
-      <span className="block text-[11px] text-slate-400">{hint}</span>
+      <span className="block text-xs text-slate-600">{hint}</span>
     </span>
   </label>
 );
@@ -171,10 +171,10 @@ const SettingsPreview: React.FC<{ settings: AppSettings }> = ({ settings }) => {
   return (
     <div className="bg-slate-100/70 border border-slate-200 rounded-xl p-3 sm:p-4">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+        <span className="text-2xs font-bold uppercase tracking-wider text-slate-600">
           Pratinjau sheet "Jadwal Mingguan"
         </span>
-        <span className="text-[10px] font-semibold text-slate-400">
+        <span className="text-2xs font-semibold text-slate-600">
           cetak: {excel.orientation}
         </span>
       </div>
@@ -300,7 +300,7 @@ const SettingsPreview: React.FC<{ settings: AppSettings }> = ({ settings }) => {
         </table>
       </div>
 
-      <p className="text-[11px] text-slate-400 mt-2 text-center">
+      <p className="text-xs text-slate-600 mt-2 text-center">
         Pratinjau gaya saja, bukan hasil render Excel. Coba ekspor untuk melihat
         file sebenarnya.
       </p>
@@ -404,7 +404,7 @@ export const PengaturanPage: React.FC = () => {
             </div>
             <div>
               <h3 className="font-bold text-slate-900 text-sm">Identitas Sekolah</h3>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-xs text-slate-600">
                 Dipakai di kop Excel, kop surat resmi, navbar, halaman login, dan
                 tanda tangan laporan.
               </p>
@@ -436,7 +436,7 @@ export const PengaturanPage: React.FC = () => {
               <h3 className="font-bold text-slate-900 text-sm">
                 Tampilan Export Excel
               </h3>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-xs text-slate-600">
                 Berlaku untuk file jadwal yang di-unduh dari halaman Jadwal Pelajaran.
               </p>
             </div>
@@ -566,34 +566,34 @@ export const PengaturanPage: React.FC = () => {
           <h3 className="font-bold text-slate-900 text-sm">Informasi Sistem</h3>
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-xs">
             <div>
-              <dt className="text-slate-500 text-[11px]">Pengguna saat ini</dt>
+              <dt className="text-slate-500 text-xs">Pengguna saat ini</dt>
               <dd className="font-semibold text-slate-800">
                 {activeTeacherName || 'Administrator'}
               </dd>
             </div>
             <div>
-              <dt className="text-slate-500 text-[11px]">Basis Data</dt>
+              <dt className="text-slate-500 text-xs">Basis Data</dt>
               <dd className="font-semibold text-slate-800 flex items-center gap-1.5">
-                <Database className="w-3.5 h-3.5 text-slate-400" />
+                <Database className="w-3.5 h-3.5 text-slate-600" />
                 Supabase PostgreSQL (Schema:{' '}
                 <code className="bg-slate-200/80 px-1 rounded">agenda</code>)
               </dd>
             </div>
             <div>
-              <dt className="text-slate-500 text-[11px]">Metode Autentikasi</dt>
+              <dt className="text-slate-500 text-xs">Metode Autentikasi</dt>
               <dd className="font-semibold text-slate-800 flex items-center gap-1.5">
-                <KeyRound className="w-3.5 h-3.5 text-slate-400" />
+                <KeyRound className="w-3.5 h-3.5 text-slate-600" />
                 Supabase Auth &middot; kode sekolah bersama
               </dd>
             </div>
             <div>
-              <dt className="text-slate-500 text-[11px]">Aplikasi</dt>
+              <dt className="text-slate-500 text-xs">Aplikasi</dt>
               <dd className="font-semibold text-slate-800">
                 SIAJAR (Sistem Agenda Pembelajaran)
               </dd>
             </div>
           </dl>
-          <p className="text-[11px] text-slate-400 pt-1 border-t border-slate-100">
+          <p className="text-xs text-slate-600 pt-1 border-t border-slate-100">
             Durasi jam pelajaran mengikuti Slot Waktu (JP) yang dikonfigurasi di menu
             Jadwal &gt; Slot Waktu — bukan angka tetap.
           </p>
@@ -603,7 +603,7 @@ export const PengaturanPage: React.FC = () => {
       {/* Bilah aksi melayang: Simpan hanya aktif saat ada perubahan. */}
       <div className="fixed bottom-4 right-4 lg:right-8 z-30 flex items-center gap-2 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl shadow-lg px-3 py-2.5 no-print">
         {dirty && (
-          <span className="text-[11px] font-semibold text-amber-600 mr-1">
+          <span className="text-xs font-semibold text-amber-600 mr-1">
             Belum disimpan
           </span>
         )}

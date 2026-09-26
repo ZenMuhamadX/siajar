@@ -277,7 +277,7 @@ function TeacherShell() {
 
       {/* Digabung: ukuran & kontras teks dari branch ini, nama sekolah dari dev
           (SettingsContext) supaya nama lembaga tidak lagi hardcoded. */}
-      <footer className="border-t border-slate-200 bg-white py-3 text-center text-[13px] text-slate-600 no-print mt-auto hidden md:block">
+      <footer className="border-t border-slate-200 bg-white py-3 text-center text-xs text-slate-600 no-print mt-auto hidden md:block">
         {schoolName} &bull; Agenda Pembelajaran &copy; {new Date().getFullYear()}
       </footer>
 

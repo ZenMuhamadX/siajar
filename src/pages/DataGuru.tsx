@@ -145,7 +145,7 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
           onResetFilters={() => setSearchQuery('')}
           actions={
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
+              <div className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold">
                 <UserCheck className="w-4 h-4 text-primary-600" />
                 <span>{guruList.length} Guru Terdaftar</span>
               </div>

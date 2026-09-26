@@ -19,9 +19,13 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const showToast = useCallback<ShowToast>((type, message) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     setToasts((prev) => [...prev, { id, type, message }]);
+    // Pesan gagal dibaca sambil bertindak ("foto belum diambil, ambil dulu"),
+    // jadi ia butuh waktu lebih panjang daripada konfirmasi sukses yang cukup
+    // dilihat sekilas. Sebelumnya semua jenis dipukul rata 4 detik.
+    const duration = type === 'error' ? 8000 : 4000;
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
+    }, duration);
   }, []);
 
   const handleDismiss = useCallback((id: string) => {

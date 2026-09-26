@@ -13,9 +13,9 @@ export const formStyles = {
   /** Label field. */
   label: 'block text-xs font-semibold text-slate-600 mb-1.5',
   /** Teks bantuan di bawah field. */
-  hint: 'text-[13px] text-slate-600 mt-1',
+  hint: 'text-xs text-slate-600 mt-1',
   /** Pesan error. */
-  error: 'text-[13px] text-rose-600 mt-1',
+  error: 'text-xs text-rose-600 mt-1',
   /** Input teks/angka/date/time. */
   input:
     'w-full px-2.5 py-1.5 text-xs bg-white text-slate-800 border border-slate-200 rounded-lg placeholder:text-slate-600 focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition',
@@ -37,7 +37,7 @@ export const formStyles = {
   dangerBtn:
     'inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white font-semibold rounded-lg text-xs transition',
   /** Judul seksi di dalam form. */
-  sectionTitle: 'text-[12px] font-bold uppercase tracking-widest text-primary-600',
+  sectionTitle: 'text-xs font-bold uppercase tracking-widest text-primary-600',
   /** Garis pemisah seksi. */
   sectionRule: 'flex-1 h-px bg-primary-100',
   /** Panel pembungkus form. */

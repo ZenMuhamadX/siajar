@@ -160,19 +160,19 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th scope="col" className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-[13px] whitespace-nowrap">
+                  <th scope="col" className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-xs whitespace-nowrap">
                     Hari
                   </th>
-                  <th scope="col" className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-[13px] text-center whitespace-nowrap">
+                  <th scope="col" className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-xs text-center whitespace-nowrap">
                     Waktu
                   </th>
-                  <th scope="col" className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-[13px] text-center whitespace-nowrap">
+                  <th scope="col" className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-xs text-center whitespace-nowrap">
                     JP
                   </th>
-                  <th scope="col" className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-[13px] text-center whitespace-nowrap">
+                  <th scope="col" className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-xs text-center whitespace-nowrap">
                     Kelas
                   </th>
-                  <th scope="col" className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-[13px]">
+                  <th scope="col" className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-xs">
                     Mata Pelajaran
                   </th>
                 </tr>
@@ -187,7 +187,7 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
                       {item.start_time.slice(0, 5)} – {item.end_time.slice(0, 5)}
                     </td>
                     <td className="px-4 py-3 text-center whitespace-nowrap">
-                      <span className="px-2 py-0.5 rounded-full text-[12px] font-bold bg-primary-100 text-primary-700">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-primary-100 text-primary-700">
                         JP {item.period_number}
                       </span>
                     </td>

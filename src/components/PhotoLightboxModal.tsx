@@ -65,7 +65,7 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
             {title}
           </h3>
           {actualTeacherName && (
-            <p className="text-[13px] text-slate-600 font-medium flex items-center gap-1 mt-0.5">
+            <p className="text-xs text-slate-600 font-medium flex items-center gap-1 mt-0.5">
               <User className="w-3 h-3 text-emerald-600" aria-hidden="true" />
               <span>
                 Guru Pengajar: <strong className="text-slate-800">{actualTeacherName}</strong>
@@ -129,13 +129,13 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
       </div>
 
       {/* Metadata Footer: Diambil & Diunggah */}
-      <div className="shrink-0 px-4 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[13px] text-slate-600">
+      <div className="shrink-0 px-4 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1 font-medium">
             <Clock className="w-3 h-3 text-slate-500" aria-hidden="true" />
             <span>Diambil: {formatDateTimeIndo(capturedAt || uploadedAt)}</span>
           </span>
-          <span className="text-slate-400 hidden sm:inline" aria-hidden="true">
+          <span className="text-slate-500 hidden sm:inline" aria-hidden="true">
             &bull;
           </span>
           <span className="flex items-center gap-1 font-medium">
@@ -143,7 +143,7 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
             <span>Diupload: {formatDateTimeIndo(uploadedAt)}</span>
           </span>
         </div>
-        <span className="text-[12px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 w-fit">
+        <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 w-fit">
           Status: Tersimpan (Final)
         </span>
       </div>

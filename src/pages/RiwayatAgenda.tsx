@@ -1,523 +1,443 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { localDateString } from '../utils/date';
 import { useAuth } from '../contexts/AuthContext';
 import { getRekapAgenda, deleteAgenda } from '../services/agendaService';
 import { getEvidenceSignedUrl } from '../services/evidenceService';
 import { PhotoLightboxModal } from '../components/PhotoLightboxModal';
-import { ScrollArea } from '../components/common/ScrollArea';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { ScrollArea, EmptyState, ErrorState } from '../components/common';
 import type { FullAgenda } from '../types';
-import { Edit2, Trash2, RefreshCw, Camera, Eye } from 'lucide-react';
+import {
+  Edit2,
+  Trash2,
+  RefreshCw,
+  Camera,
+  Eye,
+  Search,
+  ChevronDown,
+  Lock,
+  CalendarDays,
+} from 'lucide-react';
 
 interface RiwayatAgendaProps {
   onEditAgenda: (agenda: FullAgenda) => void;
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
 }
 
-export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
-  onEditAgenda,
-  showToast,
-}) => {
+/** Jumlah kartu yang ditampilkan sekali jalan. */
+const PAGE_SIZE = 20;
+
+interface ActivePhoto {
+  url: string;
+  uploadedAt?: string;
+  capturedAt?: string;
+  actualTeacherName?: string;
+  title: string;
+}
+
+/**
+ * URL foto dimuat saat kartu benar-benar dibuka, bukan saat halaman dimuat.
+ *
+ * Sebelumnya seluruh riwayat memanggil `getEvidenceSignedUrl` sekaligus lewat
+ * `Promise.all` — satu permintaan per agenda, semuanya bersamaan, padahal
+ * hanya satu-dua foto yang benar-benar dilihat guru. Di jaringan sekolah itu
+ * membuat halaman "Riwayat" jadi layar paling lambat di aplikasi.
+ *
+ * Hasilnya disimpan bersama `path`-nya lalu dicocokkan saat render, bukan
+ * dikosongkan lewat `setState` di dalam efek — sehingga kartu yang ditutup
+ * langsung berhenti menampilkan URL lama tanpa render tambahan.
+ */
+function useEvidenceUrl(storagePath?: string | null): string | null {
+  const [loaded, setLoaded] = useState<{ path: string; url: string | null } | null>(null);
+
+  useEffect(() => {
+    if (!storagePath) return;
+    let alive = true;
+    getEvidenceSignedUrl(storagePath).then((signed) => {
+      if (alive) setLoaded({ path: storagePath, url: signed || null });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [storagePath]);
+
+  return loaded && storagePath && loaded.path === storagePath ? loaded.url : null;
+}
+
+const formatDateIndo = (dateStr: string) => {
+  try {
+    const date = new Date(dateStr + 'T00:00:00');
+    return date.toLocaleDateString('id-ID', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
+};
+
+const formatDateTimeIndo = (iso?: string) => {
+  if (!iso) return '-';
+  try {
+    return new Date(iso).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return '-';
+  }
+};
+
+const monthKey = (dateStr: string) => dateStr.slice(0, 7); // "2026-09"
+
+const formatMonthIndo = (key: string) => {
+  try {
+    const [y, m] = key.split('-').map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString('id-ID', {
+      month: 'long',
+      year: 'numeric',
+    });
+  } catch {
+    return key;
+  }
+};
+
+const isBreakRow = (jamKe: string) => jamKe === 'Istirahat' || jamKe === 'Isoma';
+
+/** Ringkasan mapel pada satu agenda — dipakai di bagian kartu yang selalu tampak. */
+const subjectSummary = (agenda: FullAgenda) =>
+  Array.from(
+    new Set(
+      agenda.kbm
+        .filter((k) => !isBreakRow(k.jam_ke))
+        .map((k) => k.mapel)
+        .filter(Boolean)
+    )
+  ).join(' · ');
+
+export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, showToast }) => {
   const { activeTeacherName, isAdmin } = useAuth();
   const [agendas, setAgendas] = useState<FullAgenda[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
-  // Lightbox Modal State
-  const [activePhoto, setActivePhoto] = useState<{
-    url: string;
-    uploadedAt?: string;
-    capturedAt?: string;
-    actualTeacherName?: string;
-    title: string;
-  } | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [search, setSearch] = useState('');
+  const [monthFilter, setMonthFilter] = useState('ALL');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [pendingDelete, setPendingDelete] = useState<FullAgenda | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [activePhoto, setActivePhoto] = useState<ActivePhoto | null>(null);
 
   const todayStr = localDateString();
 
-  const fetchRiwayat = async () => {
+  const fetchRiwayat = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(false);
     try {
+      // Penyaringan guru terjadi di server (lihat `getRekapAgenda`), jadi yang
+      // terunduh hanya agenda milik guru ini — bukan seluruh riwayat sekolah.
       const data = await getRekapAgenda({
         nama_guru: activeTeacherName || undefined,
       });
-
-      // Load signed URL untuk agenda yang memiliki bukti foto
-      const withSignedUrls = await Promise.all(
-        data.map(async (item) => {
-          if (item.evidence?.storage_path) {
-            const url = await getEvidenceSignedUrl(item.evidence.storage_path);
-            return {
-              ...item,
-              evidence: {
-                ...item.evidence,
-                signedUrl: url || undefined,
-              },
-            };
-          }
-          return item;
-        })
-      );
-
-      setAgendas(withSignedUrls);
+      setAgendas(data);
+      setVisibleCount(PAGE_SIZE);
     } catch (err) {
       console.error(err);
+      setLoadError(true);
       showToast('error', 'Gagal memuat riwayat agenda.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [activeTeacherName, showToast]);
 
   useEffect(() => {
     fetchRiwayat();
-  }, [activeTeacherName]);
+  }, [fetchRiwayat]);
 
-  const handleDelete = async (id: string, kelas: string, tanggal: string) => {
-    if (!import.meta.env.DEV && !confirm(`Hapus agenda ${kelas} tanggal ${tanggal}?`)) {
-      return;
+  /** Bulan yang benar-benar ada datanya — tidak menawarkan pilihan kosong. */
+  const availableMonths = useMemo(() => {
+    const keys = new Set(agendas.map((a) => monthKey(a.header.tanggal)));
+    return Array.from(keys).sort().reverse();
+  }, [agendas]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return agendas.filter((agenda) => {
+      if (monthFilter !== 'ALL' && monthKey(agenda.header.tanggal) !== monthFilter) {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        agenda.header.kelas.toLowerCase().includes(q) ||
+        agenda.header.tanggal.includes(q) ||
+        agenda.kbm.some(
+          (k) =>
+            (k.mapel || '').toLowerCase().includes(q) ||
+            (k.materi || '').toLowerCase().includes(q) ||
+            (k.tugas_pr || '').toLowerCase().includes(q)
+        ) ||
+        (agenda.kejadian || []).some((e) =>
+          (e.uraian_kejadian || '').toLowerCase().includes(q)
+        )
+      );
+    });
+  }, [agendas, search, monthFilter]);
+
+  /** Dikelompokkan per bulan supaya guru memindai posisi, bukan membaca satu per satu. */
+  const grouped = useMemo(() => {
+    const visible = filtered.slice(0, visibleCount);
+    const map = new Map<string, FullAgenda[]>();
+    for (const agenda of visible) {
+      const key = monthKey(agenda.header.tanggal);
+      const bucket = map.get(key);
+      if (bucket) bucket.push(agenda);
+      else map.set(key, [agenda]);
     }
+    return Array.from(map.entries());
+  }, [filtered, visibleCount]);
+
+  const hasFilter = search.trim() !== '' || monthFilter !== 'ALL';
+
+  const resetFilters = () => {
+    setSearch('');
+    setMonthFilter('ALL');
+    setVisibleCount(PAGE_SIZE);
+  };
+
+  const toggleExpanded = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    setIsDeleting(true);
     try {
-      await deleteAgenda(id);
+      await deleteAgenda(pendingDelete.header.id);
       showToast('success', 'Agenda berhasil dihapus.');
+      setPendingDelete(null);
       fetchRiwayat();
-    } catch (err) {
+    } catch {
       showToast('error', 'Gagal menghapus agenda.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
-  const formatDateIndo = (dateStr: string) => {
-    try {
-      const date = new Date(dateStr + 'T00:00:00');
-      return date.toLocaleDateString('id-ID', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-    } catch {
-      return dateStr;
-    }
-  };
+  /* ------------------------------- Render ------------------------------- */
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4 pb-16 md:pb-0">
-      {/* Header Bar - Bersih & Minimalis */}
-      <div className="bg-white border border-slate-300 rounded-lg p-4 sm:p-5 flex items-center justify-between shadow-xs">
-        <div>
-          <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-            Riwayat Agenda Saya
-          </h2>
-          <p className="text-xs text-slate-500">
-            Daftar agenda yang diisi oleh <strong>{activeTeacherName}</strong>
-          </p>
+    <div className="max-w-4xl mx-auto space-y-4">
+      {/* Header + kendali pencarian */}
+      <div className="bg-white border border-slate-300 rounded-xl p-4 sm:p-5 shadow-xs space-y-3.5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+              Riwayat Agenda Saya
+            </h2>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Daftar agenda yang diisi oleh{' '}
+              <strong className="text-slate-800">{activeTeacherName}</strong>
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={fetchRiwayat}
+            disabled={isLoading}
+            className="text-xs px-3 py-2 min-h-10 bg-slate-100 hover:bg-slate-200 disabled:opacity-60 text-slate-700 font-semibold border border-slate-300 rounded-lg transition flex items-center gap-1.5 shrink-0"
+          >
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`}
+              aria-hidden="true"
+            />
+            <span>Segarkan</span>
+          </button>
         </div>
 
-        <button
-          onClick={fetchRiwayat}
-          className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold border border-slate-300 rounded transition flex items-center gap-1.5"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-          <span>Segarkan</span>
-        </button>
+        {/* Sebelumnya tidak ada kendali apa pun selain "Segarkan", sehingga
+            menemukan satu agenda lama berarti menggulir seluruh riwayat. */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search
+              className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2"
+              aria-hidden="true"
+            />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setVisibleCount(PAGE_SIZE);
+              }}
+              placeholder="Cari kelas, mapel, materi, atau catatan…"
+              aria-label="Cari riwayat agenda"
+              className="w-full pl-9 pr-3 py-2.5 min-h-10 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition"
+            />
+          </div>
+
+          <div className="relative sm:w-56">
+            <CalendarDays
+              className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+              aria-hidden="true"
+            />
+            <select
+              value={monthFilter}
+              onChange={(e) => {
+                setMonthFilter(e.target.value);
+                setVisibleCount(PAGE_SIZE);
+              }}
+              aria-label="Saring berdasarkan bulan"
+              className="w-full pl-9 pr-3 py-2.5 min-h-10 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition cursor-pointer"
+            >
+              <option value="ALL">Semua bulan</option>
+              {availableMonths.map((key) => (
+                <option key={key} value={key}>
+                  {formatMonthIndo(key)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {!isLoading && !loadError && agendas.length > 0 && (
+          <p className="text-xs text-slate-600" role="status" aria-live="polite">
+            Menampilkan <strong className="text-slate-800">{filtered.length}</strong> dari{' '}
+            {agendas.length} agenda
+            {hasFilter && (
+              <>
+                {' · '}
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="font-semibold text-primary-700 underline hover:text-primary-900"
+                >
+                  Reset pencarian
+                </button>
+              </>
+            )}
+          </p>
+        )}
       </div>
 
-      {/* List Agendas */}
+      {/* Konten */}
       {isLoading ? (
-        <div className="bg-white border border-slate-300 rounded-lg p-10 text-center text-xs text-slate-500">
-          <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-slate-500" />
-          Memuat data riwayat...
+        <div
+          className="bg-white border border-slate-300 rounded-xl p-10 text-center text-xs text-slate-600"
+          role="status"
+          aria-live="polite"
+        >
+          <RefreshCw
+            className="w-5 h-5 animate-spin mx-auto mb-2 text-slate-500"
+            aria-hidden="true"
+          />
+          Memuat riwayat agenda…
+        </div>
+      ) : loadError ? (
+        <div className="bg-white border border-slate-300 rounded-xl">
+          <ErrorState
+            title="Gagal memuat riwayat"
+            message="Riwayat agenda tidak dapat diambil dari server. Periksa koneksi lalu coba lagi."
+            onRetry={fetchRiwayat}
+          />
         </div>
       ) : agendas.length === 0 ? (
-        <div className="bg-white border border-slate-300 rounded-lg p-10 text-center text-xs text-slate-500">
-          Belum ada catatan agenda untuk Anda. Silakan isi melalui menu <strong>Isi Agenda</strong>.
+        <div className="bg-white border border-slate-300 rounded-xl">
+          <EmptyState
+            title="Belum ada catatan agenda"
+            description="Agenda yang Anda isi akan muncul di sini. Mulai dari menu Isi Agenda."
+          />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white border border-slate-300 rounded-xl">
+          <EmptyState
+            isFiltered
+            onReset={resetFilters}
+            description={`Tidak ada agenda yang cocok dengan pencarian${
+              search.trim() ? ` "${search.trim()}"` : ''
+            }.`}
+          />
         </div>
       ) : (
-        <div className="space-y-4">
-          {agendas.map((agenda) => {
-            const isToday = agenda.header.tanggal === todayStr;
-            const canEdit = isToday || isAdmin;
+        <div className="space-y-5">
+          {grouped.map(([month, items]) => (
+            <section key={month} className="space-y-3">
+              {/* Judul bulan lengket di bawah header aplikasi agar guru selalu
+                  tahu sedang melihat periode mana saat menggulir. */}
+              <h3 className="sticky top-[3.25rem] sm:top-16 z-10 flex items-center justify-between gap-2 py-2 px-3 bg-slate-100/95 backdrop-blur-xs border border-slate-200 rounded-lg">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  {formatMonthIndo(month)}
+                </span>
+                <span className="text-xs text-slate-600 font-medium">
+                  {items.length} agenda
+                </span>
+              </h3>
 
-            return (
-              <div
-                key={agenda.header.id}
-                className="bg-white border border-slate-300 rounded-lg shadow-xs overflow-hidden"
-              >
-                {/* Header Card Minimalis */}
-                <div className="p-3.5 sm:p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-xs px-2 py-0.5 bg-slate-800 text-white rounded">
-                      {agenda.header.kelas}
-                    </span>
-                    <span className="text-xs font-semibold text-slate-800">
-                      {formatDateIndo(agenda.header.tanggal)}
-                    </span>
-                    {isToday && (
-                      <span className="text-[12px] font-bold px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded">
-                        Hari Ini
-                      </span>
-                    )}
-                  </div>
+              {items.map((agenda) => {
+                const id = agenda.header.id;
+                const isToday = agenda.header.tanggal === todayStr;
+                return (
+                  <RiwayatCard
+                    key={id}
+                    agenda={agenda}
+                    isOpen={expanded.has(id)}
+                    isToday={isToday}
+                    canEdit={isToday || isAdmin}
+                    isAdmin={isAdmin}
+                    absentCount={agenda.absensi?.length || 0}
+                    subjects={subjectSummary(agenda)}
+                    hasEvidence={Boolean(agenda.evidence?.storage_path)}
+                    onToggle={() => toggleExpanded(id)}
+                    onEdit={() => onEditAgenda(agenda)}
+                    onDelete={() => setPendingDelete(agenda)}
+                    onOpenPhoto={(photo) => setActivePhoto(photo)}
+                  />
+                );
+              })}
+            </section>
+          ))}
 
-                  <div className="flex items-center gap-2">
-                    {canEdit ? (
-                      <button
-                        onClick={() => onEditAgenda(agenda)}
-                        className="text-xs px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded flex items-center gap-1 transition"
-                      >
-                        <Edit2 className="w-3 h-3" />
-                        <span>Koreksi / Edit</span>
-                      </button>
-                    ) : (
-                      <span className="text-[13px] text-slate-600 italic">
-                        Terkunci
-                      </span>
-                    )}
-
-                    {isAdmin && (
-                      <button
-                        aria-label="Hapus Agenda"
-                        onClick={() =>
-                          handleDelete(
-                            agenda.header.id,
-                            agenda.header.kelas,
-                            agenda.header.tanggal
-                          )
-                        }
-                        className="p-1 text-slate-600 hover:text-rose-600 rounded transition"
-                        title="Hapus Agenda"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                     )}
-                  </div>
-                </div>
-
-                {/* Mobile Card/Timeline View (< md) */}
-                <div className="md:hidden p-3.5 space-y-3">
-                  <div className="space-y-2.5">
-                    {agenda.kbm.map((k, idx) => {
-                      const isBreak = k.jam_ke === 'Istirahat' || k.jam_ke === 'Isoma';
-
-                      if (isBreak) {
-                        return (
-                          <div
-                            key={idx}
-                            className="py-1.5 px-3 bg-amber-50/70 border border-amber-200/60 rounded-lg text-center text-xs font-semibold text-amber-800"
-                          >
-                            ☕ {k.jam_ke}
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div
-                          key={idx}
-                          className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-[13px] px-2 py-0.5 bg-slate-200 text-slate-800 rounded-md">
-                                Jam {k.jam_ke}
-                              </span>
-                              <span className="font-bold text-slate-800 text-xs">
-                                {k.mapel}
-                              </span>
-                            </div>
-                            {k.is_badal && (
-                              <span className="px-1.5 py-0.2 text-[12px] font-bold bg-amber-100 text-amber-800 rounded">
-                                Badal
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="text-slate-500 text-[13px]">
-                            Guru: <span className="text-slate-700 font-medium">{k.nama_guru || '-'}</span>
-                          </div>
-
-                          <div className="p-2 bg-white rounded-lg border border-slate-200/90 text-slate-800 leading-relaxed text-xs">
-                            {k.materi}
-                          </div>
-
-                          {k.tugas_pr && (
-                            <div className="text-[13px] text-slate-600 bg-amber-50/80 border border-amber-200/60 rounded-md p-2">
-                              <strong>Tugas/PR:</strong> {k.tugas_pr}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Bukti Foto Mengajar (Mobile View) */}
-                  <div className="pt-2 border-t border-slate-100 text-xs">
-                    {agenda.evidence ? (
-                      <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {agenda.evidence.signedUrl ? (
-                            <img
-                              src={agenda.evidence.signedUrl}
-                              alt="Bukti Foto"
-                              className="w-12 h-12 rounded-lg object-cover border border-slate-300 shadow-2xs shrink-0 cursor-pointer hover:opacity-90 transition"
-                              onClick={() =>
-                                setActivePhoto({
-                                  url: agenda.evidence!.signedUrl!,
-                                  uploadedAt: agenda.evidence!.uploaded_at,
-                                  capturedAt: agenda.evidence!.captured_at,
-                                  actualTeacherName: agenda.evidence!.actual_teacher_name || agenda.header.actual_teacher_name || agenda.kbm?.[0]?.nama_guru,
-                                  title: `Dokumentasi Foto - ${agenda.header.kelas}`,
-                                })
-                              }
-                            />
-                          ) : (
-                            <div className="w-12 h-12 rounded-lg bg-slate-200 flex items-center justify-center shrink-0 text-slate-600">
-                              <Camera className="w-5 h-5" />
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <p className="font-bold text-slate-800 text-[13px] truncate flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                              <span>Bukti foto tersedia</span>
-                            </p>
-                            {agenda.evidence.uploaded_at && (
-                              <p className="text-[12px] text-slate-500 mt-0.5">
-                                Diunggah{' '}
-                                {new Date(agenda.evidence.uploaded_at).toLocaleDateString('id-ID', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  day: 'numeric',
-                                  month: 'short',
-                                })}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        {agenda.evidence.signedUrl && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setActivePhoto({
-                                url: agenda.evidence!.signedUrl!,
-                                uploadedAt: agenda.evidence!.uploaded_at,
-                                title: `Bukti Foto Mengajar - ${agenda.header.kelas}`,
-                              })
-                            }
-                            className="px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold rounded-lg text-[13px] flex items-center gap-1 shrink-0 transition"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-slate-600" />
-                            <span>Lihat</span>
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="p-2 bg-slate-50/60 border border-slate-200/70 rounded-lg text-[13px] text-slate-600 italic">
-                        Bukti foto belum tersedia
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Absensi & Kejadian Note */}
-                  <div className="space-y-2 pt-1 border-t border-slate-100 text-xs">
-                    <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
-                      <span className="font-bold text-slate-700 block mb-1 text-[13px] uppercase tracking-wider">
-                        Ketidakhadiran Siswa:
-                      </span>
-                      {agenda.absensi && agenda.absensi.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5">
-                          {agenda.absensi.map((ab, abIdx) => (
-                            <span
-                              key={abIdx}
-                              className="px-2 py-0.5 bg-white border border-slate-200 rounded-md text-[13px] font-medium text-slate-800 flex items-center gap-1"
-                            >
-                              <span>{ab.nama_siswa}</span>
-                              <span
-                                className={`font-bold px-1 rounded text-[12px] ${
-                                  ab.status === 'S'
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : ab.status === 'I'
-                                    ? 'bg-amber-100 text-amber-800'
-                                    : 'bg-rose-100 text-rose-800'
-                                }`}
-                              >
-                                {ab.status}
-                              </span>
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-emerald-700 font-medium text-[13px]">
-                          ✓ Nihil (Semua siswa hadir)
-                        </span>
-                      )}
-                    </div>
-
-                    {agenda.kejadian &&
-                      agenda.kejadian.length > 0 &&
-                      agenda.kejadian[0].uraian_kejadian && (
-                        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
-                          <span className="font-bold text-slate-700 block mb-1 text-[13px] uppercase tracking-wider">
-                            Catatan Kejadian:
-                          </span>
-                          <p className="text-slate-700 leading-relaxed text-xs">
-                            {agenda.kejadian[0].uraian_kejadian}
-                          </p>
-                        </div>
-                      )}
-                  </div>
-                </div>
-
-                {/* Table KBM Sheet Style (Desktop >= md) */}
-                <div className="hidden md:block p-3 sm:p-4 space-y-3">
-                  <div className="border border-slate-200 rounded">
-                    <ScrollArea label="Tabel kegiatan belajar mengajar">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-100/80 text-slate-700 font-semibold border-b border-slate-200">
-                          <th className="py-1.5 px-2.5 w-16 border-r border-slate-200">Jam</th>
-                          <th className="py-1.5 px-2.5 w-36 border-r border-slate-200">Guru</th>
-                          <th className="py-1.5 px-2.5 w-32 border-r border-slate-200">Mapel</th>
-                          <th className="py-1.5 px-2.5 border-r border-slate-200">Materi</th>
-                          <th className="py-1.5 px-2.5 w-28">Tugas/PR</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200">
-                        {agenda.kbm.map((k, idx) => {
-                          const isBreak = k.jam_ke === 'Istirahat' || k.jam_ke === 'Isoma';
-                          return (
-                            <tr key={idx} className={isBreak ? 'bg-slate-50 text-slate-500' : 'bg-white'}>
-                              <td className="p-2 border-r border-slate-200 font-bold text-slate-700">
-                                {k.jam_ke}
-                              </td>
-                              <td className="p-2 border-r border-slate-200 font-medium text-slate-800">
-                                <div className="flex items-center gap-1.5">
-                                  <span>{k.nama_guru || '-'}</span>
-                                  {k.is_badal && (
-                                    <span className="px-1 py-0.2 text-[12px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-300">
-                                      Badal
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="p-2 border-r border-slate-200 font-semibold text-slate-800">
-                                {k.mapel}
-                              </td>
-                              <td className="p-2 border-r border-slate-200 text-slate-700">
-                                {k.materi}
-                              </td>
-                              <td className="p-2 text-slate-600">
-                                {k.tugas_pr || '-'}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                    </ScrollArea>
-                  </div>
-
-                  {/* Bukti Foto Mengajar (Desktop) */}
-                  {agenda.evidence && (
-                    <div className="p-2.5 bg-slate-50 border border-slate-200 rounded flex items-center justify-between gap-3 text-xs">
-                      <div className="flex items-center gap-3">
-                        {agenda.evidence.signedUrl ? (
-                          <img
-                            src={agenda.evidence.signedUrl}
-                            alt="Bukti Foto"
-                            className="w-12 h-12 rounded object-cover border border-slate-300 shadow-2xs cursor-pointer hover:opacity-90 transition shrink-0"
-                            onClick={() =>
-                              setActivePhoto({
-                                url: agenda.evidence!.signedUrl!,
-                                uploadedAt: agenda.evidence!.uploaded_at,
-                                title: `Bukti Foto Mengajar - ${agenda.header.kelas}`,
-                              })
-                            }
-                          />
-                        ) : (
-                          <div className="w-12 h-12 rounded bg-slate-200 flex items-center justify-center shrink-0 text-slate-600">
-                            <Camera className="w-5 h-5" />
-                          </div>
-                        )}
-                        <div>
-                          <p className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                            <span>Bukti Foto Mengajar Tersedia</span>
-                          </p>
-                          {agenda.evidence.uploaded_at && (
-                            <p className="text-[13px] text-slate-500 mt-0.5">
-                              Diunggah:{' '}
-                              {new Date(agenda.evidence.uploaded_at).toLocaleDateString('id-ID', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                day: 'numeric',
-                                month: 'long',
-                                year: 'numeric',
-                              })}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {agenda.evidence.signedUrl && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setActivePhoto({
-                              url: agenda.evidence!.signedUrl!,
-                              uploadedAt: agenda.evidence!.uploaded_at,
-                              capturedAt: agenda.evidence!.captured_at,
-                              actualTeacherName: agenda.evidence!.actual_teacher_name || agenda.header.actual_teacher_name || agenda.kbm?.[0]?.nama_guru,
-                              title: `Dokumentasi Foto - ${agenda.header.kelas}`,
-                            })
-                          }
-                          className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold rounded text-xs flex items-center gap-1.5 transition"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-slate-600" />
-                          <span>Buka Foto</span>
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Absensi & Kejadian Note (Desktop) */}
-                  <div className="flex flex-col sm:flex-row gap-2.5 text-xs">
-                    <div className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded">
-                      <span className="font-bold text-slate-700 block mb-0.5">
-                        Ketidakhadiran:
-                      </span>
-                      {agenda.absensi && agenda.absensi.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {agenda.absensi.map((ab, abIdx) => (
-                            <span
-                              key={abIdx}
-                              className="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-[13px] font-medium text-slate-800"
-                            >
-                              {ab.nama_siswa} ({ab.status})
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-slate-600">Nihil (Semua siswa hadir)</span>
-                      )}
-                    </div>
-
-                    {agenda.kejadian &&
-                      agenda.kejadian.length > 0 &&
-                      agenda.kejadian[0].uraian_kejadian && (
-                        <div className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded">
-                          <span className="font-bold text-slate-700 block mb-0.5">
-                            Catatan Khusus:
-                          </span>
-                          <p className="text-slate-600 leading-tight">
-                            {agenda.kejadian[0].uraian_kejadian}
-                          </p>
-                        </div>
-                      )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {filtered.length > visibleCount && (
+            <button
+              type="button"
+              onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+              className="w-full py-3 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-semibold rounded-xl transition flex items-center justify-center gap-1.5"
+            >
+              <ChevronDown className="w-4 h-4" aria-hidden="true" />
+              <span>
+                Muat {Math.min(PAGE_SIZE, filtered.length - visibleCount)} agenda lagi
+              </span>
+            </button>
+          )}
         </div>
       )}
 
-      {/* Lightbox Modal */}
+      <ConfirmDialog
+        isOpen={pendingDelete !== null}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={confirmDelete}
+        isLoading={isDeleting}
+        title="Hapus agenda ini?"
+        message={
+          pendingDelete
+            ? `Agenda ${pendingDelete.header.kelas} tanggal ${formatDateIndo(
+                pendingDelete.header.tanggal
+              )} beserta materi, absensi, dan bukti fotonya akan dihapus permanen.`
+            : ''
+        }
+        confirmText="Ya, hapus"
+        cancelText="Batal"
+      />
+
       <PhotoLightboxModal
         isOpen={!!activePhoto}
         onClose={() => setActivePhoto(null)}
@@ -528,5 +448,329 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
         title={activePhoto?.title}
       />
     </div>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+/* Kartu agenda                                                               */
+/* -------------------------------------------------------------------------- */
+
+interface RiwayatCardProps {
+  agenda: FullAgenda;
+  isOpen: boolean;
+  isToday: boolean;
+  canEdit: boolean;
+  isAdmin: boolean;
+  absentCount: number;
+  subjects: string;
+  hasEvidence: boolean;
+  onToggle: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onOpenPhoto: (photo: ActivePhoto) => void;
+}
+
+/**
+ * Satu kartu agenda — SATU pohon JSX untuk semua ukuran layar.
+ *
+ * Sebelumnya isi kartu ini ditulis dua kali (versi HP dan versi desktop)
+ * dengan istilah yang berbeda untuk bagian yang sama, sehingga setiap
+ * perbaikan harus dilakukan dua kali dan guru melihat nama bagian yang
+ * berubah saat berpindah perangkat. Sekarang perbedaannya murni CSS:
+ * tabel KBM dibungkus `ScrollArea` yang sudah menangani layar sempit.
+ */
+const RiwayatCard: React.FC<RiwayatCardProps> = ({
+  agenda,
+  isOpen,
+  isToday,
+  canEdit,
+  isAdmin,
+  absentCount,
+  subjects,
+  hasEvidence,
+  onToggle,
+  onEdit,
+  onDelete,
+  onOpenPhoto,
+}) => {
+  const { header, kbm, absensi, kejadian, evidence } = agenda;
+  const evidenceUrl = useEvidenceUrl(isOpen ? evidence?.storage_path : null);
+  const bodyId = `riwayat-body-${header.id}`;
+
+  return (
+    <article className="bg-white border border-slate-300 rounded-xl shadow-xs overflow-hidden">
+      {/* Kepala kartu: ringkasan yang selalu tampak + aksi */}
+      <div className="p-3.5 sm:p-4 flex items-start justify-between gap-3">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={isOpen}
+          aria-controls={bodyId}
+          className="flex-1 min-w-0 text-left rounded-lg focus-visible:outline-none"
+        >
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+            <span className="font-bold text-xs px-2 py-0.5 bg-slate-800 text-white rounded">
+              {header.kelas}
+            </span>
+            <span className="text-xs font-semibold text-slate-800">
+              {formatDateIndo(header.tanggal)}
+            </span>
+            {isToday && (
+              <span className="text-xs font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded">
+                Hari Ini
+              </span>
+            )}
+          </div>
+
+          {subjects && (
+            <p className="mt-1.5 text-sm font-bold text-slate-900 truncate">{subjects}</p>
+          )}
+
+          {/* Status ringkas: yang guru cari saat memindai daftar */}
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 ${
+                  hasEvidence ? 'bg-emerald-500' : 'bg-slate-400'
+                }`}
+                aria-hidden="true"
+              />
+              {hasEvidence ? 'Bukti foto ada' : 'Tanpa bukti foto'}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 ${
+                  absentCount === 0 ? 'bg-emerald-500' : 'bg-amber-500'
+                }`}
+                aria-hidden="true"
+              />
+              {absentCount === 0 ? 'Semua hadir' : `${absentCount} siswa tidak hadir`}
+            </span>
+            <span className="text-slate-500">{kbm.length} baris KBM</span>
+          </div>
+        </button>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {canEdit ? (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="text-xs px-2.5 py-2 min-h-10 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded-lg flex items-center gap-1.5 transition"
+            >
+              <Edit2 className="w-3.5 h-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">Koreksi / Edit</span>
+            </button>
+          ) : (
+            /* "Terkunci" tanpa alasan membuat guru mengira aplikasinya rusak.
+               Sekarang aturannya disebutkan langsung di tempat kejadian. */
+            <span
+              className="hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-2 rounded-lg"
+              title="Hanya agenda hari yang sama yang bisa dikoreksi sendiri. Untuk hari lain, hubungi administrator."
+            >
+              <Lock className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
+              Hanya hari yang sama
+            </span>
+          )}
+
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={onDelete}
+              aria-label={`Hapus agenda ${header.kelas} tanggal ${header.tanggal}`}
+              title="Hapus agenda"
+              className="p-2 min-w-10 min-h-10 inline-flex items-center justify-center text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+            >
+              <Trash2 className="w-4 h-4" aria-hidden="true" />
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={isOpen}
+            aria-controls={bodyId}
+            aria-label={isOpen ? 'Tutup rincian agenda' : 'Buka rincian agenda'}
+            title={isOpen ? 'Tutup rincian' : 'Buka rincian'}
+            className="p-2 min-w-10 min-h-10 inline-flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition"
+          >
+            <ChevronDown
+              className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+              aria-hidden="true"
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* Rincian */}
+      {isOpen && (
+        <div id={bodyId} className="border-t border-slate-200 p-3.5 sm:p-4 space-y-3.5">
+          {!canEdit && (
+            <p className="sm:hidden flex items-start gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
+              <Lock className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" aria-hidden="true" />
+              <span>
+                Hanya agenda hari yang sama yang bisa dikoreksi sendiri. Hubungi administrator
+                untuk hari lain.
+              </span>
+            </p>
+          )}
+
+          {/* KBM */}
+          <div className="border border-slate-200 rounded-lg">
+            <ScrollArea label={`Tabel kegiatan belajar mengajar ${header.kelas}`}>
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-100/80 text-slate-700 font-semibold border-b border-slate-200">
+                    <th scope="col" className="py-2 px-3 w-20 border-r border-slate-200">
+                      Jam
+                    </th>
+                    <th scope="col" className="py-2 px-3 w-40 border-r border-slate-200">
+                      Guru
+                    </th>
+                    <th scope="col" className="py-2 px-3 w-36 border-r border-slate-200">
+                      Mapel
+                    </th>
+                    <th scope="col" className="py-2 px-3 border-r border-slate-200">
+                      Materi
+                    </th>
+                    <th scope="col" className="py-2 px-3 w-32">
+                      Tugas/PR
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {kbm.map((k, idx) => {
+                    const brk = isBreakRow(k.jam_ke);
+                    return (
+                      <tr key={idx} className={brk ? 'bg-slate-50 text-slate-500' : 'bg-white'}>
+                        <td className="py-2 px-3 border-r border-slate-200 font-bold text-slate-700">
+                          {k.jam_ke}
+                        </td>
+                        <td className="py-2 px-3 border-r border-slate-200 font-medium text-slate-800">
+                          <div className="flex items-center gap-1.5">
+                            <span>{k.nama_guru || '-'}</span>
+                            {k.is_badal && (
+                              <span className="px-1.5 py-0.5 text-2xs font-bold bg-amber-100 text-amber-800 rounded border border-amber-300">
+                                Badal
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-2 px-3 border-r border-slate-200 font-semibold text-slate-800">
+                          {k.mapel}
+                        </td>
+                        <td className="py-2 px-3 border-r border-slate-200 text-slate-700 leading-relaxed">
+                          {k.materi}
+                        </td>
+                        <td className="py-2 px-3 text-slate-600">{k.tugas_pr || '-'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </ScrollArea>
+          </div>
+
+          {/* Kehadiran — istilah disamakan dengan form pengisian */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+            <span className="text-xs font-bold text-slate-700 block mb-1.5">
+              Siswa Tidak Hadir
+            </span>
+            {absensi && absensi.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {absensi.map((ab, abIdx) => (
+                  <span
+                    key={abIdx}
+                    className="px-2 py-1 bg-white border border-slate-300 rounded-md text-xs font-medium text-slate-800 flex items-center gap-1.5"
+                  >
+                    <span>{ab.nama_siswa || 'Siswa'}</span>
+                    <span
+                      className={`font-bold px-1.5 rounded text-2xs ${
+                        ab.status === 'S'
+                          ? 'bg-blue-100 text-blue-800'
+                          : ab.status === 'I'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-rose-100 text-rose-800'
+                      }`}
+                    >
+                      {ab.status === 'S' ? 'Sakit' : ab.status === 'I' ? 'Izin' : 'Alpa'}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <span className="text-xs text-emerald-700 font-medium">Semua siswa hadir.</span>
+            )}
+          </div>
+
+          {/* Catatan kejadian — istilah disamakan dengan form pengisian */}
+          {kejadian?.[0]?.uraian_kejadian && (
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <span className="text-xs font-bold text-slate-700 block mb-1.5">
+                Catatan Kejadian
+              </span>
+              <p className="text-xs text-slate-700 leading-relaxed">
+                {kejadian[0].uraian_kejadian}
+              </p>
+            </div>
+          )}
+
+          {/* Bukti foto — URL dimuat hanya setelah kartu dibuka */}
+          {evidence?.storage_path ? (
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                {evidenceUrl ? (
+                  <img
+                    src={evidenceUrl}
+                    alt={`Bukti foto mengajar ${header.kelas}`}
+                    className="w-14 h-14 rounded-lg object-cover border border-slate-300 shrink-0"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-lg bg-slate-200 flex items-center justify-center shrink-0 text-slate-600">
+                    <Camera className="w-5 h-5" aria-hidden="true" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                    <span
+                      className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"
+                      aria-hidden="true"
+                    />
+                    <span>Bukti foto mengajar tersedia</span>
+                  </p>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    Diunggah {formatDateTimeIndo(evidence.uploaded_at)}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={!evidenceUrl}
+                onClick={() =>
+                  onOpenPhoto({
+                    url: evidenceUrl!,
+                    uploadedAt: evidence.uploaded_at,
+                    capturedAt: evidence.captured_at,
+                    actualTeacherName:
+                      evidence.actual_teacher_name ||
+                      header.actual_teacher_name ||
+                      kbm?.[0]?.nama_guru,
+                    title: `Dokumentasi Foto - ${header.kelas}`,
+                  })
+                }
+                className="px-3 py-2 min-h-10 bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-50 text-slate-700 font-semibold rounded-lg text-xs flex items-center gap-1.5 shrink-0 transition"
+              >
+                <Eye className="w-3.5 h-3.5 text-slate-600" aria-hidden="true" />
+                <span>{evidenceUrl ? 'Buka Foto' : 'Memuat…'}</span>
+              </button>
+            </div>
+          ) : (
+            <p className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
+              Bukti foto belum tersedia untuk agenda ini.
+            </p>
+          )}
+        </div>
+      )}
+    </article>
   );
 };

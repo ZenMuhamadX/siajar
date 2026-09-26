@@ -81,15 +81,15 @@ export const SubstitutionConfirmModal: React.FC<SubstitutionConfirmModalProps> =
         <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5 text-xs">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <p className="text-[12px] font-bold text-slate-600 uppercase tracking-wider">Kelas</p>
+              <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Kelas</p>
               <p className="font-bold text-slate-900">{schedule.class_id}</p>
             </div>
             <div>
-              <p className="text-[12px] font-bold text-slate-600 uppercase tracking-wider">Mata Pelajaran</p>
+              <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Mata Pelajaran</p>
               <p className="font-bold text-slate-900">{schedule.subject_name}</p>
             </div>
             <div>
-              <p className="text-[12px] font-bold text-slate-600 uppercase tracking-wider">Jam</p>
+              <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Jam</p>
               <p className="font-semibold text-slate-800">
                 {schedule.start_time.slice(0, 5)} – {schedule.end_time.slice(0, 5)} (JP{' '}
                 {schedule.period_number})
@@ -101,22 +101,22 @@ export const SubstitutionConfirmModal: React.FC<SubstitutionConfirmModalProps> =
         {/* Perbandingan guru */}
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="p-3 bg-slate-100 rounded-xl border border-slate-200 space-y-1">
-            <p className="text-[12px] font-bold text-slate-600 uppercase tracking-wider">Guru Terjadwal</p>
+            <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Guru Terjadwal</p>
             <p className="font-bold text-slate-800">{schedule.teacher_name}</p>
-            <span className="inline-block px-1.5 py-0.5 bg-slate-200 text-slate-600 text-[12px] font-bold rounded">
+            <span className="inline-block px-1.5 py-0.5 bg-slate-200 text-slate-600 text-xs font-bold rounded">
               Berhalangan
             </span>
           </div>
           <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-1">
-            <p className="text-[12px] font-bold text-amber-600 uppercase tracking-wider">Guru Pengganti</p>
+            <p className="text-xs font-bold text-amber-600 uppercase tracking-wider">Guru Pengganti</p>
             <p className="font-bold text-slate-900">{substituteTeacherName}</p>
-            <span className="inline-block px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[12px] font-bold rounded">
+            <span className="inline-block px-1.5 py-0.5 bg-amber-100 text-amber-700 text-xs font-bold rounded">
               Anda
             </span>
           </div>
         </div>
 
-        <p className="text-[13px] text-slate-500 leading-relaxed">
+        <p className="text-xs text-slate-600 leading-relaxed">
           Anda akan tercatat sebagai <strong>guru pengganti</strong> untuk{' '}
           <strong>{schedule.teacher_name}</strong>. Jadwal asli tidak akan berubah.
         </p>

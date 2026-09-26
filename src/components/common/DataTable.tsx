@@ -124,7 +124,7 @@ export function DataTable<T>({
                   </h3>
                 )}
                 {subtitle && (
-                  <p className="text-[13px] text-slate-500 font-medium truncate mt-0.5">
+                  <p className="text-xs text-slate-600 font-medium truncate mt-0.5">
                     {subtitle}
                   </p>
                 )}
@@ -149,7 +149,7 @@ export function DataTable<T>({
           aria-busy={isLoading}
           className={`w-full border-collapse text-xs ${tableClassName}`}
         >
-          <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[12px]">
+          <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-xs">
             <tr>
               {columns.map((col) => {
                 const alignClass = getAlignmentClass(col.align);

@@ -231,7 +231,7 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
       accessor: (slot) => (
         <div className="font-mono text-slate-700 whitespace-nowrap">
           {slot.schedule.start_time.slice(0, 5)} – {slot.schedule.end_time.slice(0, 5)}
-          <span className="block text-[12px] text-slate-600 font-sans">
+          <span className="block text-xs text-slate-600 font-sans">
             JP {slot.schedule.period_number}
           </span>
         </div>
@@ -334,19 +334,19 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white border border-slate-200 rounded-xl p-4">
-          <p className="text-[13px] font-medium text-slate-500">Slot jadwal</p>
+          <p className="text-xs font-medium text-slate-500">Slot jadwal</p>
           <p className="text-2xl font-bold text-slate-900 mt-1">{slots.length}</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl p-4">
-          <p className="text-[13px] font-medium text-slate-500">Sudah diisi</p>
+          <p className="text-xs font-medium text-slate-500">Sudah diisi</p>
           <p className="text-2xl font-bold text-emerald-700 mt-1">{filledCount}</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl p-4">
-          <p className="text-[13px] font-medium text-slate-500">Belum diisi</p>
+          <p className="text-xs font-medium text-slate-500">Belum diisi</p>
           <p className="text-2xl font-bold text-amber-700 mt-1">{emptyCount}</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl p-4">
-          <p className="text-[13px] font-medium text-slate-500">Tanggal</p>
+          <p className="text-xs font-medium text-slate-500">Tanggal</p>
           <p className="text-sm font-bold text-slate-900 mt-2 leading-snug">{formatDateIndo(selectedDate)}</p>
         </div>
       </div>
@@ -389,7 +389,7 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
                 <button
                   type="button"
                   onClick={() => handleSetDate(todayStr)}
-                  className="ml-1 px-2.5 py-1 text-[13px] font-bold bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50"
+                  className="ml-1 px-2.5 py-1 text-xs font-bold bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50"
                 >
                   Hari ini
                 </button>

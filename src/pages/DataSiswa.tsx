@@ -171,7 +171,7 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
           }
           actions={
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
+              <div className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold">
                 <Users className="w-4 h-4 text-primary-600" />
                 <span>{siswaList.length} Siswa</span>
               </div>
@@ -210,7 +210,7 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
               width: '100px',
               align: 'center',
               accessor: (item) => (
-                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 font-bold rounded-md border border-emerald-200/80 text-[12px]">
+                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 font-bold rounded-md border border-emerald-200/80 text-xs">
                   {item.kelas}
                 </span>
               ),

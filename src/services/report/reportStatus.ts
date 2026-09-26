@@ -38,14 +38,14 @@ export const REPORT_STATUS_PRINT_LABEL: Record<ReportStatus, string> = {
 
 /** Class badge di layar (mengikuti gaya badge yang sudah dipakai halaman lain). */
 export const REPORT_STATUS_BADGE: Record<ReportStatus, string> = {
-  SELESAI: 'inline-flex items-center px-2 py-0.5 rounded-full text-[13px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200',
-  BADAL: 'inline-flex items-center px-2 py-0.5 rounded-full text-[13px] font-bold bg-amber-50 text-amber-700 border border-amber-200',
+  SELESAI: 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200',
+  BADAL: 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200',
   SEDANG_BERLANGSUNG:
-    'inline-flex items-center px-2 py-0.5 rounded-full text-[13px] font-bold bg-blue-50 text-blue-700 border border-blue-200 animate-pulse',
+    'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 animate-pulse',
   BELUM_DIMULAI:
-    'inline-flex items-center px-2 py-0.5 rounded-full text-[13px] font-bold bg-slate-100 text-slate-600 border border-slate-200',
+    'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200',
   BELUM_TEREALISASI:
-    'inline-flex items-center px-2 py-0.5 rounded-full text-[13px] font-bold bg-rose-50 text-rose-700 border border-rose-200',
+    'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200',
 };
 
 /** Status yang berarti slot sudah tertangani (terlaksana, termasuk lewat badal). */
