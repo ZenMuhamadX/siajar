@@ -57,6 +57,16 @@ interface DraftPayload {
 
 const DRAFT_PREFIX = 'siajar.draft.agenda.';
 
+/**
+ * Panjang minimum materi.
+ *
+ * Sebelumnya satu karakter apa pun dianggap cukup, sehingga rekap sering
+ * berisi isian seperti "ok" atau "lanjut" yang tidak menjelaskan apa pun saat
+ * dibaca kembali oleh kepala sekolah. Dua belas karakter memaksa satu keterangan
+ * nyata tanpa menghalangi guru yang menulis singkat.
+ */
+const MIN_MATERI_LENGTH = 12;
+
 const readDraft = (key: string): DraftPayload | null => {
   try {
     const raw = localStorage.getItem(key);
@@ -521,7 +531,8 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   // ------------------------------------------------------------------ //
 
   const isPhotoReady = Boolean(existingEvidence?.storage_path);
-  const isMateriReady = Boolean(materi.trim());
+  const materiLength = materi.trim().length;
+  const isMateriReady = materiLength >= MIN_MATERI_LENGTH;
 
   /**
    * Satu-satunya jalur validasi.
@@ -535,7 +546,10 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
     e.preventDefault();
 
     if (!isMateriReady) {
-      showToast('error', 'Materi pembelajaran belum diisi.');
+      showToast(
+        'error',
+        `Materi minimal ${MIN_MATERI_LENGTH} karakter — saat ini ${materiLength}.`
+      );
       focusStep('materi');
       return;
     }
@@ -848,7 +862,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
         <FormStep
           step={2}
           title="Materi Pembelajaran"
-          hint="Ringkas apa yang diajarkan hari ini. Isian ini ikut tercetak di rekap."
+          hint={`Ringkas apa yang diajarkan hari ini, minimal ${MIN_MATERI_LENGTH} karakter. Isian ini ikut tercetak di rekap.`}
           icon={<BookOpen className="w-4 h-4" aria-hidden="true" />}
           done={isStepDone.materi}
           required
@@ -867,14 +881,30 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                 id="agenda-materi"
                 rows={5}
                 aria-required="true"
+                aria-describedby="agenda-materi-help"
+                aria-invalid={materiLength > 0 && !isMateriReady}
                 value={materi}
                 onChange={(e) => setMateri(e.target.value)}
                 placeholder="Contoh: Penjumlahan pecahan berpenyebut sama — latihan halaman 42."
-                className="w-full p-3.5 text-base rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 text-slate-900 leading-relaxed bg-white"
+                className={`w-full p-3.5 text-base rounded-xl border focus:outline-none focus:ring-2 text-slate-900 leading-relaxed bg-white ${
+                  materiLength > 0 && !isMateriReady
+                    ? 'border-amber-400 focus:ring-amber-500 focus:border-amber-500'
+                    : 'border-slate-300 focus:ring-primary-600 focus:border-primary-600'
+                }`}
               />
-              <p className="text-xs text-slate-600 mt-1.5">
-                Satu sampai dua kalimat sudah cukup.
-              </p>
+              <div className="flex items-start justify-between gap-3 mt-1.5">
+                <p id="agenda-materi-help" className="text-xs text-slate-600">
+                  Minimal {MIN_MATERI_LENGTH} karakter. Satu sampai dua kalimat sudah cukup.
+                </p>
+                <span
+                  aria-hidden="true"
+                  className={`text-xs font-bold tabular-nums shrink-0 ${
+                    isMateriReady ? 'text-emerald-700' : 'text-slate-500'
+                  }`}
+                >
+                  {materiLength}/{MIN_MATERI_LENGTH}
+                </span>
+              </div>
             </div>
 
             <div>
@@ -1263,7 +1293,12 @@ const SaveChecklist: React.FC<{
   onFix: (step: 'foto' | 'materi' | 'absensi') => void;
 }> = ({ materi, foto, absensi, onFix }) => {
   const items = [
-    { key: 'materi' as const, label: 'Materi', ok: materi, hint: 'belum diisi' },
+    {
+      key: 'materi' as const,
+      label: 'Materi',
+      ok: materi,
+      hint: `minimal ${MIN_MATERI_LENGTH} karakter`,
+    },
     { key: 'foto' as const, label: 'Foto', ok: foto, hint: 'belum ada' },
     { key: 'absensi' as const, label: 'Kehadiran', ok: absensi, hint: 'belum lengkap' },
   ];
