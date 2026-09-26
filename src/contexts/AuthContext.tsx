@@ -29,6 +29,10 @@ interface AuthContextType {
   loading: boolean;
   loginAsTeacher: (guruId: string, kode: string) => Promise<{ success: boolean; message?: string }>;
   loginAsAdmin: (kode: string) => Promise<{ success: boolean; message?: string }>;
+  changePassword: (
+    sandiLama: string,
+    sandiBaru: string
+  ) => Promise<{ success: boolean; message?: string }>;
   signOut: () => Promise<void>;
 }
 
@@ -47,7 +51,9 @@ function nameOf(user: User | null): string | null {
 /** Terjemahkan pesan galat Supabase jadi kalimat yang ramah guru. */
 function pesanError(message: string): string {
   const m = message.toLowerCase();
-  if (m.includes('invalid login credentials')) return 'Nama atau kode sekolah tidak cocok.';
+  if (m.includes('invalid login credentials')) {
+    return 'Kode tidak cocok, atau akun Anda belum dibuatkan. Hubungi admin sekolah.';
+  }
   if (m.includes('email not confirmed')) return 'Akun ini belum diaktifkan. Hubungi admin sekolah.';
   if (m.includes('too many requests') || m.includes('rate limit')) {
     return 'Terlalu banyak percobaan masuk. Coba lagi beberapa saat lagi.';
@@ -132,6 +138,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSession(null);
   };
 
+  /**
+   * Ganti sandi akun yang sedang login. Sandi lama diverifikasi dulu lewat
+   * sign-in ulang, supaya sesi yang tertinggal di laptop terbuka tidak bisa
+   * dipakai orang lain untuk mengambil alih akun.
+   */
+  const changePassword = async (
+    sandiLama: string,
+    sandiBaru: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    const email = session?.user?.email;
+    if (!email) return { success: false, message: 'Sesi tidak ditemukan. Masuk ulang.' };
+    if (!sandiLama.trim()) return { success: false, message: 'Sandi lama belum diisi.' };
+    if (sandiBaru.trim().length < 6) {
+      return { success: false, message: 'Sandi baru minimal 6 karakter.' };
+    }
+
+    const { error: reauthError } = await supabase.auth.signInWithPassword({
+      email,
+      password: sandiLama.trim(),
+    });
+    if (reauthError) return { success: false, message: 'Sandi lama tidak cocok.' };
+
+    const { error } = await supabase.auth.updateUser({ password: sandiBaru.trim() });
+    if (error) return { success: false, message: pesanError(error.message) };
+
+    return { success: true };
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -141,6 +175,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         loginAsTeacher,
         loginAsAdmin,
+        changePassword,
         signOut,
       }}
     >

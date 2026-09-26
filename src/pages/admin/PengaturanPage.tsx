@@ -3,6 +3,7 @@ import { PageHeader } from '../../components/admin/PageHeader';
 import {
   Database,
   KeyRound,
+  Lock,
   RotateCcw,
   Save,
   ShieldCheck,
@@ -308,6 +309,129 @@ const SettingsPreview: React.FC<{ settings: AppSettings }> = ({ settings }) => {
   );
 };
 
+/**
+ * Ganti sandi akun yang sedang login.
+ *
+ * Sandi lama diverifikasi lewat sign-in ulang sebelum diganti, sehingga sesi
+ * yang tertinggal di laptop terbuka tidak bisa dipakai orang lain untuk
+ * mengambil alih akun.
+ */
+const ChangePasswordCard: React.FC = () => {
+  const { changePassword } = useAuth();
+  const showToast = useToast();
+
+  const [lama, setLama] = useState('');
+  const [baru, setBaru] = useState('');
+  const [ulangi, setUlangi] = useState('');
+  const [lihat, setLihat] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (baru.length < 6) {
+      showToast('error', 'Sandi baru minimal 6 karakter.');
+      return;
+    }
+    if (baru !== ulangi) {
+      showToast('error', 'Ulangi sandi belum sama.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const res = await changePassword(lama, baru);
+      if (!res.success) {
+        showToast('error', res.message || 'Gagal mengganti sandi.');
+        return;
+      }
+      showToast('success', 'Sandi berhasil diganti.');
+      setLama('');
+      setBaru('');
+      setUlangi('');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const tipe = lihat ? 'text' : 'password';
+
+  return (
+    <section className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
+      <div className="flex items-center gap-2">
+        <Lock className="w-4 h-4 text-slate-400" />
+        <h3 className="font-bold text-slate-900 text-sm">Keamanan Akun</h3>
+      </div>
+
+      <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <FormField label="Sandi Lama" htmlFor="sandi-lama" required>
+          <TextInput
+            id="sandi-lama"
+            type={tipe}
+            required
+            autoComplete="current-password"
+            placeholder="Sandi saat ini"
+            value={lama}
+            onChange={(e) => setLama(e.target.value)}
+          />
+        </FormField>
+        <FormField
+          label="Sandi Baru"
+          htmlFor="sandi-baru"
+          required
+          hint="minimal 6 karakter"
+        >
+          <TextInput
+            id="sandi-baru"
+            type={tipe}
+            required
+            autoComplete="new-password"
+            placeholder="Sandi baru"
+            value={baru}
+            onChange={(e) => setBaru(e.target.value)}
+          />
+        </FormField>
+        <FormField label="Ulangi Sandi Baru" htmlFor="sandi-ulangi" required>
+          <TextInput
+            id="sandi-ulangi"
+            type={tipe}
+            required
+            autoComplete="new-password"
+            placeholder="Ketik ulang sandi baru"
+            value={ulangi}
+            onChange={(e) => setUlangi(e.target.value)}
+          />
+        </FormField>
+
+        <div className="sm:col-span-3 flex items-center justify-between gap-3 pt-1">
+          <label className="inline-flex items-center gap-1.5 text-[11px] text-slate-500 font-semibold cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={lihat}
+              onChange={(e) => setLihat(e.target.checked)}
+              className={formStyles.checkbox}
+            />
+            Tampilkan sandi
+          </label>
+          <button type="submit" disabled={busy} className={formStyles.primaryBtn}>
+            {busy ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <KeyRound className="w-3.5 h-3.5" />
+            )}
+            {busy ? 'Menyimpan...' : 'Ganti Sandi'}
+          </button>
+        </div>
+      </form>
+
+      <p className="text-[11px] text-slate-400 pt-1 border-t border-slate-100">
+        Sandi ini milik akun yang sedang login. Guru tidak memakai halaman ini —
+        kode tiap guru diatur admin dari menu <strong>Data Guru</strong>.
+      </p>
+    </section>
+  );
+};
+
 export const PengaturanPage: React.FC = () => {
   const { activeTeacherName } = useAuth();
   const { settings, offline, save, reset } = useSettings();
@@ -583,7 +707,7 @@ export const PengaturanPage: React.FC = () => {
               <dt className="text-slate-500 text-[11px]">Metode Autentikasi</dt>
               <dd className="font-semibold text-slate-800 flex items-center gap-1.5">
                 <KeyRound className="w-3.5 h-3.5 text-slate-400" />
-                Supabase Auth &middot; kode sekolah bersama
+                Supabase Auth &middot; kode pribadi per guru
               </dd>
             </div>
             <div>
@@ -598,6 +722,9 @@ export const PengaturanPage: React.FC = () => {
             Jadwal &gt; Slot Waktu — bukan angka tetap.
           </p>
         </section>
+
+        {/* Keamanan akun: ganti sandi akun yang sedang login */}
+        <ChangePasswordCard />
       </div>
 
       {/* Bilah aksi melayang: Simpan hanya aktif saat ada perubahan. */}
