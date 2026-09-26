@@ -4,6 +4,7 @@ import { DAFTAR_KELAS, type FullAgenda, type Guru } from '../types';
 import { getRekapAgenda, deleteAgenda, getDaftarGuru } from '../services/agendaService';
 import { getEvidenceSignedUrl, deleteAgendaEvidence } from '../services/evidenceService';
 import { PhotoLightboxModal } from '../components/PhotoLightboxModal';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useAuth } from '../contexts/AuthContext';
 import { DataTable, FilterBar, type Column } from '../components/common';
 import { PageHeader } from '../components/admin/PageHeader';
@@ -99,18 +100,21 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
     title: string;
   } | null>(null);
   const [isDeletingEvidence, setIsDeletingEvidence] = useState<boolean>(false);
+  const [isConfirmEvidenceOpen, setIsConfirmEvidenceOpen] = useState<boolean>(false);
+  // Target hapus agenda + status proses, supaya penghapusan selalu terkonfirmasi
+  // (dulu memakai confirm() dan dilewati di mode DEV).
+  const [deleteTarget, setDeleteTarget] = useState<FullAgenda | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   const handleAdminDeleteEvidence = async () => {
     if (!activePhoto || !activePhoto.agendaId) return;
-    if (!import.meta.env.DEV && !confirm('Hapus foto dokumentasi agenda ini? Status agenda akan kembali ke "Belum ada foto" tanpa menghapus isi agenda.')) {
-      return;
-    }
 
     setIsDeletingEvidence(true);
     try {
       await deleteAgendaEvidence(activePhoto.agendaId, activePhoto.storagePath, true);
       showToast('success', 'Foto dokumentasi berhasil dihapus. Status agenda kembali ke belum ada foto.');
       setActivePhoto(null);
+      setIsConfirmEvidenceOpen(false);
       fetchAgendas();
     } catch (err: any) {
       console.error('Gagal menghapus foto dokumentasi:', err);
@@ -166,16 +170,22 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
     window.print();
   };
 
-  const handleDelete = async (id: string, kelas: string, tanggal: string) => {
-    if (!import.meta.env.DEV && !confirm(`Yakin ingin menghapus agenda ${kelas} tanggal ${tanggal}?`)) {
-      return;
-    }
+  const handleDelete = (agenda: FullAgenda) => {
+    setDeleteTarget(agenda);
+  };
+
+  const confirmDeleteAgenda = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await deleteAgenda(id);
+      await deleteAgenda(deleteTarget.header.id);
       showToast('success', 'Agenda berhasil dihapus.');
+      setDeleteTarget(null);
       fetchAgendas();
     } catch (err) {
       showToast('error', 'Gagal menghapus agenda.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -480,7 +490,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
           {isAdmin && (
             <button
               type="button"
-              onClick={() => handleDelete(a.header.id, a.header.kelas, a.header.tanggal)}
+              onClick={() => handleDelete(a)}
               className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-lg transition"
               title="Hapus Agenda"
             >
@@ -734,8 +744,35 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
         actualTeacherName={activePhoto?.actualTeacherName}
         title={activePhoto?.title}
         isAdmin={isAdmin}
-        onAdminDelete={handleAdminDeleteEvidence}
+        onAdminDelete={() => setIsConfirmEvidenceOpen(true)}
         isDeleting={isDeletingEvidence}
+      />
+
+      {/* Konfirmasi hapus agenda (pengganti confirm() agar konsisten & tidak
+          dilewati di mode DEV) */}
+      <ConfirmDialog
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDeleteAgenda}
+        isLoading={isDeleting}
+        title="Hapus agenda ini?"
+        message={
+          deleteTarget
+            ? `Agenda ${deleteTarget.header.kelas} tanggal ${deleteTarget.header.tanggal} beserta KBM, absensi, dan catatan kejadian akan dihapus permanen.`
+            : ''
+        }
+        confirmText="Hapus"
+      />
+
+      {/* Konfirmasi hapus foto dokumentasi */}
+      <ConfirmDialog
+        isOpen={isConfirmEvidenceOpen}
+        onClose={() => setIsConfirmEvidenceOpen(false)}
+        onConfirm={handleAdminDeleteEvidence}
+        isLoading={isDeletingEvidence}
+        title="Hapus foto dokumentasi?"
+        message="Foto akan dihapus dan status agenda kembali ke “Belum ada foto”. Isi agenda tidak ikut terhapus."
+        confirmText="Hapus Foto"
       />
     </div>
   );

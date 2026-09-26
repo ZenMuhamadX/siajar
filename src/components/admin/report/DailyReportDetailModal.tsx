@@ -126,11 +126,19 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
             <div>
               <span className="text-[11px] font-medium text-slate-400 block">Waktu</span>
-              <span className="font-semibold text-slate-800 flex items-center gap-1 mt-0.5">
-                <Clock className="w-3.5 h-3.5 text-slate-500" />
-                {item.startTime} - {item.endTime}
-              </span>
-              <span className="text-[10px] text-slate-400">({item.durationMinutes} menit)</span>
+              {item.startTime && item.endTime ? (
+                <>
+                  <span className="font-semibold text-slate-800 flex items-center gap-1 mt-0.5">
+                    <Clock className="w-3.5 h-3.5 text-slate-500" />
+                    {item.startTime} - {item.endTime}
+                  </span>
+                  <span className="text-[10px] text-slate-400">({item.durationMinutes} menit)</span>
+                </>
+              ) : (
+                <span className="font-semibold text-slate-500 italic text-xs">
+                  Di luar jadwal (tanpa slot)
+                </span>
+              )}
             </div>
 
             <div>

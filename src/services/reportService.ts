@@ -56,9 +56,10 @@ export interface DailyReportItem {
   scheduleId?: string | null;
   agendaId?: string | null;
   date: string; // YYYY-MM-DD
-  startTime: string;
-  endTime: string;
-  durationMinutes: number;
+  /** null bila agenda dibuat tanpa slot jadwal (waktu tidak diketahui). */
+  startTime: string | null;
+  endTime: string | null;
+  durationMinutes: number | null;
   classId: string;
   subjectName: string;
   scheduledTeacherName: string;
@@ -303,9 +304,11 @@ export async function getDailyReport(options: {
         scheduleId: null,
         agendaId: ag.header.id,
         date: ag.header.tanggal,
-        startTime: '07:30',
-        endTime: '08:05',
-        durationMinutes: 35, // default aman
+        // Agenda di luar jadwal tidak punya slot, jadi jam & durasi tidak
+        // boleh dikarang — angka fake ikut tercetak di laporan.
+        startTime: null,
+        endTime: null,
+        durationMinutes: null,
         classId: ag.header.kelas,
         subjectName: mapelName,
         scheduledTeacherName: actualTeacher,
@@ -322,7 +325,13 @@ export async function getDailyReport(options: {
   }
 
   // 6. Urutkan berdasarkan waktu mulai lalu kelas
+  //    (baris "di luar jadwal" tanpa jam selalu di akhir)
   items.sort((a, b) => {
+    if (!a.startTime || !b.startTime) {
+      if (a.startTime && !b.startTime) return -1;
+      if (!a.startTime && b.startTime) return 1;
+      return a.classId.localeCompare(b.classId);
+    }
     const timeCmp = a.startTime.localeCompare(b.startTime);
     if (timeCmp !== 0) return timeCmp;
     return a.classId.localeCompare(b.classId);

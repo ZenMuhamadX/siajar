@@ -2,14 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { localDateString } from '../../../utils/date';
 import {
   Printer,
-  Filter,
   RefreshCw,
   Eye,
   Camera,
   Clock,
+  Info,
 } from 'lucide-react';
 import { PageHeader } from '../../../components/admin/PageHeader';
-import { DataTable, type Column } from '../../../components/common';
+import { DataTable, FilterBar, type Column } from '../../../components/common';
 import { DailyReportDetailModal } from '../../../components/admin/report/DailyReportDetailModal';
 import { ReportPrintLayout } from '../../../components/admin/report/ReportPrintLayout';
 import { PhotoLightboxModal } from '../../../components/PhotoLightboxModal';
@@ -37,7 +37,9 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
   const [selectedAYId, setSelectedAYId] = useState<string>('');
   const [teachers, setTeachers] = useState<Guru[]>([]);
   const [selectedTeacher, setSelectedTeacher] = useState<string>('SEMUA');
-  const [selectedClass, setSelectedClass] = useState<string>('KELAS 1');
+  // Default semua kelas: rekap harian adalah vista monitoring admin untuk
+  // satu hari, bukan checklist satu kelas.
+  const [selectedClass, setSelectedClass] = useState<string>('SEMUA');
   const [subjects, setSubjects] = useState<MataPelajaran[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>('SEMUA');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
@@ -160,30 +162,56 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
 
   const activeAYName = academicYears.find((y) => y.id === selectedAYId)?.name || '2026/2027';
 
-  // Summary counts
-  const totalSlots = reportItems.length;
-  const completedSlots = reportItems.filter((r) => r.status === 'SELESAI' || r.status === 'BADAL').length;
-  const badalSlots = reportItems.filter((r) => r.isBadal).length;
-  const missingSlots = reportItems.filter((r) => r.status === 'BELUM_TEREALISASI').length;
+  // Ringkasan hanya menghitung slot yang benar-benar dijadwalkan.
+  // Agenda "di luar jadwal" (tanpa schedule_id) tidak punya jam, jadi tidak
+  // boleh ikut Menggeser persentase ketercapaian.
+  const scheduledItems = reportItems.filter((r) => !r.isUnscheduledAgenda);
+  const unscheduledCount = reportItems.length - scheduledItems.length;
+  const totalSlots = scheduledItems.length;
+  const completedSlots = scheduledItems.filter((r) => r.status === 'SELESAI' || r.status === 'BADAL').length;
+  const badalSlots = scheduledItems.filter((r) => r.isBadal).length;
+  const missingSlots = scheduledItems.filter((r) => r.status === 'BELUM_TEREALISASI').length;
+  const realizeRate = totalSlots > 0 ? (completedSlots / totalSlots) * 100 : 0;
+
+  // Tanggal & tahun ajaran adalah cakupan data, bukan filter baris, jadi tidak
+  // ikut ter-reset (pola yang sama dipakai halaman Jadwal).
+  const isFiltered =
+    selectedClass !== 'SEMUA' ||
+    selectedTeacher !== 'SEMUA' ||
+    selectedSubject !== 'SEMUA' ||
+    selectedStatus !== 'ALL';
+
+  const handleResetFilters = () => {
+    setSelectedClass('SEMUA');
+    setSelectedTeacher('SEMUA');
+    setSelectedSubject('SEMUA');
+    setSelectedStatus('ALL');
+  };
+
+  const selectClass =
+    'px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-700 text-xs focus:outline-none';
 
   const columns: Column<DailyReportItem>[] = [
     {
       key: 'waktu',
       header: 'Waktu',
       width: '150px',
-      accessor: (item) => (
-        <div className="whitespace-nowrap">
-          <div className="flex items-center gap-1.5 font-mono font-medium text-slate-900">
-            <Clock className="w-3.5 h-3.5 text-slate-400" />
-            <span>
-              {item.startTime} - {item.endTime}
+      accessor: (item) =>
+        item.startTime && item.endTime ? (
+          <div className="whitespace-nowrap">
+            <div className="flex items-center gap-1.5 font-mono font-medium text-slate-900">
+              <Clock className="w-3.5 h-3.5 text-slate-400" />
+              <span>
+                {item.startTime} - {item.endTime}
+              </span>
+            </div>
+            <span className="text-[10px] text-slate-400 block pl-5">
+              {item.durationMinutes} menit
             </span>
           </div>
-          <span className="text-[10px] text-slate-400 block pl-5">
-            {item.durationMinutes} menit
-          </span>
-        </div>
-      ),
+        ) : (
+          <span className="text-[11px] text-slate-400 italic">Di luar jadwal</span>
+        ),
     },
     {
       key: 'classId',
@@ -310,9 +338,7 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
             <span className="text-xs font-medium text-emerald-600">Terealisasi</span>
             <p className="text-xl sm:text-2xl font-bold text-emerald-700 mt-1">{completedSlots} JP</p>
-            <span className="text-[10px] text-slate-400">
-              {totalSlots > 0 ? ((completedSlots / totalSlots) * 100).toFixed(0) : 0}% terlaksana
-            </span>
+            <span className="text-[10px] text-slate-400">{realizeRate.toFixed(0)}% terlaksana</span>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
@@ -328,36 +354,38 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
           </div>
         </div>
 
-        {/* Filter Bar */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-700 pb-2 border-b border-slate-100">
-            <Filter className="w-3.5 h-3.5 text-slate-500" />
-            <span>Filter Rekap Harian</span>
+        {/* Agenda di luar jadwal: tetap terlihat, tapi tidak dihitung sebagai JP */}
+        {unscheduledCount > 0 && (
+          <div className="flex items-start gap-2 px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900">
+            <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <p>
+              <strong>{unscheduledCount} agenda</strong> dibuat tanpa slot jadwal (tidak punya jam
+              tetap). Agenda ini ditampilkan di tabel dengan label <em>Tanpa Jadwal</em> dan tidak
+              dihitung pada Total Jadwal maupun persentase ketercapaian.
+            </p>
           </div>
+        )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {/* Tanggal */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                Tanggal
-              </label>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full text-xs font-semibold px-2.5 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 bg-slate-50/50"
-              />
-            </div>
+        {/* FilterBar standar: pencarian, tanggal, tahun ajaran, guru, kelas, mapel, status */}
+        <FilterBar
+          isFiltered={isFiltered}
+          onResetFilters={handleResetFilters}
+          filters={
+            <>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-200 rounded-lg">
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="text-xs font-bold text-slate-800 bg-transparent focus:outline-none cursor-pointer"
+                />
+              </div>
 
-            {/* Tahun Ajaran */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                Tahun Ajaran
-              </label>
               <select
                 value={selectedAYId}
                 onChange={(e) => setSelectedAYId(e.target.value)}
-                className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 bg-slate-50/50"
+                title="Tahun ajaran"
+                className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 text-xs font-bold focus:outline-none"
               >
                 {academicYears.map((ay) => (
                   <option key={ay.id} value={ay.id}>
@@ -365,17 +393,24 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
                   </option>
                 ))}
               </select>
-            </div>
 
-            {/* Guru */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                Guru
-              </label>
+              <select
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
+                className={selectClass}
+              >
+                <option value="SEMUA">Semua Kelas</option>
+                {DAFTAR_KELAS.map((k) => (
+                  <option key={k} value={k}>
+                    {k}
+                  </option>
+                ))}
+              </select>
+
               <select
                 value={selectedTeacher}
                 onChange={(e) => setSelectedTeacher(e.target.value)}
-                className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 bg-slate-50/50"
+                className={`${selectClass} max-w-[150px]`}
               >
                 <option value="SEMUA">Semua Guru</option>
                 {teachers.map((t) => (
@@ -384,36 +419,11 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
                   </option>
                 ))}
               </select>
-            </div>
 
-            {/* Kelas */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                Kelas
-              </label>
-              <select
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-                className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 bg-slate-50/50"
-              >
-                {/* <option value="SEMUA">Semua Kelas</option> */}
-                {DAFTAR_KELAS.map((k) => (
-                  <option key={k} value={k}>
-                    {k}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Mata Pelajaran */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                Mata Pelajaran
-              </label>
               <select
                 value={selectedSubject}
                 onChange={(e) => setSelectedSubject(e.target.value)}
-                className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 bg-slate-50/50"
+                className={`${selectClass} max-w-[150px]`}
               >
                 <option value="SEMUA">Semua Mapel</option>
                 {subjects.map((m) => (
@@ -422,17 +432,11 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
                   </option>
                 ))}
               </select>
-            </div>
 
-            {/* Status */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                Status
-              </label>
               <select
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 bg-slate-50/50"
+                className={selectClass}
               >
                 <option value="ALL">Semua Status</option>
                 <option value="SELESAI">Selesai</option>
@@ -441,9 +445,9 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
                 <option value="SEDANG_BERLANGSUNG">Sedang Berlangsung</option>
                 <option value="BELUM_DIMULAI">Belum Dimulai</option>
               </select>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        />
 
         {/* Tabel Data Rekap Harian */}
         <DataTable
@@ -484,7 +488,9 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
               <tr key={i}>
                 <td className="p-1.5 border-r border-slate-900 text-center">{i + 1}</td>
                 <td className="p-1.5 border-r border-slate-900 text-center font-mono">
-                  {r.startTime}–{r.endTime} ({r.durationMinutes}m)
+                  {r.startTime && r.endTime
+                    ? `${r.startTime}–${r.endTime} (${r.durationMinutes}m)`
+                    : '—'}
                 </td>
                 <td className="p-1.5 border-r border-slate-900 text-center font-bold">
                   {r.classId}
