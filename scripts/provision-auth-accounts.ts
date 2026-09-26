@@ -1,13 +1,22 @@
 /**
- * Provisioning akun Supabase Auth untuk SIAJAR.
+ * JALUR DARURAT — bukan cara utama lagi.
+ * =============================================================================
+ * Sejak aplikasi memakai Edge Function `manage-users`, akun guru dibuatkan
+ * admin langsung dari panel Data Guru. Skrip ini dipertahankan hanya untuk
+ * keadaan darurat, misalnya Edge Function belum bisa di-deploy.
+ *
+ * Cara utama (dipakai sehari-hari):
+ *   - Admin pertama  : layar setup di /setup
+ *   - Akun guru      : panel Data Guru → tombol kunci
+ *
+ * Skrip ini memakai SATU kode bersama untuk semua guru (model lama), sehingga
+ * tidak memberi akuntabilitas per guru. Jangan dipakai kalau Edge Function
+ * sudah berjalan.
+ * =============================================================================
  *
  * Membuat / menyegarkan:
  *   - satu akun per guru  → email sintetis "guru-<guru.id>@<domain>"
  *   - satu akun admin     → email dari ADMIN_EMAIL
- *
- * Kredensial yang dipakai:
- *   - guru  : SCHOOL_CODE (kode sekolah bersama, dipakai semua guru)
- *   - admin : ADMIN_CODE
  *
  * Peran dan identitas disimpan di app_metadata (hanya bisa ditulis lewat
  * service_role, tidak bisa dipalsukan pengguna). RLS membaca klaim ini.
@@ -16,7 +25,8 @@
  *   bun scripts/provision-auth-accounts.ts --dry-run   # lihat rencana saja
  *   bun scripts/provision-auth-accounts.ts             # buat / segarkan akun
  *
- * Variabel .env yang dibutuhkan:
+ * Variabel lingkungan yang dibutuhkan (TIDAK ada di .env.example lagi,
+ * set manual saat menjalankan):
  *   VITE_SUPABASE_URL             (wajib)
  *   SUPABASE_SERVICE_ROLE_KEY     (wajib, hanya untuk skrip ini)
  *   SCHOOL_CODE                   (wajib, min 6 karakter)
@@ -24,8 +34,7 @@
  *   AUTH_DOMAIN                   (opsional, default: siajar.local)
  *   ADMIN_EMAIL                   (opsional, default: admin@<AUTH_DOMAIN>)
  *
- * Menjalankan ulang skrip ini akan MENGGANTI sandi semua akun ke nilai terbaru,
- * sehingga sekaligus berfungsi sebagai rotasi kode sekolah.
+ * Menjalankan ulang skrip ini akan MENGGANTI sandi semua akun ke nilai terbaru.
  */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';

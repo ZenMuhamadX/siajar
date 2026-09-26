@@ -15,6 +15,7 @@ import { AdminLayout } from '../components/admin/AdminLayout';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { LoadingState } from '../components/common';
 import { LoginPage } from '../pages/LoginPage';
+import { SetupPage } from '../pages/SetupPage';
 import { NotFound } from '../pages/NotFound';
 import { useAuth } from '../contexts/AuthContext';
 import { useSchoolName } from '../contexts/SettingsContext';
@@ -307,6 +308,8 @@ export function AppRoutes() {
       <ScrollToTop />
       <Routes>
         <Route path="/login" element={<LoginRoute />} />
+        {/* Setup sekali-jalan: hanya berguna selama belum ada admin. */}
+        <Route path="/setup" element={<SetupPage />} />
 
         <Route element={<RequireAuth />}>
           {/* ---------------- SISI GURU ---------------- */}

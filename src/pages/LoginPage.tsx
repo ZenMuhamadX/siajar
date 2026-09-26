@@ -1,8 +1,20 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useSchoolName } from '../contexts/SettingsContext';
 import { getGuruDirectory } from '../services/agendaService';
-import { LogIn, Lock, User, AlertCircle, Loader2, Shield, Eye, EyeOff } from 'lucide-react';
+import { getSetupStatus } from '../services/userAdminService';
+import {
+  LogIn,
+  Lock,
+  User,
+  AlertCircle,
+  Loader2,
+  Shield,
+  Eye,
+  EyeOff,
+  ShieldAlert,
+} from 'lucide-react';
 
 type GuruOption = { id: string; nama_guru: string };
 
@@ -19,6 +31,8 @@ export const LoginPage: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoadingGuru, setIsLoadingGuru] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // null = belum diketahui / layanan tidak tersedia → jangan tampilkan apa pun.
+  const [hasAdmin, setHasAdmin] = useState<boolean | null>(null);
 
   useEffect(() => {
     async function loadTeachers() {
@@ -38,6 +52,21 @@ export const LoginPage: React.FC = () => {
     loadTeachers();
   }, []);
 
+  // Deteksi instance yang belum punya admin, supaya bisa menawarkan layar setup.
+  useEffect(() => {
+    let mounted = true;
+    getSetupStatus()
+      .then((res) => {
+        if (mounted) setHasAdmin(res.hasAdmin);
+      })
+      .catch(() => {
+        if (mounted) setHasAdmin(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const handleSubmit = async (e: React.SubmitEvent) => {
     e.preventDefault();
     setErrorMsg('');
@@ -52,7 +81,7 @@ export const LoginPage: React.FC = () => {
       } else {
         const res = await loginAsTeacher(selectedGuru, kode);
         if (!res.success) {
-          setErrorMsg(res.message || 'Nama atau kode sekolah tidak cocok.');
+          setErrorMsg(res.message || 'Kode tidak cocok, atau akun Anda belum dibuatkan.');
         }
       }
     } catch (err: any) {
@@ -133,6 +162,23 @@ export const LoginPage: React.FC = () => {
             </div>
           )}
 
+          {hasAdmin === false && (
+            <Link
+              to="/setup"
+              className="block p-3.5 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition"
+            >
+              <span className="flex items-start gap-2.5">
+                <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                <span className="text-xs text-amber-900 leading-relaxed">
+                  <span className="font-bold block mb-0.5">
+                    Instance ini belum punya admin
+                  </span>
+                  Klik di sini untuk membuat akun admin pertama.
+                </span>
+              </span>
+            </Link>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'teacher' ? (
               <div>
@@ -176,14 +222,14 @@ export const LoginPage: React.FC = () => {
                 htmlFor="login-sandi"
                 className="block text-xs font-semibold text-slate-700 mb-1.5"
               >
-                Kode Sekolah
+                Kode Anda
               </label>
               <div className="relative">
                 <input
                   id="login-sandi"
                   type={showPassword ? 'text' : 'password'}
                   required
-                  placeholder="Masukkan kode sekolah"
+                  placeholder="Kode pribadi dari admin"
                   value={kode}
                   onChange={(e) => setKode(e.target.value)}
                   className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition"
@@ -192,7 +238,7 @@ export const LoginPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  aria-label={showPassword ? 'Sembunyikan kode sekolah' : 'Tampilkan kode sekolah'}
+                  aria-label={showPassword ? 'Sembunyikan kode akses' : 'Tampilkan kode akses'}
                   title={showPassword ? 'Sembunyikan' : 'Lihat'}
                   className="absolute right-2 top-1.5 p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition rounded-lg"
                 >

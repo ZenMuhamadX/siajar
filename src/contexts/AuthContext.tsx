@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { getAdminEmail, getAuthDomain } from '../services/userAdminService';
 
 /**
  * Autentikasi berbasis Supabase Auth.
@@ -16,11 +17,14 @@ import { supabase } from '../lib/supabase';
  * UX untuk guru tetap sama: pilih nama, ketik kode sekolah, masuk.
  */
 
-const AUTH_DOMAIN = (import.meta.env?.VITE_AUTH_DOMAIN as string) || 'siajar.local';
-const ADMIN_EMAIL = (import.meta.env?.VITE_ADMIN_EMAIL as string) || `admin@${AUTH_DOMAIN}`;
-
-/** Email sintetis per guru. Bukan rahasia — hanya identitas akun. */
-const emailForGuru = (guruId: string) => `guru-${guruId}@${AUTH_DOMAIN}`;
+/**
+ * Email sintetis per guru. Bukan rahasia — hanya identitas akun.
+ *
+ * Domain diambil dari server (lewat aksi `status` Edge Function) bila sudah
+ * terbaca, dengan fallback ke nilai build. Ini mencegah login gagal karena
+ * AUTH_DOMAIN di server berbeda dengan VITE_AUTH_DOMAIN di frontend.
+ */
+const emailForGuru = (guruId: string) => `guru-${guruId}@${getAuthDomain()}`;
 
 interface AuthContextType {
   activeTeacherName: string | null;
@@ -29,6 +33,10 @@ interface AuthContextType {
   loading: boolean;
   loginAsTeacher: (guruId: string, kode: string) => Promise<{ success: boolean; message?: string }>;
   loginAsAdmin: (kode: string) => Promise<{ success: boolean; message?: string }>;
+  changePassword: (
+    sandiLama: string,
+    sandiBaru: string
+  ) => Promise<{ success: boolean; message?: string }>;
   signOut: () => Promise<void>;
 }
 
@@ -47,7 +55,9 @@ function nameOf(user: User | null): string | null {
 /** Terjemahkan pesan galat Supabase jadi kalimat yang ramah guru. */
 function pesanError(message: string): string {
   const m = message.toLowerCase();
-  if (m.includes('invalid login credentials')) return 'Nama atau kode sekolah tidak cocok.';
+  if (m.includes('invalid login credentials')) {
+    return 'Kode tidak cocok, atau akun Anda belum dibuatkan. Hubungi admin sekolah.';
+  }
   if (m.includes('email not confirmed')) return 'Akun ini belum diaktifkan. Hubungi admin sekolah.';
   if (m.includes('too many requests') || m.includes('rate limit')) {
     return 'Terlalu banyak percobaan masuk. Coba lagi beberapa saat lagi.';
@@ -119,7 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!kode || !kode.trim()) return { success: false, message: 'Kode admin belum diisi.' };
 
     const { error } = await supabase.auth.signInWithPassword({
-      email: ADMIN_EMAIL,
+      email: getAdminEmail(),
       password: kode.trim(),
     });
 
@@ -132,6 +142,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSession(null);
   };
 
+  /**
+   * Ganti sandi akun yang sedang login. Sandi lama diverifikasi dulu lewat
+   * sign-in ulang, supaya sesi yang tertinggal di laptop terbuka tidak bisa
+   * dipakai orang lain untuk mengambil alih akun.
+   */
+  const changePassword = async (
+    sandiLama: string,
+    sandiBaru: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    const email = session?.user?.email;
+    if (!email) return { success: false, message: 'Sesi tidak ditemukan. Masuk ulang.' };
+    if (!sandiLama.trim()) return { success: false, message: 'Sandi lama belum diisi.' };
+    if (sandiBaru.trim().length < 6) {
+      return { success: false, message: 'Sandi baru minimal 6 karakter.' };
+    }
+
+    const { error: reauthError } = await supabase.auth.signInWithPassword({
+      email,
+      password: sandiLama.trim(),
+    });
+    if (reauthError) return { success: false, message: 'Sandi lama tidak cocok.' };
+
+    const { error } = await supabase.auth.updateUser({ password: sandiBaru.trim() });
+    if (error) return { success: false, message: pesanError(error.message) };
+
+    return { success: true };
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -141,6 +179,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         loginAsTeacher,
         loginAsAdmin,
+        changePassword,
         signOut,
       }}
     >
