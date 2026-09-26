@@ -8,6 +8,7 @@ import {
 } from '../../services/evidenceService';
 import { PhotoLightboxModal } from '../PhotoLightboxModal';
 import { formStyles } from '../common';
+import { useSchoolName } from '../../contexts/SettingsContext';
 import {
   ArrowLeft,
   Save,
@@ -53,6 +54,8 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   isSubstitute = false,
   substitution = null,
 }) => {
+  // Nama sekolah dari Pengaturan; ikut tersimpan di agenda_header.sekolah.
+  const schoolName = useSchoolName();
   const schedule = slot?.schedule;
   const existingAgenda = directEditData || slot?.existingAgenda;
 
@@ -233,7 +236,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
         const initSave = await simpanAgenda({
           schedule_id: scheduleId,
           actual_teacher_name: activeTeacherName || teacherName,
-          sekolah: 'SDIT AS-SYIFA',
+          sekolah: schoolName,
           kelas,
           tanggal: targetDate,
           kbm: [
@@ -300,7 +303,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
         agendaId,
         schedule_id: scheduleId,
         actual_teacher_name: activeTeacherName || teacherName,
-        sekolah: 'SDIT AS-SYIFA',
+        sekolah: schoolName,
         kelas,
         tanggal: targetDate,
         kbm: [
@@ -354,7 +357,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
               {existingAgenda ? 'Lihat / Edit Agenda Pembelajaran' : 'Isi Agenda Pembelajaran'}
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              SDIT AS-SYIFA &bull; {targetDate}
+              {schoolName} &bull; {targetDate}
             </p>
           </div>
         </div>

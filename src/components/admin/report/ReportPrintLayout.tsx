@@ -1,4 +1,5 @@
 import React from 'react';
+import { useSchoolName } from '../../../contexts/SettingsContext';
 
 interface ReportPrintLayoutProps {
   title: string;
@@ -22,6 +23,8 @@ export const ReportPrintLayout: React.FC<ReportPrintLayoutProps> = ({
   signature,
   children,
 }) => {
+  // Nama sekolah dari Pengaturan (satu sumber untuk seluruh aplikasi).
+  const schoolName = useSchoolName();
   const currentDate = new Date().toLocaleDateString('id-ID', {
     day: 'numeric',
     month: 'long',
@@ -43,7 +46,7 @@ export const ReportPrintLayout: React.FC<ReportPrintLayoutProps> = ({
           />
           <div>
             <h1 className="text-base font-bold uppercase tracking-wider text-slate-900">
-              SDIT AS-SYIFA CIKARANG UTARA
+              {schoolName}
             </h1>
             <p className="text-xs text-slate-600">
               SISTEM INFORMASI AGENDA DAN JURNAL MENGAJAR (SIAJAR)
@@ -101,7 +104,7 @@ export const ReportPrintLayout: React.FC<ReportPrintLayoutProps> = ({
 
         {/* Footer Dokumen */}
         <div className="mt-8 pt-2 border-t border-slate-200 text-[9px] text-slate-400 flex justify-between">
-          <span>Dicetak otomatis melalui SIAJAR - SDIT AS-SYIFA</span>
+          <span>Dicetak otomatis melalui SIAJAR - {schoolName}</span>
           <span>Halaman 1 / 1</span>
         </div>
       </div>

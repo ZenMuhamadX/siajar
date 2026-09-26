@@ -17,6 +17,7 @@ import { LoadingState } from '../components/common';
 import { LoginPage } from '../pages/LoginPage';
 import { NotFound } from '../pages/NotFound';
 import { useAuth } from '../contexts/AuthContext';
+import { useSchoolName } from '../contexts/SettingsContext';
 import { useToast, type ShowToast } from '../contexts/ToastContext';
 import { ADMIN_TAB_IDS, adminPath, type AdminTab } from './adminRoutes';
 import type { ReportView } from './useReportQueryParam';
@@ -253,6 +254,7 @@ function TeacherHistoryRoute() {
 /** Shell sisi guru: Navbar + konten + footer + modal global. */
 function TeacherShell() {
   const { activeTeacherName } = useAuth();
+  const schoolName = useSchoolName();
   const showToast = useToast();
   const location = useLocation();
   const [isKotakSaranOpen, setIsKotakSaranOpen] = useState(false);
@@ -274,7 +276,7 @@ function TeacherShell() {
       </main>
 
       <footer className="border-t border-slate-200 bg-white py-3 text-center text-[11px] text-slate-400 no-print mt-auto hidden md:block">
-        SDIT AS-SYIFA &bull; Agenda Pembelajaran &copy; {new Date().getFullYear()}
+        {schoolName} &bull; Agenda Pembelajaran &copy; {new Date().getFullYear()}
       </footer>
 
       <KotakSaranModal

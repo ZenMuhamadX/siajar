@@ -14,6 +14,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { AgendaDetailDrawer } from '../components/report/AgendaDetailDrawer';
 import { ReportPrintLayout } from '../components/admin/report/ReportPrintLayout';
 import { useAuth } from '../contexts/AuthContext';
+import { useSchoolName } from '../contexts/SettingsContext';
 import { DataTable, FilterBar, type Column } from '../components/common';
 import { PageHeader } from '../components/admin/PageHeader';
 import {
@@ -61,6 +62,7 @@ const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
  */
 export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgenda }) => {
   const { isAdmin } = useAuth();
+  const schoolName = useSchoolName();
 
   // ---- Filter state ----
   // Default 30 hari terakhir (dulu "bulan kalender", yang di awal bulan kosong).
@@ -669,13 +671,13 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
             <div className="grid grid-cols-2 text-center">
               <div>
                 <p>Mengetahui,</p>
-                <p className="font-bold">Kepala Sekolah SDIT AS-SYIFA</p>
+                <p className="font-bold">Kepala Sekolah {schoolName}</p>
                 <div className="h-16" />
                 <p className="font-bold underline">( ........................................ )</p>
               </div>
               <div>
                 <p>Pengawas / Guru Piket,</p>
-                <p className="font-bold">SDIT AS-SYIFA</p>
+                <p className="font-bold">{schoolName}</p>
                 <div className="h-16" />
                 <p className="font-bold underline">( ........................................ )</p>
               </div>

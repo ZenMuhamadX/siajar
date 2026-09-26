@@ -28,6 +28,7 @@ import {
   downloadScheduleWorkbook,
   ScheduleExportError,
 } from '../../services/export/scheduleExcelExport';
+import { getSettingsSync } from '../../services/settings/settingsService';
 import {
   Plus,
   CheckCircle2,
@@ -138,12 +139,19 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
 
     setIsExporting(true);
     try {
+      // Pengaturan dibaca saat klik (sinkron dari cache provider) supaya
+      // perubahan di halaman Pengaturan langsung berlaku tanpa perlu reload,
+      // tanpa membuat halaman Jadwal ikut re-render.
+      const settings = getSettingsSync();
       const model = buildScheduleExportModel({
         schedules,
         academicYearName,
+        schoolName: settings.schoolName,
         teachers,
+        showTeacherName: settings.excel.showTeacherName,
+        includeDraft: settings.excel.includeDraft,
       });
-      const fileName = await downloadScheduleWorkbook(model);
+      const fileName = await downloadScheduleWorkbook(model, settings.excel);
       showToast(
         'success',
         `${fileName} berhasil diunduh (${model.exportedCount} slot, ${model.academicYearName}).`,

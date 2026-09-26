@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { getSettingsSync } from './settings/settingsService';
 import type {
   Siswa,
   Guru,
@@ -133,7 +134,9 @@ export async function simpanAgenda(payload: SimpanAgendaPayload): Promise<{ id: 
     agendaId,
     schedule_id,
     actual_teacher_name,
-    sekolah = 'SDIT AS-SYIFA',
+    // Nama sekolah dari Pengaturan. Agenda lama tetap memakai nilai yang
+    // tersimpan saat itu — itu memang benar untuk jejak audit.
+    sekolah = getSettingsSync().schoolName,
     kelas,
     tanggal,
     kbm,

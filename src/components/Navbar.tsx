@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
+import { useSchoolName } from '../contexts/SettingsContext';
 
 interface NavbarProps {
   onOpenKotakSaran: () => void;
@@ -18,6 +19,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ onOpenKotakSaran, onOpenSchedule }) => {
   const { activeTeacherName, isAdmin, signOut } = useAuth();
   const { pathname } = useLocation();
+  const schoolName = useSchoolName();
 
   // View aktif diturunkan dari URL (/ vs /riwayat), bukan state terpisah,
   // supaya refresh & tombol Back tetap berada di halaman yang sama.
@@ -35,12 +37,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenKotakSaran, onOpenSchedule
             <div className="flex items-center gap-2.5">
               <img
                 src="/logo.png"
-                alt="Logo SDIT AS-SYIFA"
+                alt={`Logo ${schoolName}`}
                 className="w-8 h-8 sm:w-9 sm:h-9 object-contain rounded-lg shadow-xs"
               />
               <div>
                 <h1 className="font-bold text-slate-900 leading-tight text-xs sm:text-base">
-                  SDIT AS-SYIFA
+                  {schoolName}
                 </h1>
                 <p className="text-[10px] sm:text-xs text-slate-500">Agenda Pembelajaran</p>
               </div>
