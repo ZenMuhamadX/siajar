@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { TimelineSlot } from '../../services/scheduleDetectionService';
 import type { Siswa, AgendaEvidence, FullAgenda, Substitution } from '../../types';
 import { getDaftarSiswa, simpanAgenda } from '../../services/agendaService';
-import { uploadAgendaEvidence, getEvidenceSignedUrl } from '../../services/evidenceService';
+import { uploadAgendaEvidence, getEvidenceDisplayUrl } from '../../services/evidenceService';
 import { PhotoLightboxModal } from '../PhotoLightboxModal';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { useSchoolName } from '../../contexts/SettingsContext';
@@ -140,7 +140,9 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Evidence states
-  const [existingEvidence, setExistingEvidence] = useState<AgendaEvidence | null>(null);
+  const [existingEvidence, setExistingEvidence] = useState<AgendaEvidence | null>(
+    () => existingAgenda?.evidence ?? null
+  );
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
   const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
   const [isRetakeConfirmOpen, setIsRetakeConfirmOpen] = useState<boolean>(false);
@@ -150,9 +152,19 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   // kamera di tengah pengisian — di Android, berpindah ke kamera bisa membuat
   // tab dibuang sehingga seluruh tulisan hilang. Draf ditulis ke localStorage
   // dan dipulihkan saat form dibuka kembali.
-  const draftKey = `${DRAFT_PREFIX}${
-    schedule?.id || existingAgenda?.header.schedule_id || 'nosched'
+  //
+  // Kunci identitas agenda dipakai juga sebagai dependensi efek inisialisasi.
+  // Ini penting: `InputAgenda` menjalankan timer 30 detik yang menghitung ulang
+  // status slot lewat `recomputeTimelineSlotStatuses`, dan fungsi itu membuat
+  // objek slot BARU setiap kali (via `slots.map(item => ({...item}))`). Bila
+  // efek inisialisasi bergantung pada objek `slot`, ia akan berjalan ulang tiap
+  // 30 detik — mengembalikan isian ke nilai basis data dan menghapus pratinjau
+  // foto yang baru saja diambil. Bergantung pada identitas (string) membuatnya
+  // hanya berjalan saat agenda benar-benar berganti.
+  const agendaIdentity = `${
+    slot?.schedule.id ?? directEditData?.header.schedule_id ?? 'nosched'
   }|${targetDate}`;
+  const draftKey = `${DRAFT_PREFIX}${agendaIdentity}`;
   const [draftReady, setDraftReady] = useState(false);
   const [draftRestoredAt, setDraftRestoredAt] = useState<number | null>(null);
 
@@ -220,9 +232,42 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
       setDraftRestoredAt(null);
     }
 
-    setExistingEvidence(existingAgenda?.evidence || null);
     setDraftReady(true);
-  }, [existingAgenda, slot, draftKey]);
+    // `existingEvidence` sengaja TIDAK di-reset di sini — pengelolaannya
+    // dipisah ke efek di bawah supaya pratinjau foto tidak ikut terhapus.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- dependensi
+    // sengaja berupa identitas (string), bukan objek `slot`; lihat penjelasan
+    // di deklarasi `agendaIdentity`.
+  }, [agendaIdentity]);
+
+  /**
+   * Sinkronisasi foto dengan agenda yang sedang dibuka.
+   *
+   * Dipicu HANYA oleh dua hal: agenda benar-benar berganti (`agendaIdentity`),
+   * atau foto di basis data berubah (`incomingEvidencePath`). Perhitungan ulang
+   * status slot tiap 30 detik tidak mengubah keduanya, sehingga tidak lagi
+   * menghapus pratinjau.
+   *
+   * Dua gejala yang diperbaiki:
+   *
+   *  - Sebelum disimpan: foto yang baru dijepret hidup di state lokal
+   *    (`setExistingEvidence(uploaded)`) sementara agenda di basis data belum
+   *    ada. Dulu efek inisialisasi berjalan ulang tiap 30 detik dan
+   *    menimpanya dengan `null`.
+   *  - Sesudah disimpan: data agenda dari basis data TIDAK memuat `signedUrl`
+   *    (lihat `mapAgendaRow`). Dulu efek inisialisasi mengembalikan state ke
+   *    objek itu, dan efek pemuat URL tidak ikut berjalan karena
+   *    `storage_path`-nya tidak berubah — pratinjau mati sampai halaman dimuat
+   *    ulang.
+   */
+  const incomingEvidencePath = existingAgenda?.evidence?.storage_path ?? null;
+
+  useEffect(() => {
+    setExistingEvidence(existingAgenda?.evidence ?? null);
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- dipicu oleh
+    // identitas agenda dan path foto; `existingAgenda` dibaca sebagai nilai
+    // terbaru pada saat itu.
+  }, [agendaIdentity, incomingEvidencePath]);
 
   // Simpan draf tertunda. Menunggu `draftReady` penting: tanpa itu, efek ini
   // menulis keadaan kosong awal dan menghapus draf sebelum sempat dibaca.
@@ -291,22 +336,34 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
     };
   }, [kelas]);
 
-  // Load signed url for existing evidence
+  /**
+   * Muat URL tampil untuk foto yang sedang ditampilkan.
+   *
+   * Memakai `getEvidenceDisplayUrl` (object URL dari blob yang diunduh sekali),
+   * bukan signed URL langsung. Alasannya: signed URL punya masa berlaku, dan
+   * form ini bisa dibiarkan terbuka lama — sebelumnya pratinjau bisa mati
+   * sendiri saat token kedaluwarsa. Isi berkas bukti bersifat tetap, jadi
+   * menyimpannya di memori aman.
+   *
+   * `signedUrl` ikut jadi dependensi supaya URL diambil ulang setiap kali
+   * state kembali ke objek tanpa URL (mis. setelah pindah agenda).
+   */
   useEffect(() => {
+    const path = existingEvidence?.storage_path;
+    if (!path || existingEvidence?.signedUrl) return;
+
     let isMounted = true;
-    async function loadPhotoUrl() {
-      if (existingEvidence?.storage_path && !existingEvidence.signedUrl) {
-        const url = await getEvidenceSignedUrl(existingEvidence.storage_path);
-        if (isMounted && url) {
-          setExistingEvidence((prev) => (prev ? { ...prev, signedUrl: url } : null));
-        }
-      }
-    }
-    loadPhotoUrl();
+    getEvidenceDisplayUrl(path).then((url) => {
+      if (!isMounted || !url) return;
+      // Pastikan jawaban yang terlambat tidak menempel ke foto yang berbeda.
+      setExistingEvidence((prev) =>
+        prev && prev.storage_path === path ? { ...prev, signedUrl: url } : prev
+      );
+    });
     return () => {
       isMounted = false;
     };
-  }, [existingEvidence?.storage_path]);
+  }, [existingEvidence?.storage_path, existingEvidence?.signedUrl]);
 
   // ------------------------------------------------------------------ //
   // Kehadiran                                                           //

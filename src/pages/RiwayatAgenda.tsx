@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { localDateString } from '../utils/date';
 import { useAuth } from '../contexts/AuthContext';
 import { getRekapAgenda, deleteAgenda } from '../services/agendaService';
-import { getEvidenceSignedUrl } from '../services/evidenceService';
+import { getEvidenceDisplayUrl } from '../services/evidenceService';
 import { PhotoLightboxModal } from '../components/PhotoLightboxModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ScrollArea, EmptyState, ErrorState } from '../components/common';
@@ -46,6 +46,9 @@ interface ActivePhoto {
  * Hasilnya disimpan bersama `path`-nya lalu dicocokkan saat render, bukan
  * dikosongkan lewat `setState` di dalam efek — sehingga kartu yang ditutup
  * langsung berhenti menampilkan URL lama tanpa render tambahan.
+ *
+ * `getEvidenceDisplayUrl` mengembalikan object URL dari blob yang diunduh
+ * sekali, jadi pratinjau tidak ikut mati saat signed URL kedaluwarsa.
  */
 function useEvidenceUrl(storagePath?: string | null): string | null {
   const [loaded, setLoaded] = useState<{ path: string; url: string | null } | null>(null);
@@ -53,8 +56,8 @@ function useEvidenceUrl(storagePath?: string | null): string | null {
   useEffect(() => {
     if (!storagePath) return;
     let alive = true;
-    getEvidenceSignedUrl(storagePath).then((signed) => {
-      if (alive) setLoaded({ path: storagePath, url: signed || null });
+    getEvidenceDisplayUrl(storagePath).then((url) => {
+      if (alive) setLoaded({ path: storagePath, url: url || null });
     });
     return () => {
       alive = false;

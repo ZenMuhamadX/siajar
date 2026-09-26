@@ -5,7 +5,7 @@ import type { AcademicYear, ScheduleItem } from '../types/schedule';
 import { getAcademicYears, getSchedules } from './scheduleService';
 import { getRekapAgenda } from './agendaService';
 import { getSubstitutionsForDate, getSubstitutionHistory } from './substitutionService';
-import { getEvidenceSignedUrl } from './evidenceService';
+import { getEvidenceDisplayUrl } from './evidenceService';
 import { getScheduleDayFromDate } from './scheduleDetectionService';
 import {
   buildSlotRows,
@@ -145,7 +145,7 @@ async function attachSignedUrls(agendas: FullAgenda[]): Promise<FullAgenda[]> {
     agendas.map(async (agenda) => {
       const path = agenda.evidence?.storage_path;
       if (!path) return agenda;
-      const signedUrl = await getEvidenceSignedUrl(path);
+      const signedUrl = await getEvidenceDisplayUrl(path);
       return {
         ...agenda,
         evidence: { ...agenda.evidence!, signedUrl: signedUrl || undefined },

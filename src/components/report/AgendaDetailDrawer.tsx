@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Loader2, BookOpen, Camera, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useModalBehavior } from '../common/useModalBehavior';
 import { getAgendaById } from '../../services/agendaService';
-import { getEvidenceSignedUrl } from '../../services/evidenceService';
+import { getEvidenceDisplayUrl } from '../../services/evidenceService';
 import type { FullAgenda } from '../../types';
 import { PhotoLightboxModal } from '../PhotoLightboxModal';
 
@@ -118,7 +118,7 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
         }
         setAgenda(data);
         if (data.evidence?.storage_path) {
-          const url = await getEvidenceSignedUrl(data.evidence.storage_path);
+          const url = await getEvidenceDisplayUrl(data.evidence.storage_path);
           if (!cancelled) setPhotoUrl(url || null);
         }
       } catch (err: any) {

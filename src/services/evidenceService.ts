@@ -8,6 +8,35 @@ export const EVIDENCE_BUCKET = 'agenda-evidence';
 const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
 
 /**
+ * Cache URL tampil berbasis blob (object URL).
+ *
+ * Kenapa perlu: signed URL punya masa berlaku (default 1 jam). Selama form
+ * dibiarkan terbuka, URL itu bisa kedaluwarsa dan gambar yang sudah tampil
+ * tiba-tiba gagal dimuat ulang. Karena berkas bukti foto bersifat tetap
+ * (isinya hanya berubah bila guru sengaja mengambil ulang, dan saat itu cache
+ * memang dibuang), menyimpan isinya di memori aman dan menghilangkan
+ * ketergantungan pada masa berlaku token.
+ *
+ * `fetch` ke Storage bisa ditolak CORS pada instalasi self-hosted. Karena itu
+ * kegagalan apa pun jatuh kembali ke signed URL — perilakunya sama seperti
+ * sebelumnya, tidak lebih buruk.
+ */
+const blobUrlCache = new Map<string, string>();
+
+/** Batas jumlah foto yang disimpan di memori (foto ±200 KB setelah kompresi). */
+const BLOB_CACHE_LIMIT = 30;
+
+export function invalidateEvidenceDisplayUrl(storagePath?: string | null): void {
+  if (!storagePath) return;
+  const url = blobUrlCache.get(storagePath);
+  if (url) {
+    URL.revokeObjectURL(url);
+    blobUrlCache.delete(storagePath);
+  }
+  signedUrlCache.delete(storagePath);
+}
+
+/**
  * Mengambil signed URL untuk file foto di Supabase Storage.
  * Masa aktif default 3600 detik (1 jam).
  */
@@ -45,6 +74,45 @@ export async function getEvidenceSignedUrl(
   } catch (err: any) {
     console.warn('Gagal memproses signed URL evidence:', err?.message || err);
     return null;
+  }
+}
+
+/**
+ * URL untuk MENAMPILKAN foto: object URL dari blob yang sudah diunduh sekali.
+ *
+ * Aman dipakai sebagai `src` gambar maupun sebagai sumber lightbox, dan
+ * hasilnya tetap berlaku selama halaman tidak dimuat ulang.
+ */
+export async function getEvidenceDisplayUrl(storagePath: string): Promise<string | null> {
+  if (!storagePath) return null;
+
+  const cached = blobUrlCache.get(storagePath);
+  if (cached) return cached;
+
+  const signed = await getEvidenceSignedUrl(storagePath);
+  if (!signed) return null;
+
+  try {
+    const res = await fetch(signed);
+    // `opaque` berarti CORS tidak mengizinkan isinya dibaca — pakai signed URL.
+    if (!res.ok || res.type === 'opaque') return signed;
+
+    const blob = await res.blob();
+    if (blob.size === 0) return signed;
+
+    const objectUrl = URL.createObjectURL(blob);
+
+    // Buang entri tertua bila melewati batas, supaya memori tidak menumpuk
+    // di perangkat kelas bawah.
+    if (blobUrlCache.size >= BLOB_CACHE_LIMIT) {
+      const oldest = blobUrlCache.keys().next().value;
+      if (oldest) invalidateEvidenceDisplayUrl(oldest);
+    }
+
+    blobUrlCache.set(storagePath, objectUrl);
+    return objectUrl;
+  } catch {
+    return signed;
   }
 }
 
@@ -140,14 +208,18 @@ export async function uploadAgendaEvidence(params: {
     if (oldStoragePath && oldStoragePath !== storagePath) {
       try {
         await supabase.storage.from(EVIDENCE_BUCKET).remove([oldStoragePath]);
-        signedUrlCache.delete(oldStoragePath);
+        invalidateEvidenceDisplayUrl(oldStoragePath);
         console.log(`[Evidence] Old file cleaned up: ${oldStoragePath}`);
       } catch (cleanErr: any) {
         console.warn(`[Evidence] Failed to cleanup old file ${oldStoragePath}:`, cleanErr.message);
       }
     }
 
-    // Ambil signed URL untuk preview langsung
+    // Ambil signed URL untuk preview langsung.
+    // Cache dibuang lebih dulu: path diturunkan dari `agendaId`, sehingga
+    // pengambilan ulang menimpa berkas yang sama — tanpa ini, pratinjau akan
+    // menampilkan URL lama yang isinya sudah tergantikan.
+    invalidateEvidenceDisplayUrl(storagePath);
     const signedUrl = await getEvidenceSignedUrl(storagePath);
 
     return {
@@ -202,7 +274,7 @@ export async function deleteAgendaEvidence(
       if (storageErr) {
         console.warn(`[Evidence] Storage delete warning:`, storageErr.message);
       } else {
-        signedUrlCache.delete(storagePath);
+        invalidateEvidenceDisplayUrl(storagePath);
         console.log(`[Evidence] evidence delete success: ${storagePath}`);
       }
     } catch (err: any) {
