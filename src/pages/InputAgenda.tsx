@@ -106,20 +106,24 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
   const formSlot = isSubstituteFormOpen ? substituteSlot : resolvedSlot;
 
   /**
-   * Kembalikan posisi gulir ke atas setiap kali masuk ke tampilan form, atau
-   * berpindah slot di dalam form (termasuk saat lanjut ke slot terlewat
-   * berikutnya).
+   * Kembalikan posisi gulir ke atas setiap kali tampilan berganti: masuk ke
+   * form, keluar dari form, atau berpindah slot di dalam form (termasuk saat
+   * lanjut ke slot terlewat berikutnya).
    *
    * `ScrollToTop` global hanya bereaksi pada `pathname`, sedangkan slot dibuka
-   * lewat `?slot=` (search param). Tanpa efek ini, guru yang mengetuk slot ke-5
-   * dari bawah akan mendarat di tengah/bawah form — kemungkinan besar langsung
-   * di bagian foto — bukan di bagian pertama yang harus diisi.
+   * lewat `?slot=` (search param) — jadi perpindahan ini tidak tertangani di
+   * sana.
    *
-   * Sengaja tidak menggulir saat KELUAR dari form, supaya posisi daftar jadwal
-   * tetap di tempat guru meninggalkannya.
+   * Dua arah sama-sama perlu:
+   *  - Masuk form: guru yang mengetuk slot ke-5 dari bawah harus mendarat di
+   *    bagian pertama yang harus diisi, bukan di tengah form.
+   *  - Keluar form: tombol simpan ada di UJUNG form, sehingga guru selalu
+   *    berada di dasar halaman saat menyimpan. Tanpa menggulir ke atas, mereka
+   *    mendarat di dasar daftar jadwal dan harus menggulir naik untuk melihat
+   *    jadwalnya. (Sebelumnya bilah simpan menempel, jadi posisi gulir saat
+   *    menyimpan bervariasi — sekarang tidak lagi.)
    */
   useEffect(() => {
-    if (!isFormViewActive) return;
     window.scrollTo({ top: 0, behavior: 'auto' });
   }, [isFormViewActive, slotId, editData?.header.id]);
 
