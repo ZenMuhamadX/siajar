@@ -111,6 +111,46 @@ Bila Anda memakai Supabase CLI yang diarahkan ke instance self-hosted:
 supabase functions deploy manage-users --project-ref <ref>
 ```
 
+### Menyalin file dengan aman — jangan sampai rusak
+
+`index.ts` memuat template literal (backtick) dan `${...}`. Kalau isinya ditulis lewat heredoc **tanpa tanda kutip** pada penutupnya, shell akan mengeksekusi bagian itu sebagai perintah dan **merusak isi file**. Gejalanya berupa galat parse dari edge-runtime, misalnya:
+
+```text
+InvalidWorkerCreation: worker boot error: failed to bootstrap runtime:
+The module's source code could not be parsed: Expected ',', got ';' at
+file:///home/deno/functions/manage-users/index.ts:40:49
+```
+
+Pakai salah satu cara berikut:
+
+**A. `docker cp` — paling aman, tidak lewat shell**
+
+```bash
+docker cp supabase/functions/manage-users/index.ts \
+  supabase-edge-functions:/home/deno/functions/manage-users/index.ts
+docker restart supabase-edge-functions
+```
+
+**B. `scp` / `rsync`** dari komputer lokal ke server, lalu restart container.
+
+**C. Heredoc dengan penutup DIKUTIP** — perhatikan tanda kutip pada `'EOF'`:
+
+```bash
+cat > volumes/functions/manage-users/index.ts << 'EOF'
+...seluruh isi file...
+EOF
+```
+
+Tanpa tanda kutip itu, `` `...` `` dan `${...}` akan diekspansi shell dan file jadi rusak.
+
+**Verifikasi setelah menyalin** — jumlah baris harus **329**:
+
+```bash
+wc -l volumes/functions/manage-users/index.ts
+```
+
+Kalau angkanya berbeda, penyalinan tidak utuh: ulangi dengan cara A.
+
 ### 4.2 Variabel lingkungan
 
 Ada empat variabel yang perlu dibedakan. Satu di antaranya **tidak ada di Supabase sama sekali** dan harus Anda tambahkan sendiri:
