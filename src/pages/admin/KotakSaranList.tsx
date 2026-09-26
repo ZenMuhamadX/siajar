@@ -3,7 +3,7 @@ import { getDaftarKotakSaran, deleteKotakSaran } from '../../services/agendaServ
 import type { KotakSaran } from '../../types';
 import { PageHeader } from '../../components/admin/PageHeader';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { EmptyState, FilterBar, LoadingState } from '../../components/common';
+import { EmptyState, FilterBar, LoadingState, formStyles } from '../../components/common';
 import {
   MessageSquare,
   Trash2,
@@ -109,7 +109,7 @@ export const KotakSaranList: React.FC<KotakSaranListProps> = ({ showToast }) => 
           <select
             value={selectedKategori}
             onChange={(e) => setSelectedKategori(e.target.value)}
-            className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-700 text-xs focus:outline-none"
+            className={formStyles.select}
           >
             <option value="SEMUA">Semua Kategori</option>
             <option value="Fasilitas">Fasilitas</option>

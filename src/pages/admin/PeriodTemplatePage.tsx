@@ -409,7 +409,7 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
                 type="checkbox"
                 checked={form.is_active}
                 onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))}
-                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-1 focus:ring-slate-400"
+                className={formStyles.checkbox}
               />
               <span className="text-xs font-semibold text-slate-600">JP Aktif</span>
             </label>
@@ -456,7 +456,7 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
                       const n = parseInt(e.target.value, 10) || 1;
                       setForm((f) => ({ ...f, period_number: n, label: `JP ${n}` }));
                     }}
-                    className="w-full px-2.5 py-1.5 text-xs text-center font-bold bg-white text-slate-800 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition"
+                    className={`${formStyles.input} text-center font-bold`}
                   />
                 </div>
 
@@ -469,7 +469,7 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
                     value={form.label}
                     onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
                     placeholder="JP 1"
-                    className="w-full px-2.5 py-1.5 text-xs bg-white text-slate-800 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition"
+                    className={formStyles.input}
                   />
                 </div>
               </div>
@@ -483,7 +483,7 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
                     type="time"
                     value={form.start_time}
                     onChange={(e) => setForm((f) => ({ ...f, start_time: e.target.value }))}
-                    className="w-full px-2.5 py-1.5 text-xs bg-white text-slate-800 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition"
+                    className={formStyles.input}
                   />
                 </div>
 
@@ -495,7 +495,7 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
                     type="time"
                     value={form.end_time}
                     onChange={(e) => setForm((f) => ({ ...f, end_time: e.target.value }))}
-                    className="w-full px-2.5 py-1.5 text-xs bg-white text-slate-800 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition"
+                    className={formStyles.input}
                   />
                 </div>
               </div>

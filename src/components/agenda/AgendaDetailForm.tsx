@@ -7,6 +7,7 @@ import {
   getEvidenceSignedUrl,
 } from '../../services/evidenceService';
 import { PhotoLightboxModal } from '../PhotoLightboxModal';
+import { formStyles } from '../common';
 import {
   ArrowLeft,
   Save,
@@ -531,7 +532,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                           <select
                             value={item.siswa_id}
                             onChange={(e) => handleAbsensiChange(idx, 'siswa_id', e.target.value)}
-                            className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 font-medium"
+                            className={`${formStyles.select} flex-1 font-medium`}
                           >
                             {siswaKelas.map((s) => (
                               <option key={s.id} value={s.id}>

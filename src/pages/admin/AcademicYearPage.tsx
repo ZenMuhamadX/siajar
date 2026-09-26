@@ -8,13 +8,21 @@ import {
 } from '../../services/scheduleService';
 import { PageHeader } from '../../components/admin/PageHeader';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { DataTable, StatusBadge, type Column } from '../../components/common';
+import {
+  DataTable,
+  StatusBadge,
+  FormModal,
+  FormField,
+  TextInput,
+  SelectInput,
+  formStyles,
+  type Column,
+} from '../../components/common';
 import {
   Plus,
   CheckCircle2,
   Archive,
   RefreshCw,
-  X,
   CalendarCheck,
 } from 'lucide-react';
 
@@ -292,95 +300,86 @@ export const AcademicYearPage: React.FC<AcademicYearPageProps> = ({ showToast })
         defaultPageSize={10}
       />
 
-      {/* Modal Add Academic Year */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
-              <h3 className="font-bold text-slate-800 text-sm sm:text-base">
-                Tambah Tahun Ajaran Baru
-              </h3>
+      {/* Modal Add Academic Year — FormModal (scroll-safe) */}
+      <FormModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title="Tambah Tahun Ajaran Baru"
+        subtitle="Tahun ajaran aktif dipakai untuk seluruh agenda, jadwal, dan rekap."
+        onSubmit={handleCreate}
+        busy={isSubmitting}
+        footer={(formId) => (
+          <>
+            <span />
+            <div className="flex items-center gap-2">
               <button
+                type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded transition"
+                className={formStyles.ghostBtn}
               >
-                <X className="w-4 h-4" />
+                Batal
+              </button>
+              <button
+                type="submit"
+                form={formId}
+                disabled={isSubmitting}
+                className={formStyles.primaryBtn}
+              >
+                {isSubmitting ? 'Menyimpan...' : 'Simpan Tahun Ajaran'}
               </button>
             </div>
+          </>
+        )}
+      >
+        <div className="p-5 space-y-3.5">
+          <FormField
+            label="Nama Tahun Ajaran"
+            htmlFor="ta-nama"
+            hint="contoh: 2026/2027"
+            required
+          >
+            <TextInput
+              id="ta-nama"
+              type="text"
+              required
+              autoFocus
+              placeholder="2026/2027"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </FormField>
 
-            <form onSubmit={handleCreate} className="p-5 space-y-3.5">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Nama Tahun Ajaran (contoh: 2026/2027)
-                </label>
-                <input
-                  type="text"
-                  placeholder="2026/2027"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Tanggal Mulai
-                  </label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Tanggal Selesai
-                  </label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Status Awal
-                </label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as AcademicYearStatus)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-                >
-                  <option value="DRAFT">DRAFT (Dalam persiapan)</option>
-                  <option value="ACTIVE">ACTIVE (Langsung aktifkan)</option>
-                </select>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition shadow-xs"
-                >
-                  {isSubmitting ? 'Menyimpan...' : 'Simpan Tahun Ajaran'}
-                </button>
-              </div>
-            </form>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Tanggal Mulai" htmlFor="ta-mulai" required>
+              <TextInput
+                id="ta-mulai"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </FormField>
+            <FormField label="Tanggal Selesai" htmlFor="ta-selesai" required>
+              <TextInput
+                id="ta-selesai"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </FormField>
           </div>
+
+          <FormField label="Status Awal" htmlFor="ta-status" required>
+            <SelectInput
+              id="ta-status"
+              value={status}
+              onChange={(e) => setStatus(e.target.value as AcademicYearStatus)}
+            >
+              <option value="DRAFT">DRAFT (Dalam persiapan)</option>
+              <option value="ACTIVE">ACTIVE (Langsung aktifkan)</option>
+            </SelectInput>
+          </FormField>
         </div>
-      )}
+      </FormModal>
 
       {/* Dialog konfirmasi aktifkan / arsipkan */}
       <ConfirmDialog

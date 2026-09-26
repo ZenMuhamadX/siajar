@@ -100,7 +100,7 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-2xs overflow-y-auto no-print">
       <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-auto">
         {/* Modal Header */}
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+        <div className="shrink-0 px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold px-2 py-0.5 rounded bg-slate-900 text-white">
@@ -121,7 +121,9 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 overflow-y-auto space-y-5 text-xs sm:text-sm">
+        {/* min-h-0 supaya max-h-[90vh] benar-benar berlaku; overscroll-contain
+            supaya scroll di dalam tidak diteruskan ke halaman report. */}
+        <div className="flex-1 min-h-0 p-5 overflow-y-auto overscroll-contain space-y-5 text-xs sm:text-sm">
           {/* Status & Jadwal Ringkas */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
             <div>

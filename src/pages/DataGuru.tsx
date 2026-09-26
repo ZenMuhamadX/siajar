@@ -8,16 +8,19 @@ import {
 } from '../services/agendaService';
 import {
   UserCheck,
-  UserPlus,
   Edit2,
   Trash2,
   Check,
-  X,
+  Plus,
 } from 'lucide-react';
 import {
   DataTable,
   StatusBadge,
   FilterBar,
+  FormModal,
+  FormField,
+  TextInput,
+  formStyles,
 } from '../components/common';
 import { PageHeader } from '../components/admin/PageHeader';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -33,6 +36,8 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
   // Form states for Add / Edit
   const [namaInput, setNamaInput] = useState<string>('');
   const [editingGuru, setEditingGuru] = useState<Guru | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const fetchGuru = async () => {
@@ -59,6 +64,7 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
       return;
     }
 
+    setIsSaving(true);
     try {
       if (editingGuru) {
         await updateGuru(editingGuru.id, namaInput);
@@ -72,19 +78,29 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
         );
       }
       setNamaInput('');
+      setIsFormOpen(false);
       fetchGuru();
     } catch (err: any) {
       showToast('error', 'Gagal menyimpan data guru. ' + (err?.message || ''));
+    } finally {
+      setIsSaving(false);
     }
+  };
+
+  const handleOpenCreate = () => {
+    setEditingGuru(null);
+    setNamaInput('');
+    setIsFormOpen(true);
   };
 
   const handleEditClick = (guru: Guru) => {
     setEditingGuru(guru);
     setNamaInput(guru.nama_guru);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setIsFormOpen(true);
   };
 
-  const handleCancelEdit = () => {
+  const handleCloseForm = () => {
+    setIsFormOpen(false);
     setEditingGuru(null);
     setNamaInput('');
   };
@@ -118,62 +134,6 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
         description="Atur daftar guru yang dapat digunakan pada agenda dan jadwal."
       />
 
-      {/* Add / Edit Form */}
-      <div className="bg-white rounded-xl p-4 sm:p-6 border border-slate-200 shadow-xs">
-        <form
-          onSubmit={handleSaveGuru}
-          className="p-3 sm:p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3"
-        >
-          <div className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-            {editingGuru ? (
-              <>
-                <Edit2 className="w-3.5 h-3.5 text-amber-600" />
-                <span>Perbarui Data Guru</span>
-              </>
-            ) : (
-              <>
-                <UserPlus className="w-3.5 h-3.5 text-purple-600" />
-                <span>Tambah Guru Baru</span>
-              </>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-[10px] sm:text-[11px] font-semibold text-slate-600 mb-1">
-              Nama Lengkap Guru (beserta gelar jika ada)
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="Contoh: Abdullah, S.Pd.I / Fatimah, S.Pd"
-              value={namaInput}
-              onChange={(e) => setNamaInput(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white focus:ring-1 focus:ring-purple-500 focus:outline-none"
-            />
-          </div>
-
-          <div className="flex justify-end gap-1.5 pt-2 border-t border-slate-200">
-            {editingGuru && (
-              <button
-                type="button"
-                onClick={handleCancelEdit}
-                className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg text-xs transition"
-              >
-                <X className="w-3.5 h-3.5 inline mr-0.5" />
-                Batal
-              </button>
-            )}
-            <button
-              type="submit"
-              className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-xs shadow-xs transition flex items-center gap-1"
-            >
-              <Check className="w-3.5 h-3.5" />
-              <span>{editingGuru ? 'Simpan' : 'Tambah Guru'}</span>
-            </button>
-          </div>
-        </form>
-      </div>
-
       {/* List Guru */}
       <div className="space-y-3">
         {/* Toolbar & FilterBar */}
@@ -184,9 +144,19 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
           isFiltered={Boolean(searchQuery.trim())}
           onResetFilters={() => setSearchQuery('')}
           actions={
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
-              <UserCheck className="w-4 h-4 text-purple-600" />
-              <span>{guruList.length} Guru Terdaftar</span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
+                <UserCheck className="w-4 h-4 text-indigo-600" />
+                <span>{guruList.length} Guru Terdaftar</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenCreate}
+                className={formStyles.primaryBtn}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Tambah Guru
+              </button>
             </div>
           }
         />
@@ -260,7 +230,7 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
           emptyDescription={
             searchQuery.trim()
               ? 'Tidak ada guru yang sesuai dengan pencarian.'
-              : 'Gunakan formulir di atas untuk menambahkan guru baru.'
+              : 'Klik "Tambah Guru" untuk menambahkan guru baru.'
           }
           rowClassName={(item) =>
             editingGuru?.id === item.id ? 'bg-amber-50/80 font-medium' : ''
@@ -269,6 +239,54 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
           defaultPageSize={25}
         />
       </div>
+
+      {/* Modal Tambah / Edit Guru */}
+      <FormModal
+        isOpen={isFormOpen}
+        onClose={handleCloseForm}
+        title={editingGuru ? 'Perbarui Data Guru' : 'Tambah Guru Baru'}
+        subtitle={
+          editingGuru
+            ? 'Perbarui nama guru yang sudah terdaftar.'
+            : 'Guru ini akan tersedia pada agenda dan jadwal.'
+        }
+        size="sm"
+        onSubmit={handleSaveGuru}
+        busy={isSaving}
+        footer={(formId) => (
+          <>
+            <span />
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={handleCloseForm} className={formStyles.ghostBtn}>
+                Batal
+              </button>
+              <button type="submit" form={formId} disabled={isSaving} className={formStyles.primaryBtn}>
+                <Check className="w-3.5 h-3.5" />
+                {isSaving ? 'Menyimpan...' : editingGuru ? 'Simpan' : 'Tambah Guru'}
+              </button>
+            </div>
+          </>
+        )}
+      >
+        <div className="p-5">
+          <FormField
+            label="Nama Lengkap Guru"
+            htmlFor="guru-nama"
+            required
+            hint="beserta gelar jika ada"
+          >
+            <TextInput
+              id="guru-nama"
+              type="text"
+              required
+              autoFocus
+              placeholder="Contoh: Abdullah, S.Pd.I / Fatimah, S.Pd"
+              value={namaInput}
+              onChange={(e) => setNamaInput(e.target.value)}
+            />
+          </FormField>
+        </div>
+      </FormModal>
 
       {/* Dialog konfirmasi hapus guru */}
       <ConfirmDialog

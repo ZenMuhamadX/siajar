@@ -20,7 +20,7 @@ import {
   CheckCircle2,
   UserCheck,
 } from 'lucide-react';
-import { DataTable, StatusBadge, type Column } from '../../components/common';
+import { DataTable, StatusBadge, formStyles, type Column } from '../../components/common';
 
 interface HomeroomManagementProps {
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
@@ -226,7 +226,7 @@ export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToas
         <select
           value={row.selected}
           onChange={(e) => handleSelectTeacher(row.classId, e.target.value)}
-          className="w-full max-w-sm px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-400 transition"
+          className={`${formStyles.select} max-w-sm font-semibold`}
         >
           <option value="">-- Belum Dipilih / Kosong --</option>
           {teachers.map((t) => (

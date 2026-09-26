@@ -125,7 +125,7 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
         </div>
 
         {/* Content Table */}
-        <div className="p-0 overflow-y-auto flex-1">
+        <div className="p-0 flex-1 min-h-0 overflow-y-auto overscroll-contain">
           {isLoading ? (
             <div className="py-12 text-center space-y-2">
               <Loader2 className="w-6 h-6 text-purple-600 animate-spin mx-auto" />

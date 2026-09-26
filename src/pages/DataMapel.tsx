@@ -10,7 +10,6 @@ import {
   Edit2,
   Trash2,
   Check,
-  X,
   BookOpen,
   Plus,
 } from 'lucide-react';
@@ -18,6 +17,10 @@ import {
   DataTable,
   StatusBadge,
   FilterBar,
+  FormModal,
+  FormField,
+  TextInput,
+  formStyles,
 } from '../components/common';
 import { PageHeader } from '../components/admin/PageHeader';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -34,6 +37,8 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
   // Form state
   const [namaInput, setNamaInput] = useState<string>('');
   const [editingMapel, setEditingMapel] = useState<MataPelajaran | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
 
   const fetchMapel = async () => {
     setIsLoading(true);
@@ -59,6 +64,7 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
       return;
     }
 
+    setIsSaving(true);
     try {
       if (editingMapel) {
         await updateMapel(editingMapel.id, namaInput);
@@ -69,19 +75,29 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
         showToast('success', `Mata pelajaran ${namaInput} berhasil ditambahkan.`);
       }
       setNamaInput('');
+      setIsFormOpen(false);
       fetchMapel();
     } catch (err: any) {
       showToast('error', 'Gagal menyimpan mata pelajaran. ' + (err?.message || ''));
+    } finally {
+      setIsSaving(false);
     }
+  };
+
+  const handleOpenCreate = () => {
+    setEditingMapel(null);
+    setNamaInput('');
+    setIsFormOpen(true);
   };
 
   const handleEditClick = (mapel: MataPelajaran) => {
     setEditingMapel(mapel);
     setNamaInput(mapel.nama_mapel);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setIsFormOpen(true);
   };
 
-  const handleCancelEdit = () => {
+  const handleCloseForm = () => {
+    setIsFormOpen(false);
     setEditingMapel(null);
     setNamaInput('');
   };
@@ -115,58 +131,6 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
         description="Daftar mata pelajaran yang diajarkan pada kegiatan KBM."
       />
 
-      {/* Add / Edit Form */}
-      <div className="bg-white rounded-xl p-4 sm:p-6 border border-slate-200 shadow-2xs">
-        <form onSubmit={handleSaveMapel} className="p-3 sm:p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
-          <div className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-            {editingMapel ? (
-              <>
-                <Edit2 className="w-3.5 h-3.5 text-amber-600" />
-                <span>Perbarui Data Mapel</span>
-              </>
-            ) : (
-              <>
-                <Plus className="w-3.5 h-3.5 text-blue-600" />
-                <span>Tambah Mata Pelajaran Baru</span>
-              </>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-[10px] sm:text-[11px] font-semibold text-slate-600 mb-1">
-              Nama Mata Pelajaran
-            </label>
-            <div className="flex gap-1.5">
-              <input
-                type="text"
-                required
-                placeholder="Contoh: Matematika, Bahasa Indonesia, PAI..."
-                value={namaInput}
-                onChange={(e) => setNamaInput(e.target.value)}
-                className="flex-1 min-w-0 px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
-              />
-              <button
-                type="submit"
-                className="px-3 sm:px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs shadow-2xs transition flex items-center gap-1 shrink-0"
-              >
-                <Check className="w-3.5 h-3.5" />
-                <span>{editingMapel ? 'Simpan' : 'Tambah'}</span>
-              </button>
-              {editingMapel && (
-                <button
-                  type="button"
-                  onClick={handleCancelEdit}
-                  className="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg text-xs transition shrink-0"
-                  title="Batal"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
-        </form>
-      </div>
-
       {/* List Mapel */}
       <div className="space-y-3">
         <FilterBar
@@ -176,9 +140,15 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
           isFiltered={Boolean(searchQuery.trim())}
           onResetFilters={() => setSearchQuery('')}
           actions={
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
-              <BookOpen className="w-4 h-4 text-blue-600" />
-              <span>{mapelList.length} Mata Pelajaran</span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
+                <BookOpen className="w-4 h-4 text-indigo-600" />
+                <span>{mapelList.length} Mata Pelajaran</span>
+              </div>
+              <button type="button" onClick={handleOpenCreate} className={formStyles.primaryBtn}>
+                <Plus className="w-3.5 h-3.5" />
+                Tambah Mapel
+              </button>
             </div>
           }
         />
@@ -251,7 +221,7 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
           emptyDescription={
             searchQuery.trim()
               ? 'Tidak ada mata pelajaran yang sesuai pencarian.'
-              : 'Gunakan formulir di atas untuk menambahkan mata pelajaran baru.'
+              : 'Klik "Tambah Mapel" untuk menambahkan mata pelajaran baru.'
           }
           rowClassName={(item) =>
             editingMapel?.id === item.id ? 'bg-amber-50/80 font-medium' : ''
@@ -260,6 +230,49 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
           defaultPageSize={25}
         />
       </div>
+
+      {/* Modal Tambah / Edit Mata Pelajaran */}
+      <FormModal
+        isOpen={isFormOpen}
+        onClose={handleCloseForm}
+        title={editingMapel ? 'Perbarui Data Mapel' : 'Tambah Mata Pelajaran Baru'}
+        subtitle={
+          editingMapel
+            ? 'Perbarui nama mata pelajaran yang sudah terdaftar.'
+            : 'Mata pelajaran ini akan tersedia pada agenda dan jadwal.'
+        }
+        size="sm"
+        onSubmit={handleSaveMapel}
+        busy={isSaving}
+        footer={(formId) => (
+          <>
+            <span />
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={handleCloseForm} className={formStyles.ghostBtn}>
+                Batal
+              </button>
+              <button type="submit" form={formId} disabled={isSaving} className={formStyles.primaryBtn}>
+                <Check className="w-3.5 h-3.5" />
+                {isSaving ? 'Menyimpan...' : editingMapel ? 'Simpan' : 'Tambah'}
+              </button>
+            </div>
+          </>
+        )}
+      >
+        <div className="p-5">
+          <FormField label="Nama Mata Pelajaran" htmlFor="mapel-nama" required>
+            <TextInput
+              id="mapel-nama"
+              type="text"
+              required
+              autoFocus
+              placeholder="Contoh: Matematika, Bahasa Indonesia, PAI..."
+              value={namaInput}
+              onChange={(e) => setNamaInput(e.target.value)}
+            />
+          </FormField>
+        </div>
+      </FormModal>
 
       {/* Dialog konfirmasi hapus mata pelajaran */}
       <ConfirmDialog

@@ -4,7 +4,7 @@ import { getSubstitutionHistory, cancelSubstitution } from '../../services/subst
 import type { Substitution } from '../../types';
 import { PageHeader } from '../../components/admin/PageHeader';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { DataTable, FilterBar, StatusBadge, type Column } from '../../components/common';
+import { DataTable, FilterBar, StatusBadge, formStyles, type Column } from '../../components/common';
 import {
   Users,
   Loader2,
@@ -244,7 +244,7 @@ export const SubstitusiPage: React.FC<SubstitusiPageProps> = ({ showToast }) => 
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                className={formStyles.select}
               />
             </label>
             <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
@@ -253,7 +253,7 @@ export const SubstitusiPage: React.FC<SubstitusiPageProps> = ({ showToast }) => 
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                className={formStyles.select}
               />
             </label>
 

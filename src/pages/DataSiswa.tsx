@@ -8,16 +8,20 @@ import {
 } from '../services/agendaService';
 import {
   Users,
-  UserPlus,
   Edit2,
   Trash2,
   Check,
-  X,
+  Plus,
 } from 'lucide-react';
 import {
   DataTable,
   StatusBadge,
   FilterBar,
+  FormModal,
+  FormField,
+  TextInput,
+  SelectInput,
+  formStyles,
 } from '../components/common';
 import { PageHeader } from '../components/admin/PageHeader';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -36,6 +40,8 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
   const [namaInput, setNamaInput] = useState<string>('');
   const [kelasInput, setKelasInput] = useState<KelasOption>('KELAS 1');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
 
   const fetchSiswa = async () => {
     setIsLoading(true);
@@ -63,6 +69,7 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
       return;
     }
 
+    setIsSaving(true);
     try {
       if (editingId) {
         await updateSiswa(editingId, namaInput, kelasInput);
@@ -73,20 +80,33 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
         showToast('success', `Siswa ${namaInput} berhasil ditambahkan.`);
       }
       setNamaInput('');
+      setIsFormOpen(false);
       fetchSiswa();
     } catch (err: any) {
       showToast('error', 'Gagal menyimpan siswa. ' + (err?.message || ''));
+    } finally {
+      setIsSaving(false);
     }
+  };
+
+  const handleOpenCreate = () => {
+    setEditingId(null);
+    setNamaInput('');
+    setKelasInput(
+      selectedFilterKelas === 'SEMUA' ? 'KELAS 1' : (selectedFilterKelas as KelasOption),
+    );
+    setIsFormOpen(true);
   };
 
   const handleEditClick = (siswa: Siswa) => {
     setEditingId(siswa.id);
     setNamaInput(siswa.nama_siswa);
     setKelasInput(siswa.kelas as KelasOption);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setIsFormOpen(true);
   };
 
-  const handleCancelEdit = () => {
+  const handleCloseForm = () => {
+    setIsFormOpen(false);
     setEditingId(null);
     setNamaInput('');
     setKelasInput('KELAS 1');
@@ -121,77 +141,6 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
         description="Daftar siswa untuk pengisian absensi jurnal pembelajaran."
       />
 
-      {/* Add / Edit Form */}
-      <div className="bg-white rounded-xl p-4 sm:p-6 border border-slate-200 shadow-xs">
-        <form onSubmit={handleSaveSiswa} className="p-3 sm:p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
-          <div className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-            {editingId ? (
-              <>
-                <Edit2 className="w-3.5 h-3.5 text-amber-600" />
-                <span>Perbarui Data Siswa</span>
-              </>
-            ) : (
-              <>
-                <UserPlus className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Tambah Siswa Baru</span>
-              </>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
-            <div className="sm:col-span-4">
-              <label className="block text-[10px] sm:text-[11px] font-semibold text-slate-600 mb-1">
-                Tingkat Kelas
-              </label>
-              <select
-                value={kelasInput}
-                onChange={(e) => setKelasInput(e.target.value as KelasOption)}
-                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-300 bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-              >
-                {DAFTAR_KELAS.map((k) => (
-                  <option key={k} value={k}>
-                    {k}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="sm:col-span-8">
-              <label className="block text-[10px] sm:text-[11px] font-semibold text-slate-600 mb-1">
-                Nama Lengkap Siswa
-              </label>
-              <div className="flex gap-1.5">
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Muhammad Fatih Al-Ayyubi"
-                  value={namaInput}
-                  onChange={(e) => setNamaInput(e.target.value)}
-                  className="flex-1 min-w-0 px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  className="px-3 sm:px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-xs transition flex items-center gap-1 shrink-0"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>{editingId ? 'Simpan' : 'Tambah'}</span>
-                </button>
-                {editingId && (
-                  <button
-                    type="button"
-                    onClick={handleCancelEdit}
-                    className="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg text-xs transition shrink-0"
-                    title="Batal"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </form>
-      </div>
-
       {/* List Siswa */}
       <div className="space-y-3">
         <FilterBar
@@ -209,7 +158,7 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
               <select
                 value={selectedFilterKelas}
                 onChange={(e) => setSelectedFilterKelas(e.target.value)}
-                className="bg-white border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-semibold focus:outline-none"
+                className={`${formStyles.select} w-auto font-semibold`}
               >
                 <option value="SEMUA">Semua Kelas</option>
                 {DAFTAR_KELAS.map((k) => (
@@ -221,9 +170,15 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
             </div>
           }
           actions={
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
-              <Users className="w-4 h-4 text-emerald-600" />
-              <span>{siswaList.length} Siswa</span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
+                <Users className="w-4 h-4 text-indigo-600" />
+                <span>{siswaList.length} Siswa</span>
+              </div>
+              <button type="button" onClick={handleOpenCreate} className={formStyles.primaryBtn}>
+                <Plus className="w-3.5 h-3.5" />
+                Tambah Siswa
+              </button>
             </div>
           }
         />
@@ -310,7 +265,7 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
           emptyDescription={
             searchQuery.trim()
               ? 'Tidak ada siswa yang sesuai pencarian.'
-              : `Belum ada siswa terdaftar di ${selectedFilterKelas}.`
+              : `Belum ada siswa terdaftar. Klik "Tambah Siswa" untuk menambahkan.`
           }
           rowClassName={(item) =>
             editingId === item.id ? 'bg-amber-50/80 font-medium' : ''
@@ -319,6 +274,73 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
           defaultPageSize={25}
         />
       </div>
+
+      {/* Modal Tambah / Edit Siswa */}
+      <FormModal
+        isOpen={isFormOpen}
+        onClose={handleCloseForm}
+        title={editingId ? 'Perbarui Data Siswa' : 'Tambah Siswa Baru'}
+        subtitle={
+          editingId
+            ? 'Perbarui data siswa yang sudah terdaftar.'
+            : 'Siswa ini akan muncul di daftar absensi pada jurnal.'
+        }
+        onSubmit={handleSaveSiswa}
+        busy={isSaving}
+        footer={(formId) => (
+          <>
+            <span />
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={handleCloseForm} className={formStyles.ghostBtn}>
+                Batal
+              </button>
+              <button type="submit" form={formId} disabled={isSaving} className={formStyles.primaryBtn}>
+                <Check className="w-3.5 h-3.5" />
+                {isSaving ? 'Menyimpan...' : editingId ? 'Simpan' : 'Tambah'}
+              </button>
+            </div>
+          </>
+        )}
+      >
+        <div className="p-5 grid grid-cols-1 sm:grid-cols-12 gap-3">
+          <FormField
+            label="Tingkat Kelas"
+            htmlFor="siswa-kelas"
+            className="sm:col-span-4"
+            required
+          >
+            <SelectInput
+              id="siswa-kelas"
+              value={kelasInput}
+              onChange={(e) => setKelasInput(e.target.value as KelasOption)}
+              className="font-bold"
+            >
+              {DAFTAR_KELAS.map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </SelectInput>
+          </FormField>
+
+          <FormField
+            label="Nama Lengkap Siswa"
+            htmlFor="siswa-nama"
+            className="sm:col-span-8"
+            required
+          >
+            <TextInput
+              id="siswa-nama"
+              type="text"
+              required
+              autoFocus
+              placeholder="Contoh: Muhammad Fatih Al-Ayyubi"
+              value={namaInput}
+              onChange={(e) => setNamaInput(e.target.value)}
+            />
+          </FormField>
+        </div>
+      </FormModal>
 
       {/* Dialog konfirmasi hapus siswa */}
       <ConfirmDialog
