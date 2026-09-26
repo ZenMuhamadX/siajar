@@ -1,6 +1,6 @@
 # Deployment SIAJAR — aaPanel (Nginx)
 
-Aplikasi ini adalah SPA statis (React + Vite). Tidak ada server aplikasi: browser mengakses Supabase secara langsung.
+Aplikasi ini adalah SPA statis (React + Vite). Tidak ada server aplikasi milik sendiri: browser mengakses Supabase secara langsung. Satu-satunya komponen server adalah Edge Function `manage-users`, yang berjalan di dalam stack **Supabase self-hosted** Anda.
 
 > **Model keamanan:** login memakai Supabase Auth dengan **kode pribadi per guru**. Verifikasi terjadi di **server**, peran (`guru`/`admin`) dibaca dari `app_metadata` JWT, dan seluruh akses data dibatasi RLS di `supabase/schema.sql`. Anon key tetap ada di bundle (itu normal), tetapi tanpa sesi yang sah ia hanya boleh membaca nama guru untuk mengisi halaman login. Tidak ada rahasia apa pun di frontend.
 
@@ -75,29 +75,73 @@ Aktifkan TLS melalui **Website → SSL → Let's Encrypt**, lalu aktifkan **Forc
 
 ---
 
-## 4. Edge Function `manage-users`
+## 4. Edge Function `manage-users` (Supabase self-hosted)
 
-Satu fungsi ini yang membuat akun, mengubah kode, dan menonaktifkan akun guru. Ia menerima `service_role` key otomatis dari Supabase — tidak ada rahasia yang perlu Anda tempel.
+Satu fungsi ini yang membuat akun, mengubah kode, dan menonaktifkan akun guru. Fungsinya **tanpa dependensi** — semua panggilan memakai `fetch` langsung ke GoTrue (`/auth/v1`) dan PostgREST (`/rest/v1`). Jadi ia tidak terpengaruh versi `edge-runtime` maupun ada/tidaknya akses ke registry npm.
 
-**Cara A — Dashboard Supabase (tanpa CLI)**
+### 4.1 Pasang fungsinya
 
-1. Buka **Edge Functions → Create a new function**, beri nama `manage-users`.
-2. Tempel seluruh isi `supabase/functions/manage-users/index.ts`.
-3. Deploy.
-4. Buka **Edge Functions → manage-users → Secrets**, tambahkan:
-   - `AUTH_DOMAIN` = harus sama dengan `VITE_AUTH_DOMAIN` di `.env`
-   - `ADMIN_EMAIL` = sama dengan `VITE_ADMIN_EMAIL` (opsional)
-
-**Cara B — Supabase CLI**
+Pada instalasi self-hosted, Edge Function dilayani dari folder `volumes/functions/` yang di-mount ke container `functions`. **Tidak perlu CLI:**
 
 ```bash
-supabase functions deploy manage-users
-supabase secrets set AUTH_DOMAIN=siajar.local
+# jalankan dari root instalasi Supabase self-hosted Anda
+cp -r /path/ke/siajar/supabase/functions/manage-users volumes/functions/manage-users
+docker compose restart functions
 ```
 
-> **Penting:** `AUTH_DOMAIN` di Edge Function harus **sama persis** dengan `VITE_AUTH_DOMAIN` di frontend. Email akun guru diturunkan dari nilai ini di kedua sisi; kalau berbeda, login guru akan gagal.
+Struktur yang benar:
 
-`SUPABASE_URL` dan `SUPABASE_SERVICE_ROLE_KEY` tidak perlu diset — Supabase menyuntikkan keduanya otomatis.
+```text
+volumes/
+  functions/
+    manage-users/
+      index.ts
+```
+
+Bila Anda memakai Supabase CLI yang diarahkan ke instance self-hosted:
+
+```bash
+supabase functions deploy manage-users --project-ref <ref>
+```
+
+### 4.2 Variabel lingkungan
+
+`SUPABASE_URL` dan `SUPABASE_SERVICE_ROLE_KEY` **sudah diset otomatis** oleh docker-compose resmi Supabase — jangan disentuh. Di self-hosted, `SUPABASE_URL` biasanya `http://kong:8000`; itu memang benar, karena dipanggil dari dalam jaringan Docker.
+
+Yang perlu ditambahkan hanya domain email sintetis. Edit `docker-compose.yml` pada service `functions`:
+
+```yaml
+  functions:
+    environment:
+      # ...biarkan yang sudah ada...
+      AUTH_DOMAIN: siajar.local
+      ADMIN_EMAIL: admin@siajar.local
+```
+
+Lalu `docker compose up -d functions`.
+
+Kalau `AUTH_DOMAIN` tidak diisi, nilainya default `siajar.local` — sama dengan default `VITE_AUTH_DOMAIN`, jadi login tetap cocok.
+
+> **Penting:** `AUTH_DOMAIN` di sini harus **sama persis** dengan `VITE_AUTH_DOMAIN` di `.env`. Kalau berbeda, login guru gagal. Halaman setup menampilkan peringatan otomatis begitu mendeteksi perbedaan ini, jadi Anda tidak perlu menebak.
+
+Catatan: pada self-hosted, service `functions` default memakai `VERIFY_JWT: "false"`. Itu tidak masalah — fungsi ini memverifikasi token pemanggil sendiri lewat GoTrue sebelum mengizinkan aksi apa pun.
+
+### 4.3 Verifikasi cepat
+
+```bash
+curl -s -X POST https://supabase.sekolahanda.sch.id/functions/v1/manage-users \
+  -H "apikey: <anon-key>" \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"status"}'
+```
+
+Sebelum admin pertama dibuat, jawabannya harus seperti:
+
+```json
+{ "hasAdmin": false, "authDomain": "siajar.local", "adminEmail": "admin@siajar.local" }
+```
+
+Kalau muncul galat tentang `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` kosong, berarti environment service `functions` belum benar — ulangi langkah 4.2.
 
 ---
 

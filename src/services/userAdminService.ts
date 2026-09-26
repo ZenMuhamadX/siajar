@@ -10,6 +10,52 @@ import { supabase } from '../lib/supabase';
 
 const FUNCTION_NAME = 'manage-users';
 
+/**
+ * Domain email sintetis akun guru.
+ *
+ * Server (Edge Function) adalah sumber kebenaran: nilainya dikirim balik oleh
+ * aksi `status`. Kalau belum sempat terbaca — atau Edge Function tidak
+ * tersedia — dipakai nilai build `VITE_AUTH_DOMAIN`. Keduanya default ke nilai
+ * yang sama, jadi ketidakcocokan hanya mungkin kalau salah satu diubah
+ * sendirian. Halaman setup menampilkan keduanya agar perbedaan langsung
+ * terlihat.
+ */
+const BUILD_AUTH_DOMAIN =
+  (import.meta.env?.VITE_AUTH_DOMAIN as string) || 'siajar.local';
+
+const BUILD_ADMIN_EMAIL =
+  (import.meta.env?.VITE_ADMIN_EMAIL as string) || `admin@${BUILD_AUTH_DOMAIN}`;
+
+let serverAuthDomain: string | null = null;
+let serverAdminEmail: string | null = null;
+
+export function setAuthDomain(domain: string | null | undefined): void {
+  if (domain && domain.trim()) serverAuthDomain = domain.trim().toLowerCase();
+}
+
+export function getAuthDomain(): string {
+  return serverAuthDomain ?? BUILD_AUTH_DOMAIN;
+}
+
+export function setAdminEmail(email: string | null | undefined): void {
+  if (email && email.trim()) serverAdminEmail = email.trim().toLowerCase();
+}
+
+export function getAdminEmail(): string {
+  return serverAdminEmail ?? BUILD_ADMIN_EMAIL;
+}
+
+/** Nilai yang tertanam saat build — dipakai untuk mendeteksi ketidakcocokan. */
+export function getBuildAuthDomain(): string {
+  return BUILD_AUTH_DOMAIN;
+}
+
+export interface SetupStatus {
+  hasAdmin: boolean;
+  authDomain?: string;
+  adminEmail?: string;
+}
+
 export interface TeacherAccount {
   guru_id: string;
   nama_guru: string;
@@ -52,9 +98,16 @@ async function invoke<T>(body: Record<string, unknown>): Promise<T> {
   return data as T;
 }
 
-/** Apakah instance ini sudah punya admin? Dipakai untuk memutuskan layar setup. */
-export async function getSetupStatus(): Promise<{ hasAdmin: boolean }> {
-  return invoke<{ hasAdmin: boolean }>({ action: 'status' });
+/**
+ * Apakah instance ini sudah punya admin? Dipakai untuk memutuskan layar setup.
+ * Sekaligus menyegarkan domain email & email admin dari server, supaya login
+ * memakai nilai yang sama dengan yang dipakai Edge Function.
+ */
+export async function getSetupStatus(): Promise<SetupStatus> {
+  const res = await invoke<SetupStatus>({ action: 'status' });
+  setAuthDomain(res.authDomain);
+  setAdminEmail(res.adminEmail);
+  return res;
 }
 
 /** Buat akun admin pertama. Hanya berhasil selama belum ada admin. */

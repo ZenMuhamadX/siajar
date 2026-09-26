@@ -2,9 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ShieldCheck, Loader2, AlertCircle, Check, Lock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { bootstrapAdmin, getSetupStatus } from '../services/userAdminService';
+import { bootstrapAdmin, getBuildAuthDomain, getSetupStatus } from '../services/userAdminService';
 
-const ADMIN_EMAIL = (import.meta.env?.VITE_ADMIN_EMAIL as string) || 'admin@siajar.local';
 const MIN_LENGTH = 6;
 
 /**
@@ -22,6 +21,13 @@ export const SetupPage: React.FC = () => {
   const [hasAdmin, setHasAdmin] = useState(false);
   const [checkError, setCheckError] = useState('');
 
+  // Email admin yang benar-benar dipakai server, plus peringatan bila domain
+  // di server berbeda dengan yang tertanam di frontend.
+  const [adminEmail, setAdminEmail] = useState(
+    (import.meta.env?.VITE_ADMIN_EMAIL as string) || 'admin@siajar.local'
+  );
+  const [domainMismatch, setDomainMismatch] = useState<string | null>(null);
+
   const [sandi, setSandi] = useState('');
   const [ulangi, setUlangi] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -31,7 +37,12 @@ export const SetupPage: React.FC = () => {
     let mounted = true;
     getSetupStatus()
       .then((res) => {
-        if (mounted) setHasAdmin(res.hasAdmin);
+        if (!mounted) return;
+        setHasAdmin(res.hasAdmin);
+        if (res.adminEmail) setAdminEmail(res.adminEmail);
+        if (res.authDomain && res.authDomain !== getBuildAuthDomain()) {
+          setDomainMismatch(res.authDomain);
+        }
       })
       .catch((err: Error) => {
         if (mounted) setCheckError(err.message);
@@ -131,12 +142,27 @@ export const SetupPage: React.FC = () => {
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 space-y-1">
             <div className="flex justify-between gap-3">
               <span className="text-slate-500">Akun admin</span>
-              <span className="font-semibold text-slate-800 break-all">{ADMIN_EMAIL}</span>
+              <span className="font-semibold text-slate-800 break-all">{adminEmail}</span>
             </div>
             <p className="text-[12px] text-slate-500 pt-1 border-t border-slate-200">
               Email ini sudah tetap. Anda hanya memilih sandinya.
             </p>
           </div>
+
+          {domainMismatch && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">
+                Domain di server (<strong>{domainMismatch}</strong>) berbeda dengan
+                yang tertanam di frontend (<strong>{getBuildAuthDomain()}</strong>).
+                Login guru akan gagal sampai keduanya disamakan — set{' '}
+                <code className="bg-amber-100 px-1 rounded">AUTH_DOMAIN</code> pada
+                Edge Function atau{' '}
+                <code className="bg-amber-100 px-1 rounded">VITE_AUTH_DOMAIN</code> di{' '}
+                <code className="bg-amber-100 px-1 rounded">.env</code>.
+              </span>
+            </div>
+          )}
 
           {errorMsg && (
             <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-start gap-2.5">

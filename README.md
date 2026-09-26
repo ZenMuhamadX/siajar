@@ -30,11 +30,13 @@ Otorisasi ditegakkan oleh RLS di `supabase/schema.sql`. Tanpa sesi yang sah, rol
 ### Instalasi baru: urutan singkat
 
 1. Jalankan `supabase/schema.sql` — satu file, idempoten.
-2. Deploy Edge Function `manage-users` (lihat [DEPLOY.md](DEPLOY.md)).
+2. Pasang Edge Function `manage-users` ke Supabase **self-hosted** Anda — salin foldernya ke `volumes/functions/` lalu restart container `functions`. Langkah lengkapnya di [DEPLOY.md](DEPLOY.md) bagian 4.
 3. Buka aplikasi. Layar setup akan meminta pembuatan **admin pertama**.
 4. Masuk sebagai admin → menu **Data Guru** → tambah guru beserta kodenya.
 
 Tidak ada skrip yang perlu dijalankan di terminal.
+
+> **Catatan self-hosted:** Edge Function `manage-users` sengaja ditulis tanpa dependensi apa pun (tanpa `npm:`/`esm.sh`), jadi berjalan di versi `edge-runtime` apa pun. Satu hal yang harus disamakan: `AUTH_DOMAIN` pada environment service `functions` dan `VITE_AUTH_DOMAIN` di `.env`. Halaman setup akan memperingatkan Anda kalau keduanya berbeda.
 
 ### Mengatur akun guru
 

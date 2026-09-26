@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { getAdminEmail, getAuthDomain } from '../services/userAdminService';
 
 /**
  * Autentikasi berbasis Supabase Auth.
@@ -16,11 +17,14 @@ import { supabase } from '../lib/supabase';
  * UX untuk guru tetap sama: pilih nama, ketik kode sekolah, masuk.
  */
 
-const AUTH_DOMAIN = (import.meta.env?.VITE_AUTH_DOMAIN as string) || 'siajar.local';
-const ADMIN_EMAIL = (import.meta.env?.VITE_ADMIN_EMAIL as string) || `admin@${AUTH_DOMAIN}`;
-
-/** Email sintetis per guru. Bukan rahasia — hanya identitas akun. */
-const emailForGuru = (guruId: string) => `guru-${guruId}@${AUTH_DOMAIN}`;
+/**
+ * Email sintetis per guru. Bukan rahasia — hanya identitas akun.
+ *
+ * Domain diambil dari server (lewat aksi `status` Edge Function) bila sudah
+ * terbaca, dengan fallback ke nilai build. Ini mencegah login gagal karena
+ * AUTH_DOMAIN di server berbeda dengan VITE_AUTH_DOMAIN di frontend.
+ */
+const emailForGuru = (guruId: string) => `guru-${guruId}@${getAuthDomain()}`;
 
 interface AuthContextType {
   activeTeacherName: string | null;
@@ -125,7 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!kode || !kode.trim()) return { success: false, message: 'Kode admin belum diisi.' };
 
     const { error } = await supabase.auth.signInWithPassword({
-      email: ADMIN_EMAIL,
+      email: getAdminEmail(),
       password: kode.trim(),
     });
 
