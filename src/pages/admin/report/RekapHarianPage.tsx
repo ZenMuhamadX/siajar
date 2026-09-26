@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { localDateString } from '../../../utils/date';
 import {
   Printer,
@@ -84,17 +84,15 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
     loadFilters();
   }, []);
 
-  // Fetch Report Data
+  // Fetch HANYA saat tanggal / tahun ajaran berubah.
+  // Guru, kelas, mapel, dan status disaring di memori (satu hari = maksimal
+  // belasan slot), jadi mengubah dropdown tidak lagi memanggil jaringan.
   const fetchReport = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await getDailyReport({
         date: selectedDate,
         academicYearId: selectedAYId || undefined,
-        teacherName: selectedTeacher,
-        classId: selectedClass,
-        subjectName: selectedSubject,
-        statusFilter: selectedStatus,
       });
       setReportItems(data);
     } catch (err: any) {
@@ -103,7 +101,7 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
     } finally {
       setIsLoading(false);
     }
-  }, [selectedDate, selectedAYId, selectedTeacher, selectedClass, selectedSubject, selectedStatus, showToast]);
+  }, [selectedDate, selectedAYId, showToast]);
 
   useEffect(() => {
     fetchReport();
@@ -135,11 +133,34 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
 
   const activeAYName = academicYears.find((y) => y.id === selectedAYId)?.name || '2026/2027';
 
+  // Filter harian diterapkan di memori terhadap data yang sudah dimuat, sehingga
+  // KPI, tabel, dan cetakan selalu memakai himpunan baris yang sama.
+  const filteredItems = useMemo(
+    () =>
+      reportItems.filter((item) => {
+        if (selectedTeacher !== 'SEMUA') {
+          const teacher = selectedTeacher.trim().toLowerCase();
+          const matchScheduled = item.scheduledTeacherName.trim().toLowerCase() === teacher;
+          const matchActual = item.actualTeacherName.trim().toLowerCase() === teacher;
+          if (!matchScheduled && !matchActual) return false;
+        }
+        if (selectedClass !== 'SEMUA' && item.classId !== selectedClass) return false;
+        if (
+          selectedSubject !== 'SEMUA' &&
+          item.subjectName.trim().toLowerCase() !== selectedSubject.trim().toLowerCase()
+        )
+          return false;
+        if (selectedStatus !== 'ALL' && item.status !== selectedStatus) return false;
+        return true;
+      }),
+    [reportItems, selectedTeacher, selectedClass, selectedSubject, selectedStatus]
+  );
+
   // Ringkasan hanya menghitung slot yang benar-benar dijadwalkan.
   // Agenda "di luar jadwal" (tanpa schedule_id) tidak punya jam, jadi tidak
-  // boleh ikut Menggeser persentase ketercapaian.
-  const scheduledItems = reportItems.filter((r) => !r.isUnscheduledAgenda);
-  const unscheduledCount = reportItems.length - scheduledItems.length;
+  // boleh ikut menggeser persentase ketercapaian.
+  const scheduledItems = filteredItems.filter((r) => !r.isUnscheduledAgenda);
+  const unscheduledCount = filteredItems.length - scheduledItems.length;
   const totalSlots = scheduledItems.length;
   const completedSlots = scheduledItems.filter((r) => r.status === 'SELESAI' || r.status === 'BADAL').length;
   const badalSlots = scheduledItems.filter((r) => r.isBadal).length;
@@ -425,9 +446,9 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
         {/* Tabel Data Rekap Harian */}
         <DataTable
           title={`Daftar Jadwal & Agenda • ${formatDateIndo(selectedDate)}`}
-          subtitle={`Menampilkan ${reportItems.length} slot pembelajaran`}
+          subtitle={`Menampilkan ${filteredItems.length} slot pembelajaran`}
           columns={columns}
-          data={reportItems}
+          data={filteredItems}
           keyExtractor={(item, idx) => item.id + idx}
           isLoading={isLoading}
           emptyTitle="Tidak ada jadwal atau agenda"
@@ -457,7 +478,7 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-400">
-            {reportItems.map((r, i) => (
+            {filteredItems.map((r, i) => (
               <tr key={i}>
                 <td className="p-1.5 border-r border-slate-900 text-center">{i + 1}</td>
                 <td className="p-1.5 border-r border-slate-900 text-center font-mono">

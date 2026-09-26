@@ -30,6 +30,20 @@ export interface DataTableProps<T> {
   enablePagination?: boolean;
   defaultPageSize?: number;
   pageSizeOptions?: number[];
+  /**
+   * Paginasi sisi server. Bila diisi, `data` dianggap sudah dipotong oleh
+   * pemanggil (satu halaman) dan tabel tidak lagi memotong sendiri.
+   *
+   * Dipakai Log Jurnal karena satu bulan bisa ratusan agenda — memuat semuanya
+   * ke browser sekaligus berat, dan sekarang filternya didorong ke SQL.
+   */
+  serverPagination?: {
+    page: number;
+    pageSize: number;
+    total: number;
+    onPageChange: (page: number) => void;
+    onPageSizeChange: (pageSize: number) => void;
+  };
   rowClassName?: (item: T, index: number) => string;
   onRowClick?: (item: T) => void;
   className?: string;
@@ -59,6 +73,7 @@ export function DataTable<T>({
   enablePagination = false,
   defaultPageSize = 25,
   pageSizeOptions = [10, 25, 50, 100],
+  serverPagination,
   rowClassName,
   onRowClick,
   className = '',
@@ -71,15 +86,20 @@ export function DataTable<T>({
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(defaultPageSize);
 
+  // Paginasi server: halaman & ukuran datang dari luar, `data` sudah dipotong.
+  const activePage = serverPagination ? serverPagination.page : currentPage;
+  const activePageSize = serverPagination ? serverPagination.pageSize : pageSize;
+  const totalItems = serverPagination ? serverPagination.total : data.length;
+
   // If data length changes and current page exceeds total pages, reset to page 1
-  const totalPages = Math.ceil(data.length / pageSize) || 1;
-  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const totalPages = Math.ceil(totalItems / activePageSize) || 1;
+  const safeCurrentPage = Math.min(activePage, totalPages);
 
   const paginatedData = useMemo(() => {
-    if (!enablePagination) return data;
-    const start = (safeCurrentPage - 1) * pageSize;
-    return data.slice(start, start + pageSize);
-  }, [data, enablePagination, safeCurrentPage, pageSize]);
+    if (!enablePagination || serverPagination) return data;
+    const start = (safeCurrentPage - 1) * activePageSize;
+    return data.slice(start, start + activePageSize);
+  }, [data, enablePagination, serverPagination, safeCurrentPage, activePageSize]);
 
   const getAlignmentClass = (align?: 'left' | 'center' | 'right') => {
     if (align === 'center') return 'text-center';
@@ -188,7 +208,7 @@ export function DataTable<T>({
                           className={`py-3 px-3 sm:px-4 align-middle ${alignClass} ${col.className || ''}`}
                         >
                           {col.accessor
-                            ? col.accessor(item, (safeCurrentPage - 1) * pageSize + index)
+                            ? col.accessor(item, (safeCurrentPage - 1) * activePageSize + index)
                             : (item as any)[col.key]}
                         </td>
                       );
@@ -202,16 +222,22 @@ export function DataTable<T>({
       </div>
 
       {/* Pagination Bar */}
-      {enablePagination && !isLoading && !isError && data.length > 0 && (
+      {enablePagination && !isLoading && !isError && totalItems > 0 && (
         <Pagination
           currentPage={safeCurrentPage}
           totalPages={totalPages}
-          totalItems={data.length}
-          pageSize={pageSize}
-          onPageChange={(page) => setCurrentPage(page)}
+          totalItems={totalItems}
+          pageSize={activePageSize}
+          onPageChange={(page) =>
+            serverPagination ? serverPagination.onPageChange(page) : setCurrentPage(page)
+          }
           onPageSizeChange={(newSize) => {
-            setPageSize(newSize);
-            setCurrentPage(1);
+            if (serverPagination) {
+              serverPagination.onPageSizeChange(newSize);
+            } else {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }
           }}
           pageSizeOptions={pageSizeOptions}
         />

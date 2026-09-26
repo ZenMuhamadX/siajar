@@ -9,7 +9,10 @@ interface AgendaDetailDrawerProps {
   agendaId: string | null;
   onClose: () => void;
   /** Handoff ke form koreksi (`/admin/agenda?edit=<id>`). */
-  onEdit?: (agenda: FullAgenda) => void;
+  onEdit?: (agendaId: string) => void;
+  /** Admin boleh menghapus foto dokumentasi dari drawer. */
+  isAdmin?: boolean;
+  onAdminDeleteEvidence?: (agendaId: string, storagePath?: string) => void;
 }
 
 /**
@@ -29,6 +32,8 @@ export const AgendaDetailDrawer: React.FC<AgendaDetailDrawerProps> = ({
   agendaId,
   onClose,
   onEdit,
+  isAdmin = false,
+  onAdminDeleteEvidence,
 }) => {
   useEffect(() => {
     if (!agendaId) return;
@@ -54,7 +59,14 @@ export const AgendaDetailDrawer: React.FC<AgendaDetailDrawerProps> = ({
       >
         {/* `key` membuat state lahir baru setiap agenda dibuka, jadi tidak perlu
             reset manual di dalam effect. */}
-        <DrawerContent key={agendaId} agendaId={agendaId} onClose={onClose} onEdit={onEdit} />
+        <DrawerContent
+          key={agendaId}
+          agendaId={agendaId}
+          onClose={onClose}
+          onEdit={onEdit}
+          isAdmin={isAdmin}
+          onAdminDeleteEvidence={onAdminDeleteEvidence}
+        />
       </aside>
     </>
   );
@@ -63,10 +75,18 @@ export const AgendaDetailDrawer: React.FC<AgendaDetailDrawerProps> = ({
 interface DrawerContentProps {
   agendaId: string;
   onClose: () => void;
-  onEdit?: (agenda: FullAgenda) => void;
+  onEdit?: (agendaId: string) => void;
+  isAdmin?: boolean;
+  onAdminDeleteEvidence?: (agendaId: string, storagePath?: string) => void;
 }
 
-const DrawerContent: React.FC<DrawerContentProps> = ({ agendaId, onClose, onEdit }) => {
+const DrawerContent: React.FC<DrawerContentProps> = ({
+  agendaId,
+  onClose,
+  onEdit,
+  isAdmin = false,
+  onAdminDeleteEvidence,
+}) => {
   const [agenda, setAgenda] = useState<FullAgenda | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -287,7 +307,7 @@ const DrawerContent: React.FC<DrawerContentProps> = ({ agendaId, onClose, onEdit
           <button
             type="button"
             onClick={() => {
-              onEdit(agenda);
+              onEdit(agendaId);
               onClose();
             }}
             className="px-3.5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition"
@@ -297,7 +317,7 @@ const DrawerContent: React.FC<DrawerContentProps> = ({ agendaId, onClose, onEdit
         )}
       </div>
 
-      {/* Lightbox foto */}
+      {/* Lightbox foto (juga tempat admin menghapus foto dokumentasi) */}
       <PhotoLightboxModal
         isOpen={isPhotoOpen}
         onClose={() => setIsPhotoOpen(false)}
@@ -306,7 +326,10 @@ const DrawerContent: React.FC<DrawerContentProps> = ({ agendaId, onClose, onEdit
         capturedAt={agenda?.evidence?.captured_at}
         uploadedAt={agenda?.evidence?.uploaded_at}
         actualTeacherName={agenda?.header.actual_teacher_name || kbm[0]?.nama_guru}
-        isAdmin={false}
+        isAdmin={isAdmin}
+        onAdminDelete={() =>
+          onAdminDeleteEvidence?.(agendaId, agenda?.evidence?.storage_path || undefined)
+        }
       />
     </>
   );

@@ -2,12 +2,11 @@ import React, { Suspense, lazy } from 'react';
 import { LoadingState } from '../../../components/common';
 import { ReportScreen } from '../../../components/report/ReportScreen';
 import { useReportViewParam } from '../../../routes/useReportQueryParam';
-import type { FullAgenda } from '../../../types';
 
 interface ReportCenterPageProps {
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
-  /** Dipakai tampilan Log Jurnal untuk handoff ke form koreksi. */
-  onEditAgenda?: (agenda: FullAgenda) => void;
+  /** Dipakai tampilan Log Jurnal untuk handoff ke form koreksi (agenda_id). */
+  onEditAgenda?: (agendaId: string) => void;
 }
 
 /**

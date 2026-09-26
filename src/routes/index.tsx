@@ -212,9 +212,7 @@ function ReportCenterRoute() {
   return (
     <LazyReportCenterPage
       showToast={showToast}
-      onEditAgenda={(agenda) =>
-        navigate(`/admin/agenda?edit=${encodeURIComponent(agenda.header.id)}`)
-      }
+      onEditAgenda={(agendaId) => navigate(`/admin/agenda?edit=${encodeURIComponent(agendaId)}`)}
     />
   );
 }
