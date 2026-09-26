@@ -19,6 +19,7 @@ import { NotFound } from '../pages/NotFound';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast, type ShowToast } from '../contexts/ToastContext';
 import { ADMIN_TAB_IDS, adminPath, type AdminTab } from './adminRoutes';
+import type { ReportView } from './useReportQueryParam';
 import { AuthLoading, RequireAdmin, RequireAuth } from './guards';
 import { useEditAgendaParam } from './useEditAgenda';
 
@@ -41,17 +42,8 @@ const LazyAdminAgendaPage = lazy(() =>
 const LazyScheduleManagement = lazy(() =>
   import('../pages/admin/ScheduleManagement').then((m) => ({ default: m.ScheduleManagement }))
 );
-const LazyRekapHarianPage = lazy(() =>
-  import('../pages/admin/report/RekapHarianPage').then((m) => ({ default: m.RekapHarianPage }))
-);
-const LazyRekapMingguanPage = lazy(() =>
-  import('../pages/admin/report/RekapMingguanPage').then((m) => ({ default: m.RekapMingguanPage }))
-);
-const LazyRekapBulananPage = lazy(() =>
-  import('../pages/admin/report/RekapBulananPage').then((m) => ({ default: m.RekapBulananPage }))
-);
-const LazyRekapAgenda = lazy(() =>
-  import('../pages/RekapAgenda').then((m) => ({ default: m.RekapAgenda }))
+const LazyReportCenterPage = lazy(() =>
+  import('../pages/admin/report/ReportCenterPage').then((m) => ({ default: m.ReportCenterPage }))
 );
 const LazyDataSiswa = lazy(() =>
   import('../pages/DataSiswa').then((m) => ({ default: m.DataSiswa }))
@@ -92,10 +84,18 @@ const PageFallback: React.FC<{ message?: string }> = ({
   message = 'Memuat halaman...',
 }) => <LoadingState message={message} />;
 
-/** Pindah antar tab admin lewat segmen URL (`/admin/jadwal`). */
+/**
+ * Pindah antar tab admin lewat segmen URL (`/admin/jadwal`).
+ * `view` hanya dipakai Pusat Rekap: `navigate('rekap', 'harian')` →
+ * `/admin/rekap?view=harian`.
+ */
 function useAdminTabNavigate() {
   const navigate = useNavigate();
-  return useCallback((tab: AdminTab) => navigate(adminPath(tab)), [navigate]);
+  return useCallback(
+    (tab: AdminTab, view?: ReportView) =>
+      navigate(view ? `${adminPath(tab)}?view=${view}` : adminPath(tab)),
+    [navigate]
+  );
 }
 
 /**
@@ -149,10 +149,19 @@ function LoginRoute() {
 /**
  * Back-compat: bookmark lama `/admin?tab=jadwal` → `/admin/jadwal`.
  * Tab tidak dikenal jatuh ke `overview`.
+ * `rekap_harian|mingguan|bulanan` diarahkan ke Pusat Rekap dengan `?view=`.
  */
+const LEGACY_TAB_VIEW: Record<string, string> = {
+  rekap_harian: 'harian',
+  rekap_mingguan: 'mingguan',
+  rekap_bulanan: 'bulanan',
+};
+
 function AdminIndexRedirect() {
   const [searchParams] = useSearchParams();
   const tab = searchParams.get('tab');
+  const legacyView = tab ? LEGACY_TAB_VIEW[tab] : undefined;
+  if (legacyView) return <Navigate to={`/admin/rekap?view=${legacyView}`} replace />;
   const target = tab && (ADMIN_TAB_IDS as string[]).includes(tab) ? tab : 'overview';
   return <Navigate to={`/admin/${target}`} replace />;
 }
@@ -166,7 +175,6 @@ function OverviewRoute() {
   const goTab = useAdminTabNavigate();
   return <LazyDashboardOverview onNavigateTab={goTab} showToast={showToast} />;
 }
-
 function JadwalRoute() {
   const showToast = useToast();
   const goTab = useAdminTabNavigate();
@@ -194,11 +202,15 @@ function AdminAgendaRoute() {
   );
 }
 
-function RekapRoute() {
+/**
+ * Pusat Rekap: satu halaman, empat tampilan lewat `?view=`.
+ * `onEditAgenda` dipakai tampilan Log Jurnal untuk handoff ke form koreksi.
+ */
+function ReportCenterRoute() {
   const showToast = useToast();
   const navigate = useNavigate();
   return (
-    <LazyRekapAgenda
+    <LazyReportCenterPage
       showToast={showToast}
       onEditAgenda={(agenda) =>
         navigate(`/admin/agenda?edit=${encodeURIComponent(agenda.header.id)}`)
@@ -310,19 +322,18 @@ export function AppRoutes() {
               <Route path="overview" element={<OverviewRoute />} />
               <Route path="agenda" element={<AdminAgendaRoute />} />
               <Route path="jadwal" element={<JadwalRoute />} />
-              <Route
-                path="rekap_harian"
-                element={<ToastPage component={LazyRekapHarianPage} />}
-              />
+              {/* Pusat Rekap: 4 tampilan lewat ?view= */}
+              <Route path="rekap" element={<ReportCenterRoute />} />
+              {/* Back-compat: URL lama 4 halaman laporan → Pusat Rekap */}
+              <Route path="rekap_harian" element={<Navigate to="/admin/rekap?view=harian" replace />} />
               <Route
                 path="rekap_mingguan"
-                element={<ToastPage component={LazyRekapMingguanPage} />}
+                element={<Navigate to="/admin/rekap?view=mingguan" replace />}
               />
               <Route
                 path="rekap_bulanan"
-                element={<ToastPage component={LazyRekapBulananPage} />}
+                element={<Navigate to="/admin/rekap?view=bulanan" replace />}
               />
-              <Route path="rekap" element={<RekapRoute />} />
               <Route path="siswa" element={<ToastPage component={LazyDataSiswa} />} />
               <Route path="guru" element={<ToastPage component={LazyDataGuru} />} />
               <Route path="mapel" element={<ToastPage component={LazyDataMapel} />} />

@@ -11,6 +11,7 @@ import { getScheduleDayFromDate } from '../../services/scheduleDetectionService'
 import type { FullAgenda, Guru } from '../../types';
 import type { ScheduleItem } from '../../types/schedule';
 import type { AdminTab } from '../../components/admin/AdminLayout';
+import type { ReportView } from '../../routes/useReportQueryParam';
 import { PageHeader } from '../../components/admin/PageHeader';
 import { StatusBadge, EmptyState, ErrorState } from '../../components/common';
 import {
@@ -28,7 +29,7 @@ import {
 } from 'lucide-react';
 
 interface DashboardOverviewProps {
-  onNavigateTab: (tab: AdminTab) => void;
+  onNavigateTab: (tab: AdminTab, view?: ReportView) => void;
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
 }
 
@@ -175,6 +176,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     value: number;
     caption: string;
     tab: AdminTab;
+    /** Tampilan Pusat Rekap yang dituju (`/admin/rekap?view=…`). */
+    view?: ReportView;
     icon: React.ReactNode;
   }[] = [
     {
@@ -196,6 +199,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       value: agendasHariIni.length,
       caption: `Jurnal pembelajaran ${formatDateIndo(todayStr)}`,
       tab: 'rekap',
+      view: 'harian',
       icon: <FileText className="w-4 h-4" />,
     },
     {
@@ -266,7 +270,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 <button
                   key={card.label}
                   type="button"
-                  onClick={() => onNavigateTab(card.tab)}
+                  onClick={() => onNavigateTab(card.tab, card.view)}
                   className="group bg-white p-4 sm:p-5 rounded-xl border border-slate-200/90 shadow-2xs hover:border-indigo-300 hover:shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 cursor-pointer transition flex flex-col justify-between text-left w-full"
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -388,7 +392,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   </p>
                 </div>
                 <button
-                  onClick={() => onNavigateTab('rekap_harian')}
+                  onClick={() => onNavigateTab('rekap', 'harian')}
                   className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 shrink-0"
                 >
                   <span className="hidden sm:inline">Lihat Rekap Harian</span>
@@ -515,7 +519,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   <button
                     key={agenda.header.id}
                     type="button"
-                    onClick={() => onNavigateTab('rekap')}
+                    onClick={() => onNavigateTab('rekap', 'jurnal')}
                     className="group p-3 rounded-lg bg-slate-50 border border-slate-200/70 hover:border-indigo-300 hover:bg-white text-left transition space-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                   >
                     <div className="flex items-center justify-between gap-2">

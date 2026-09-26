@@ -5,6 +5,12 @@ interface ReportPrintLayoutProps {
   subtitle?: string;
   periodInfo: string;
   academicYearName?: string;
+  /**
+   * Blok tanda tangan khusus laporan. Bila tidak diisi, memakai blok bawaan
+   * (Waka Kurikulum + Kepala Sekolah). Log Jurnal punya penandatangan sendiri,
+   * jadi dokumen resmi tidak ikut berubah hanya karena diseragamkan.
+   */
+  signature?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -13,6 +19,7 @@ export const ReportPrintLayout: React.FC<ReportPrintLayoutProps> = ({
   subtitle,
   periodInfo,
   academicYearName = '2026/2027',
+  signature,
   children,
 }) => {
   const currentDate = new Date().toLocaleDateString('id-ID', {
@@ -70,25 +77,27 @@ export const ReportPrintLayout: React.FC<ReportPrintLayoutProps> = ({
 
       {/* Ruang Tanda Tangan */}
       <div className="pt-6 text-xs text-slate-800 break-inside-avoid">
-        <div className="flex justify-between items-start px-6">
-          {/* Kiri: Mengetahui Waka Kurikulum */}
-          <div className="text-center w-56">
-            <p>Mengetahui,</p>
-            <p className="font-medium">Waka Kurikulum</p>
-            <div className="h-16" />
-            <p className="font-bold underline">Abdulloh, S.Pd., Gr.</p>
-            {/* <p className="text-[10px] text-slate-500">NIP. 198506122010011005</p> */}
-          </div>
+        {signature ?? (
+          <div className="flex justify-between items-start px-6">
+            {/* Kiri: Mengetahui Waka Kurikulum */}
+            <div className="text-center w-56">
+              <p>Mengetahui,</p>
+              <p className="font-medium">Waka Kurikulum</p>
+              <div className="h-16" />
+              <p className="font-bold underline">Abdulloh, S.Pd., Gr.</p>
+              {/* <p className="text-[10px] text-slate-500">NIP. 198506122010011005</p> */}
+            </div>
 
-          {/* Kanan: Kepala Sekolah & Tanggal */}
-          <div className="text-center w-56">
-            <p>Cikarang, {currentDate}</p>
-            <p className="font-medium">Kepala Sekolah</p>
-            <div className="h-16" />
-            <p className="font-bold underline">Fitri Nurhasanah, S.Pd., Gr.</p>
-            {/* <p className="text-[10px] text-slate-500">NIP. 197804152005011003</p> */}
+            {/* Kanan: Kepala Sekolah & Tanggal */}
+            <div className="text-center w-56">
+              <p>Cikarang, {currentDate}</p>
+              <p className="font-medium">Kepala Sekolah</p>
+              <div className="h-16" />
+              <p className="font-bold underline">Fitri Nurhasanah, S.Pd., Gr.</p>
+              {/* <p className="text-[10px] text-slate-500">NIP. 197804152005011003</p> */}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Footer Dokumen */}
         <div className="mt-8 pt-2 border-t border-slate-200 text-[9px] text-slate-400 flex justify-between">

@@ -1,13 +1,10 @@
 import type { ComponentType } from 'react';
 import {
-  Activity,
   ArrowLeftRight,
   Award,
   BookOpen,
   Calendar,
   CalendarClock,
-  CalendarDays,
-  CalendarRange,
   Clock,
   FileEdit,
   FileSpreadsheet,
@@ -35,9 +32,6 @@ export type AdminTab =
   | 'agenda'
   | 'jadwal'
   | 'rekap'
-  | 'rekap_harian'
-  | 'rekap_mingguan'
-  | 'rekap_bulanan'
   | 'siswa'
   | 'guru'
   | 'mapel'
@@ -82,37 +76,16 @@ export const ADMIN_ROUTES: AdminRouteDef[] = [
   },
 
   // REKAP & LAPORAN
-  {
-    tab: 'rekap_harian',
-    path: 'rekap_harian',
-    group: 'REKAP & LAPORAN',
-    label: 'Rekap Harian',
-    title: 'Rekap Harian',
-    icon: CalendarDays,
-  },
-  {
-    tab: 'rekap_mingguan',
-    path: 'rekap_mingguan',
-    group: 'REKAP & LAPORAN',
-    label: 'Rekap Mingguan',
-    title: 'Rekap Mingguan',
-    icon: FileSpreadsheet,
-  },
-  {
-    tab: 'rekap_bulanan',
-    path: 'rekap_bulanan',
-    group: 'REKAP & LAPORAN',
-    label: 'Rekap Bulanan',
-    title: 'Rekap Bulanan',
-    icon: CalendarRange,
-  },
+  // Satu pintu untuk empat tampilan laporan (Harian, Mingguan, Bulanan, Log
+  // Jurnal) lewat `/admin/rekap?view=…`. Sebelumnya ada 4 item menu dengan nama
+  // yang mirip sehingga sering membingungkan.
   {
     tab: 'rekap',
     path: 'rekap',
     group: 'REKAP & LAPORAN',
-    label: 'Log Jurnal Agenda',
-    title: 'Log Jurnal Agenda',
-    icon: Activity,
+    label: 'Pusat Rekap',
+    title: 'Pusat Rekap',
+    icon: FileSpreadsheet,
   },
 
   // MASTER DATA

@@ -5,6 +5,8 @@ import { getRekapAgenda, deleteAgenda, getDaftarGuru } from '../services/agendaS
 import { getEvidenceSignedUrl, deleteAgendaEvidence } from '../services/evidenceService';
 import { PhotoLightboxModal } from '../components/PhotoLightboxModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { AgendaDetailDrawer } from '../components/report/AgendaDetailDrawer';
+import { ReportPrintLayout } from '../components/admin/report/ReportPrintLayout';
 import { useAuth } from '../contexts/AuthContext';
 import { DataTable, FilterBar, type Column } from '../components/common';
 import { PageHeader } from '../components/admin/PageHeader';
@@ -18,6 +20,7 @@ import {
   RefreshCw,
   User,
   Camera,
+  Eye,
 } from 'lucide-react';
 
 interface RekapAgendaProps {
@@ -101,6 +104,8 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
   } | null>(null);
   const [isDeletingEvidence, setIsDeletingEvidence] = useState<boolean>(false);
   const [isConfirmEvidenceOpen, setIsConfirmEvidenceOpen] = useState<boolean>(false);
+  /** Agenda yang isinya sedang dibuka di drawer detail. */
+  const [detailAgendaId, setDetailAgendaId] = useState<string | null>(null);
   // Target hapus agenda + status proses, supaya penghapusan selalu terkonfirmasi
   // (dulu memakai confirm() dan dilewati di mode DEV).
   const [deleteTarget, setDeleteTarget] = useState<FullAgenda | null>(null);
@@ -278,9 +283,6 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
       })
     : agendas;
 
-  const sortedKbm = (agenda: FullAgenda) =>
-    (agenda.kbm || []).slice().sort((a, b) => Number(a.jam_ke) - Number(b.jam_ke));
-
   const columns: Column<FullAgenda>[] = [
     {
       key: 'kelas',
@@ -340,40 +342,16 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
       },
     },
     {
-      key: 'materi',
-      header: 'Materi Pembahasan',
-      align: 'left',
+      key: 'jam',
+      header: 'Jam',
+      align: 'center',
+      width: '80px',
       accessor: (a) => {
-        const kbm = sortedKbm(a);
-        if (kbm.length === 0) return <span className="text-slate-400">-</span>;
+        const jam = (a.kbm || []).map((k) => k.jam_ke).filter(Boolean);
         return (
-          <ul className="space-y-0.5">
-            {kbm.map((k, idx) => (
-              <li key={idx} className="text-slate-700">
-                <span className="font-bold text-slate-800 mr-1">Jam {k.jam_ke}</span>
-                {k.materi || '-'}
-              </li>
-            ))}
-          </ul>
-        );
-      },
-    },
-    {
-      key: 'tugas',
-      header: 'Tugas / PR',
-      align: 'left',
-      width: '150px',
-      accessor: (a) => {
-        const tugas = sortedKbm(a).map((k) => k.tugas_pr).filter(Boolean);
-        if (tugas.length === 0) return <span className="text-slate-400">-</span>;
-        return (
-          <ul className="space-y-0.5">
-            {tugas.map((t, idx) => (
-              <li key={idx} className="text-slate-600">
-                {t}
-              </li>
-            ))}
-          </ul>
+          <span className="text-[11px] font-semibold text-slate-700">
+            {jam.length ? jam.join(', ') : '-'}
+          </span>
         );
       },
     },
@@ -381,11 +359,11 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
       key: 'absensi',
       header: 'Ketidakhadiran',
       align: 'center',
-      width: '150px',
+      width: '130px',
       accessor: (a) => {
         const absensi = a.absensi || [];
         if (absensi.length === 0) {
-          return <span className="text-[11px] text-slate-400">Hadir lengkap</span>;
+          return <span className="text-[11px] text-emerald-600">Hadir lengkap</span>;
         }
         const count = (status: 'S' | 'I' | 'A') =>
           absensi.filter((x) => x.status === status).length;
@@ -393,10 +371,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
           .map((x) => `${x.nama_siswa || x.siswa?.nama_siswa} (${x.status})`)
           .join(', ');
         return (
-          <div
-            className="flex items-center justify-center gap-1 flex-wrap"
-            title={detail}
-          >
+          <div className="flex items-center justify-center gap-1 flex-wrap" title={detail}>
             {count('S') > 0 && (
               <span className="px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded text-[10px] font-bold">
                 S {count('S')}
@@ -415,23 +390,6 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
           </div>
         );
       },
-    },
-    {
-      key: 'kejadian',
-      header: 'Catatan Kejadian',
-      align: 'left',
-      width: '180px',
-      accessor: (a) =>
-        a.kejadian && a.kejadian.length > 0 ? (
-          <span
-            className="block truncate text-slate-600"
-            title={a.kejadian[0].uraian_kejadian}
-          >
-            {a.kejadian[0].uraian_kejadian}
-          </span>
-        ) : (
-          <span className="text-[11px] text-slate-400 italic">Tidak ada catatan.</span>
-        ),
     },
     {
       key: 'bukti',
@@ -474,15 +432,29 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
       key: 'actions',
       header: 'Aksi',
       align: 'right',
-      width: '120px',
+      width: '150px',
       accessor: (a) => (
         <div className="flex items-center justify-end gap-1.5">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setDetailAgendaId(a.header.id);
+            }}
+            className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 rounded-lg transition"
+            title="Lihat Detail Agenda"
+          >
+            <Eye className="w-3.5 h-3.5" />
+          </button>
           {onEditAgenda && (
             <button
               type="button"
-              onClick={() => onEditAgenda(a)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditAgenda(a);
+              }}
               className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 rounded-lg transition"
-              title="Edit Agenda"
+              title="Koreksi Agenda"
             >
               <BookOpen className="w-3.5 h-3.5" />
             </button>
@@ -490,7 +462,10 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
           {isAdmin && (
             <button
               type="button"
-              onClick={() => handleDelete(a)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(a);
+              }}
               className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-lg transition"
               title="Hapus Agenda"
             >
@@ -677,25 +652,6 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
         </div>
       </div>
 
-      {/* HEADER RESMI CETAK (Hanya Muncul saat Print PDF) */}
-      {agendas.length > 0 && (
-        <div className="hidden print:block text-center border-b-2 border-black pb-4 mb-4">
-          <div className="flex items-center justify-center gap-3">
-            <img src="/logo.png" alt="Logo" className="w-12 h-12 object-contain" />
-            <div>
-              <h1 className="text-base font-bold tracking-tight uppercase">
-                LAPORAN REKAPITULASI AGENDA & KBM KELAS
-              </h1>
-              <p className="text-xs font-semibold">SDIT AS-SYIFA</p>
-              <p className="text-[11px] text-slate-700 mt-0.5">
-                {getPeriodeLabel()} &bull; Kelas: {selectedKelas} &bull; Guru:{' '}
-                {selectedGuru}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* DOKUMEN REKAP & CETAK RESMI */}
       <DataTable
         title="Rekap Agenda Pembelajaran & KBM"
@@ -709,6 +665,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
         data={filteredAgendas}
         keyExtractor={(a) => a.header.id}
         isLoading={isLoading}
+        onRowClick={(a) => setDetailAgendaId(a.header.id)}
         emptyTitle="Tidak Ada Data Agenda"
         emptyDescription="Tidak ditemukan agenda untuk filter yang dipilih."
         emptyIcon={<BookOpen className="w-5 h-5" />}
@@ -716,22 +673,81 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
         onResetFilter={handleResetFilters}
       />
 
-      {/* Kolom Tanda Tangan Cetak PDF (Hanya di print) */}
-      {agendas.length > 0 && (
-        <div className="hidden print:grid grid-cols-2 pt-8 text-center text-xs page-break">
-          <div>
-            <p>Mengetahui,</p>
-            <p className="font-bold">Kepala Sekolah SDIT AS-SYIFA</p>
-            <div className="h-16" />
-            <p className="font-bold underline">( ........................................ )</p>
-          </div>
-          <div>
-            <p>Pengawas / Guru Piket,</p>
-            <p className="font-bold">SDIT AS-SYIFA</p>
-            <div className="h-16" />
-            <p className="font-bold underline">( ........................................ )</p>
-          </div>
-        </div>
+      {/* LAYOUT CETAK — diseragamkan dengan halaman rekap lain.
+          Tabel print berdiri sendiri (tanpa tombol/row-click) supaya hasil
+          cetak bersih, dan kop memakai filter yang aktif, bukan nilai mentah
+          "SEMUA". Blok tanda tangan tetap milik laporan jurnal. */}
+      {filteredAgendas.length > 0 && (
+        <ReportPrintLayout
+          title="Laporan Rekapitulasi Agenda & KBM Kelas"
+          periodInfo={getPeriodeLabel()}
+          subtitle={`Kelas: ${selectedKelas === 'SEMUA' ? 'Semua Kelas' : selectedKelas} • Guru: ${
+            selectedGuru === 'SEMUA' ? 'Semua Guru' : selectedGuru
+          }`}
+          signature={
+            <div className="grid grid-cols-2 text-center">
+              <div>
+                <p>Mengetahui,</p>
+                <p className="font-bold">Kepala Sekolah SDIT AS-SYIFA</p>
+                <div className="h-16" />
+                <p className="font-bold underline">( ........................................ )</p>
+              </div>
+              <div>
+                <p>Pengawas / Guru Piket,</p>
+                <p className="font-bold">SDIT AS-SYIFA</p>
+                <div className="h-16" />
+                <p className="font-bold underline">( ........................................ )</p>
+              </div>
+            </div>
+          }
+        >
+          <table className="w-full text-left text-[10px] border-collapse border border-slate-900">
+            <thead className="bg-slate-100 border-b border-slate-900 font-bold uppercase">
+              <tr>
+                <th className="p-1.5 border-r border-slate-900 text-center w-8">No</th>
+                <th className="p-1.5 border-r border-slate-900 text-center w-24">Tanggal</th>
+                <th className="p-1.5 border-r border-slate-900 text-center w-20">Kelas</th>
+                <th className="p-1.5 border-r border-slate-900">Guru</th>
+                <th className="p-1.5 border-r border-slate-900">Mata Pelajaran</th>
+                <th className="p-1.5 border-r border-slate-900 text-center w-16">Jam</th>
+                <th className="p-1.5 border-r border-slate-900 text-center w-24">Tidak Hadir</th>
+                <th className="p-1.5 text-center w-20">Foto</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-400">
+              {filteredAgendas.map((a, i) => {
+                const absensi = a.absensi || [];
+                const s = absensi.filter((x) => x.status === 'S').length;
+                const iz = absensi.filter((x) => x.status === 'I').length;
+                const al = absensi.filter((x) => x.status === 'A').length;
+                const mapel = Array.from(new Set((a.kbm || []).map((k) => k.mapel).filter(Boolean)));
+                return (
+                  <tr key={a.header.id}>
+                    <td className="p-1.5 border-r border-slate-900 text-center">{i + 1}</td>
+                    <td className="p-1.5 border-r border-slate-900 text-center">
+                      {formatSimpleDate(a.header.tanggal)}
+                    </td>
+                    <td className="p-1.5 border-r border-slate-900 text-center font-bold">
+                      {a.header.kelas}
+                    </td>
+                    <td className="p-1.5 border-r border-slate-900">
+                      {a.header.actual_teacher_name || a.kbm?.[0]?.nama_guru || '-'}
+                      {(a.kbm || []).some((k) => k.is_badal) ? ' (Badal)' : ''}
+                    </td>
+                    <td className="p-1.5 border-r border-slate-900">{mapel.join(', ') || '-'}</td>
+                    <td className="p-1.5 border-r border-slate-900 text-center">
+                      {(a.kbm || []).map((k) => k.jam_ke).filter(Boolean).join(', ') || '-'}
+                    </td>
+                    <td className="p-1.5 border-r border-slate-900 text-center">
+                      {absensi.length === 0 ? 'Lengkap' : `S ${s} · I ${iz} · A ${al}`}
+                    </td>
+                    <td className="p-1.5 text-center">{a.evidence?.storage_path ? 'Ada' : '-'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </ReportPrintLayout>
       )}
 
       {/* Lightbox Modal untuk Bukti Foto Mengajar */}
@@ -762,6 +778,13 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
             : ''
         }
         confirmText="Hapus"
+      />
+
+      {/* Drawer detail: isi agenda lengkap (KBM, absensi, kejadian, foto) */}
+      <AgendaDetailDrawer
+        agendaId={detailAgendaId}
+        onClose={() => setDetailAgendaId(null)}
+        onEdit={onEditAgenda}
       />
 
       {/* Konfirmasi hapus foto dokumentasi */}
