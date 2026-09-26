@@ -113,23 +113,60 @@ supabase functions deploy manage-users --project-ref <ref>
 
 ### 4.2 Variabel lingkungan
 
-`SUPABASE_URL` dan `SUPABASE_SERVICE_ROLE_KEY` **sudah diset otomatis** oleh docker-compose resmi Supabase — jangan disentuh. Di self-hosted, `SUPABASE_URL` biasanya `http://kong:8000`; itu memang benar, karena dipanggil dari dalam jaringan Docker.
+Ada empat variabel yang perlu dibedakan. Satu di antaranya **tidak ada di Supabase sama sekali** dan harus Anda tambahkan sendiri:
 
-Yang perlu ditambahkan hanya domain email sintetis. Edit `docker-compose.yml` pada service `functions`:
+| Variabel | Status | Nilai |
+|---|---|---|
+| `SUPABASE_URL` | sudah ada di docker-compose | `http://kong:8000` — **jangan diubah** |
+| `SUPABASE_SERVICE_ROLE_KEY` | sudah ada di docker-compose | otomatis dari `${SERVICE_ROLE_KEY}` |
+| `AUTH_DOMAIN` | **belum ada — Anda yang menambahkan** | samakan dengan `VITE_AUTH_DOMAIN` |
+| `ADMIN_EMAIL` | opsional, belum ada | `admin@<AUTH_DOMAIN>` |
+
+`AUTH_DOMAIN` bukan variabel Supabase, melainkan variabel milik aplikasi ini. Karena itu ia tidak akan ditemukan di mana pun sampai Anda sendiri menambahkannya.
+
+**Di mana menambahkannya.** Buka `docker-compose.yml` di root instalasi Supabase self-hosted, lalu cari service bernama `functions` (image-nya `supabase/edge-runtime`). Bentuknya seperti ini:
 
 ```yaml
   functions:
+    container_name: supabase-edge-functions
+    image: supabase/edge-runtime:v1.x.x
+    restart: unless-stopped
+    volumes:
+      - ./volumes/functions:/home/deno/functions:Z
     environment:
-      # ...biarkan yang sudah ada...
-      AUTH_DOMAIN: siajar.local
-      ADMIN_EMAIL: admin@siajar.local
+      JWT_SECRET: ${JWT_SECRET}
+      SUPABASE_URL: http://kong:8000        # jangan diubah
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      SUPABASE_DB_URL: postgresql://...
+      VERIFY_JWT: "false"
+      AUTH_DOMAIN: as-syifa.sch.id          # <-- tambahkan dua baris ini
+      ADMIN_EMAIL: admin@as-syifa.sch.id
 ```
 
-Lalu `docker compose up -d functions`.
+Lalu terapkan:
 
-Kalau `AUTH_DOMAIN` tidak diisi, nilainya default `siajar.local` — sama dengan default `VITE_AUTH_DOMAIN`, jadi login tetap cocok.
+```bash
+docker compose up -d functions
+```
 
-> **Penting:** `AUTH_DOMAIN` di sini harus **sama persis** dengan `VITE_AUTH_DOMAIN` di `.env`. Kalau berbeda, login guru gagal. Halaman setup menampilkan peringatan otomatis begitu mendeteksi perbedaan ini, jadi Anda tidak perlu menebak.
+> **Jangan tertukar dua file `.env`.** File `.env` di root Supabase self-hosted (berisi `POSTGRES_PASSWORD`, `JWT_SECRET`, `ANON_KEY`, `SERVICE_ROLE_KEY`) adalah file yang **berbeda** dari `.env` aplikasi SIAJAR (berisi `VITE_*`). `AUTH_DOMAIN` tidak wajib ada di file Supabase itu — cukup ditulis langsung di `docker-compose.yml` seperti contoh di atas.
+
+**Alternatif tanpa menyentuh docker-compose.** Karena nilainya tetap, domain bisa langsung ditulis di sumber Edge Function. Ubah baris:
+
+```ts
+const AUTH_DOMAIN = Deno.env.get('AUTH_DOMAIN') ?? 'siajar.local';
+```
+
+menjadi:
+
+```ts
+const AUTH_DOMAIN = Deno.env.get('AUTH_DOMAIN') ?? 'as-syifa.sch.id';
+```
+
+Lalu salin ulang file ke `volumes/functions/` dan restart container. Cukup satu tempat, tanpa mengedit docker-compose.
+
+> **Penting:** nilai ini harus **sama persis** dengan `VITE_AUTH_DOMAIN` di `.env` aplikasi, karena email akun guru diturunkan dari nilai ini di kedua sisi. Perhatikan juga: akun yang **sudah terlanjur dibuat** memakai domain tertentu, dan email itu tidak bisa diubah tanpa membuat ulang akunnya. Jadi samakan dengan domain yang sudah dipakai, bukan dengan nilai default. Default di kode (`siajar.local`) hanya cocok bila `VITE_AUTH_DOMAIN` juga dibiarkan default.
 
 Catatan: pada self-hosted, service `functions` default memakai `VERIFY_JWT: "false"`. Itu tidak masalah — fungsi ini memverifikasi token pemanggil sendiri lewat GoTrue sebelum mengizinkan aksi apa pun.
 
