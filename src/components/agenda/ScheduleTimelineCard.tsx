@@ -166,10 +166,11 @@ export const ScheduleTimelineCard: React.FC<ScheduleTimelineCardProps> = ({
             <button
               type="button"
               onClick={() => onSelectSlot(slot)}
+              aria-label="Lihat agenda"
               className="w-full sm:w-auto px-3 py-2.5 min-h-11 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition"
             >
               <Eye className="w-4 h-4 text-slate-600" aria-hidden="true" />
-              Lihat / Edit
+              Lihat
             </button>
           )}
 
