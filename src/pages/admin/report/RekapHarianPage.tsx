@@ -17,6 +17,9 @@ import {
   getDailyReport,
   type DailyReportItem,
   type ReportItemStatus,
+  REPORT_STATUS_LABEL,
+  REPORT_STATUS_BADGE,
+  REPORT_STATUS_PRINT_LABEL,
 } from '../../../services/reportService';
 import { getAcademicYears } from '../../../services/scheduleService';
 import { getDaftarGuru, getDaftarMapel } from '../../../services/agendaService';
@@ -124,41 +127,11 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
     }
   };
 
-  const renderStatusBadge = (status: ReportItemStatus) => {
-    switch (status) {
-      case 'SELESAI':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            Selesai
-          </span>
-        );
-      case 'BADAL':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-            Badal
-          </span>
-        );
-      case 'SEDANG_BERLANGSUNG':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 animate-pulse">
-            Berlangsung
-          </span>
-        );
-      case 'BELUM_DIMULAI':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-            Belum Dimulai
-          </span>
-        );
-      case 'BELUM_TEREALISASI':
-      default:
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-            Belum Diisi
-          </span>
-        );
-    }
-  };
+  // Badge status memakai peta gaya yang sama dengan halaman rekap lain
+  // (src/services/report/reportStatus.ts) supaya tampilan konsisten.
+  const renderStatusBadge = (status: ReportItemStatus) => (
+    <span className={REPORT_STATUS_BADGE[status]}>{REPORT_STATUS_LABEL[status]}</span>
+  );
 
   const activeAYName = academicYears.find((y) => y.id === selectedAYId)?.name || '2026/2027';
 
@@ -501,13 +474,7 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
                   {r.actualTeacherName} {r.isBadal ? '(Badal)' : ''}
                 </td>
                 <td className="p-1.5 border-r border-slate-900 text-center font-semibold">
-                  {r.status === 'SELESAI'
-                    ? 'Selesai'
-                    : r.status === 'BADAL'
-                    ? 'Badal'
-                    : r.status === 'SEDANG_BERLANGSUNG'
-                    ? 'Berlangsung'
-                    : 'Belum Diisi'}
+                  {REPORT_STATUS_PRINT_LABEL[r.status]}
                 </td>
                 <td className="p-1.5 text-center">
                   {r.hasDocumentation ? 'Ada Foto' : '-'}

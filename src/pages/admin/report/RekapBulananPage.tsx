@@ -162,9 +162,11 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
               <span className="text-xs font-medium text-amber-600">Badal Terlaksana</span>
               <p className="text-xl sm:text-2xl font-bold text-amber-700 mt-1">
-                {totals.totalBadal} JP
+                {totals.totalBadalIn} JP
               </p>
-              <span className="text-[10px] text-slate-400">Sesi pergantian guru</span>
+              <span className="text-[10px] text-slate-400">
+                Masuk {totals.totalBadalIn} · Keluar {totals.totalBadalOut}
+              </span>
             </div>
 
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs col-span-2 sm:col-span-1">
@@ -375,8 +377,8 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
                     <td className="py-3 px-3 sm:px-4 text-center font-mono text-emerald-700">
                       {formatMinutesToHourMin(totals.totalDurationRealizedMin)}
                     </td>
-                    <td className="py-3 px-3 sm:px-4 text-center text-amber-700">+{totals.totalBadal}</td>
-                    <td className="py-3 px-3 sm:px-4 text-center text-orange-700">-{totals.totalBadal}</td>
+                    <td className="py-3 px-3 sm:px-4 text-center text-amber-700">+{totals.totalBadalIn}</td>
+                    <td className="py-3 px-3 sm:px-4 text-center text-orange-700">-{totals.totalBadalOut}</td>
                     <td className="py-3 px-3 sm:px-4 text-center text-rose-700">
                       {totals.totalNotRealized}
                     </td>
@@ -460,10 +462,10 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
                   {formatMinutesToHourMin(totals.totalDurationRealizedMin)}
                 </td>
                 <td className="p-1.5 border-r border-slate-900 text-center">
-                  +{totals.totalBadal}
+                  +{totals.totalBadalIn}
                 </td>
                 <td className="p-1.5 border-r border-slate-900 text-center">
-                  -{totals.totalBadal}
+                  -{totals.totalBadalOut}
                 </td>
                 <td className="p-1.5 border-r border-slate-900 text-center">
                   {totals.totalNotRealized}

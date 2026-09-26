@@ -6,50 +6,44 @@ import { getAcademicYears, getSchedules } from './scheduleService';
 import { getRekapAgenda } from './agendaService';
 import { getSubstitutionsForDate, getSubstitutionHistory } from './substitutionService';
 import { getEvidenceSignedUrl } from './evidenceService';
-import { getScheduleDayFromDate, computeSlotStatus } from './scheduleDetectionService';
-import { timeToMinutes } from '../utils/scheduleValidation';
-
-// ---------------------------------------------------------------------------
-// HELPER DURATION & TIME UTILS
-// ---------------------------------------------------------------------------
-
-/**
- * Menghitung selisih waktu start_time dan end_time dalam menit.
- * Contoh: 08:05 dan 08:40 -> 35 menit.
- */
-export function calculateSlotDurationMinutes(startTime: string, endTime: string): number {
-  if (!startTime || !endTime) return 0;
-  const startMin = timeToMinutes(startTime);
-  const endMin = timeToMinutes(endTime);
-  return Math.max(0, endMin - startMin);
-}
+import { getScheduleDayFromDate } from './scheduleDetectionService';
+import {
+  buildSlotRows,
+  calculateSlotDurationMinutes,
+  formatMinutesToHourMin,
+  type SlotRow,
+} from './report/reportViewModel';
+import {
+  isFilledStatus,
+  REPORT_STATUS_LABEL,
+  REPORT_STATUS_BADGE,
+  REPORT_STATUS_PRINT_LABEL,
+  type ReportStatus,
+} from './report/reportStatus';
 
 /**
- * Format menit ke string terbaca: e.g. 100 menit -> "1j 40m", 35 menit -> "35m"
+ * Lapisan ambil-data untuk laporan.
+ *
+ * File ini HANYA mengurus: ambil data dari DB, lalu mendelegasikan aturan hitung
+ * ke `report/reportViewModel.ts`, baru merangkai agregasi.
+ * Semua aturan "slot ↔ agenda" dan "siapa yang mengajar" berada di
+ * view-model supaya Rekap Harian, Mingguan, dan Bulanan tidak lagi punya
+ * versi masing-masing.
  */
-export function formatMinutesToHourMin(totalMinutes: number): string {
-  if (totalMinutes <= 0) return '0m';
-  const hours = Math.floor(totalMinutes / 60);
-  const mins = totalMinutes % 60;
-  if (hours > 0 && mins > 0) {
-    return `${hours}j ${mins}m`;
-  }
-  if (hours > 0) {
-    return `${hours}j`;
-  }
-  return `${mins}m`;
-}
+
+// Helper durasi kini tinggal di view-model; diekspor ulang supaya pemanggil
+// lama (halaman Mingguan/Bulanan) tidak perlu mengubah import.
+export { calculateSlotDurationMinutes, formatMinutesToHourMin };
 
 // ---------------------------------------------------------------------------
 // TIPE DATA LAPORAN
 // ---------------------------------------------------------------------------
 
-export type ReportItemStatus =
-  | 'SELESAI'
-  | 'BADAL'
-  | 'SEDANG_BERLANGSUNG'
-  | 'BELUM_TEREALISASI'
-  | 'BELUM_DIMULAI';
+/** Alias lama; diteruskan ke sumber tunggal di `report/reportStatus.ts`. */
+export type ReportItemStatus = ReportStatus;
+
+export { REPORT_STATUS_PRINT_LABEL, REPORT_STATUS_LABEL, REPORT_STATUS_BADGE, isFilledStatus };
+export type { SlotRow };
 
 export interface DailyReportItem {
   id: string; // schedule_id atau agenda_id
@@ -67,12 +61,12 @@ export interface DailyReportItem {
   actualTeacherName: string;
   actualTeacherId?: string | null;
   isBadal: boolean;
-  status: ReportItemStatus;
+  status: ReportStatus;
   hasDocumentation: boolean;
   evidenceUrl?: string | null;
   agenda?: FullAgenda | null;
   substitution?: Substitution | null;
-  isUnscheduledAgenda?: boolean; // Jika agenda dibuat manual tanpa schedule
+  isUnscheduledAgenda?: boolean;
 }
 
 export interface TeacherSummaryStats {
@@ -116,10 +110,60 @@ export interface MonthlyReportResult {
     totalJpRealized: number;
     totalDurationScheduledMin: number;
     totalDurationRealizedMin: number;
-    totalBadal: number;
+    /** Guru pengganti yang masuk mengajar. */
+    totalBadalIn: number;
+    /** Guru terjadwal yang digantikan. */
+    totalBadalOut: number;
     totalNotRealized: number;
     overallRealizationRate: number;
   };
+}
+
+// ---------------------------------------------------------------------------
+// HELPER
+// ---------------------------------------------------------------------------
+
+/** Pilih tahun ajaran: dari pilihan → ACTIVE → mencakup tanggal → pertama. */
+async function resolveAcademicYear(
+  academicYearId: string | undefined,
+  anchorDate: string
+): Promise<AcademicYear | null> {
+  const all = await getAcademicYears();
+  const byId = academicYearId ? all.find((ay) => ay.id === academicYearId) : undefined;
+  if (byId) return byId;
+  return (
+    all.find((ay) => ay.status === 'ACTIVE') ||
+    all.find((ay) => anchorDate >= ay.start_date && anchorDate <= ay.end_date) ||
+    all[0] ||
+    null
+  );
+}
+
+/** Lengkapi agenda dengan signed URL foto (paralel, hanya yang punya foto). */
+async function attachSignedUrls(agendas: FullAgenda[]): Promise<FullAgenda[]> {
+  return Promise.all(
+    agendas.map(async (agenda) => {
+      const path = agenda.evidence?.storage_path;
+      if (!path) return agenda;
+      const signedUrl = await getEvidenceSignedUrl(path);
+      return {
+        ...agenda,
+        evidence: { ...agenda.evidence!, signedUrl: signedUrl || undefined },
+      };
+    })
+  );
+}
+
+/** Daftar tanggal berurutan (YYYY-MM-DD) dari start sampai end, inklusif. */
+function listDates(startDate: string, endDate: string): string[] {
+  const out: string[] = [];
+  const cur = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T00:00:00');
+  while (cur <= end) {
+    out.push(localDateString(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -132,24 +176,15 @@ export async function getDailyReport(options: {
   teacherName?: string;
   classId?: string;
   subjectName?: string;
-  statusFilter?: string; // 'ALL' | ReportItemStatus
+  statusFilter?: string; // 'ALL' | ReportStatus
 }): Promise<DailyReportItem[]> {
   const { date, academicYearId, teacherName, classId, subjectName, statusFilter } = options;
-  const targetDateObj = new Date(date + 'T00:00:00');
-  const dayKey = getScheduleDayFromDate(targetDateObj);
+  const now = new Date();
 
-  // Ambil Academic Year (berdasarkan ID atau aktif pada rentang tanggal)
-  const allAYs = await getAcademicYears();
-  let selectedAY = allAYs.find((ay) => ay.id === academicYearId);
-  if (!selectedAY) {
-    // Cari yang aktif atau yang mencakup tanggal
-    selectedAY =
-      allAYs.find((ay) => ay.status === 'ACTIVE') ||
-      allAYs.find((ay) => date >= ay.start_date && date <= ay.end_date) ||
-      allAYs[0];
-  }
+  const selectedAY = await resolveAcademicYear(academicYearId, date);
+  const dayKey = getScheduleDayFromDate(new Date(date + 'T00:00:00'));
 
-  // 1. Ambil Schedules yang berlaku pada hari & AY tersebut
+  // 1. Jadwal yang berlaku pada hari tersebut
   let schedules: ScheduleItem[] = [];
   if (dayKey && selectedAY) {
     schedules = await getSchedules({
@@ -159,206 +194,59 @@ export async function getDailyReport(options: {
     });
   }
 
-  // 2. Ambil Substitutions pada tanggal tersebut
+  // 2. Badal pada tanggal tersebut
   const substitutions = await getSubstitutionsForDate(date);
-  const subMap = new Map<string, Substitution>();
-  for (const s of substitutions) {
-    subMap.set(s.schedule_id, s);
-  }
 
-  // 3. Ambil seluruh Agenda pada tanggal tersebut
-  const agendasOnDate = await getRekapAgenda({ tanggal: date });
+  // 3. Agenda pada tanggal tersebut
+  const agendas = await attachSignedUrls(await getRekapAgenda({ tanggal: date }));
 
-  // Siapkan signed URL untuk agenda berfoto secara paralel
-  const agendasWithUrl = await Promise.all(
-    agendasOnDate.map(async (agenda) => {
-      if (agenda.evidence?.storage_path) {
-        const signedUrl = await getEvidenceSignedUrl(agenda.evidence.storage_path);
-        return {
-          ...agenda,
-          evidence: {
-            ...agenda.evidence,
-            signedUrl: signedUrl || undefined,
-          },
-        };
-      }
-      return agenda;
-    })
-  );
-
-  const matchedAgendaIds = new Set<string>();
-  const now = new Date();
-  const items: DailyReportItem[] = [];
-
-  // 4. Proses Left Join: Schedule -> Agenda & Badal
-  for (const sch of schedules) {
-    // Hitung durasi slot
-    const durMin = calculateSlotDurationMinutes(sch.start_time, sch.end_time);
-
-    // Cari agenda yang cocok: primary by schedule_id, fallback legacy
-    const foundAgenda =
-      agendasWithUrl.find(
-        (a) =>
-          a.header.schedule_id === sch.id ||
-          (!a.header.schedule_id &&
-            a.header.kelas === sch.class_id &&
-            a.header.tanggal === date &&
-            a.kbm.some(
-              (k) =>
-                k.nama_guru.trim().toLowerCase() === sch.teacher_name.trim().toLowerCase() &&
-                k.mapel.trim().toLowerCase() === sch.subject_name.trim().toLowerCase()
-            ))
-      ) || null;
-
-    if (foundAgenda?.header.id) {
-      matchedAgendaIds.add(foundAgenda.header.id);
-    }
-
-    const sub = subMap.get(sch.id) || null;
-
-    // Tentukan Guru Terjadwal vs Aktual
-    const scheduledTeacher = sch.teacher_name;
-    let actualTeacher = scheduledTeacher;
-    let isBadal = false;
-
-    if (sub) {
-      actualTeacher = sub.substitute_teacher_name;
-      isBadal = true;
-    } else if (foundAgenda?.header.actual_teacher_name) {
-      actualTeacher = foundAgenda.header.actual_teacher_name;
-      if (
-        actualTeacher.trim().toLowerCase() !== scheduledTeacher.trim().toLowerCase()
-      ) {
-        isBadal = true;
-      }
-    } else if (
-      foundAgenda?.kbm.some(
-        (k) =>
-          k.is_badal ||
-          (k.nama_guru &&
-            k.nama_guru.trim().toLowerCase() !== scheduledTeacher.trim().toLowerCase())
-      )
-    ) {
-      const badalKbm = foundAgenda.kbm.find(
-        (k) =>
-          k.nama_guru.trim().toLowerCase() !== scheduledTeacher.trim().toLowerCase()
-      );
-      if (badalKbm) {
-        actualTeacher = badalKbm.nama_guru;
-        isBadal = true;
-      }
-    }
-
-    // Tentukan status
-    let status: ReportItemStatus = 'BELUM_TEREALISASI';
-    if (foundAgenda) {
-      status = isBadal ? 'BADAL' : 'SELESAI';
-    } else {
-      const slotTimeStatus = computeSlotStatus(sch, null, date, now);
-      if (slotTimeStatus === 'IN_PROGRESS') {
-        status = 'SEDANG_BERLANGSUNG';
-      } else if (slotTimeStatus === 'UPCOMING') {
-        status = 'BELUM_DIMULAI';
-      } else {
-        status = 'BELUM_TEREALISASI';
-      }
-    }
-
-    const hasDoc = Boolean(foundAgenda?.evidence?.storage_path);
-    const docUrl = foundAgenda?.evidence?.signedUrl || null;
-
-    items.push({
-      id: sch.id,
-      scheduleId: sch.id,
-      agendaId: foundAgenda?.header.id || null,
-      date,
-      startTime: sch.start_time.slice(0, 5),
-      endTime: sch.end_time.slice(0, 5),
-      durationMinutes: durMin,
-      classId: sch.class_id,
-      subjectName: sch.subject_name,
-      scheduledTeacherName: scheduledTeacher,
-      scheduledTeacherId: sch.teacher_id,
-      actualTeacherName: actualTeacher,
-      actualTeacherId: isBadal && sub ? sub.substitute_teacher_id : sch.teacher_id,
-      isBadal,
-      status,
-      hasDocumentation: hasDoc,
-      evidenceUrl: docUrl,
-      agenda: foundAgenda,
-      substitution: sub,
-      isUnscheduledAgenda: false,
-    });
-  }
-
-  // 5. Tangani Agenda Historis / Manual yang tidak terikat Schedule (Agenda Tanpa Jadwal)
-  for (const ag of agendasWithUrl) {
-    if (!matchedAgendaIds.has(ag.header.id)) {
-      const kbmFirst = ag.kbm[0];
-      const actualTeacher = ag.header.actual_teacher_name || kbmFirst?.nama_guru || 'Guru';
-      const mapelName = kbmFirst?.mapel || 'Pembelajaran';
-      const isBadal = Boolean(kbmFirst?.is_badal);
-
-      items.push({
-        id: ag.header.id,
-        scheduleId: null,
-        agendaId: ag.header.id,
-        date: ag.header.tanggal,
-        // Agenda di luar jadwal tidak punya slot, jadi jam & durasi tidak
-        // boleh dikarang — angka fake ikut tercetak di laporan.
-        startTime: null,
-        endTime: null,
-        durationMinutes: null,
-        classId: ag.header.kelas,
-        subjectName: mapelName,
-        scheduledTeacherName: actualTeacher,
-        actualTeacherName: actualTeacher,
-        isBadal,
-        status: isBadal ? 'BADAL' : 'SELESAI',
-        hasDocumentation: Boolean(ag.evidence?.storage_path),
-        evidenceUrl: ag.evidence?.signedUrl || null,
-        agenda: ag,
-        substitution: null,
-        isUnscheduledAgenda: true,
-      });
-    }
-  }
-
-  // 6. Urutkan berdasarkan waktu mulai lalu kelas
-  //    (baris "di luar jadwal" tanpa jam selalu di akhir)
-  items.sort((a, b) => {
-    if (!a.startTime || !b.startTime) {
-      if (a.startTime && !b.startTime) return -1;
-      if (!a.startTime && b.startTime) return 1;
-      return a.classId.localeCompare(b.classId);
-    }
-    const timeCmp = a.startTime.localeCompare(b.startTime);
-    if (timeCmp !== 0) return timeCmp;
-    return a.classId.localeCompare(b.classId);
+  // 4. Aturan hitung: SATU view-model untuk semua halaman
+  const scheduleById = new Map(schedules.map((s) => [s.id, s]));
+  const rows = buildSlotRows({
+    dates: [date],
+    schedules,
+    agendas,
+    substitutions,
+    now,
   });
 
-  // 7. Terapkan Filter
+  const items: DailyReportItem[] = rows.map((row) => {
+    const schedule = row.scheduleId ? scheduleById.get(row.scheduleId) : undefined;
+    return {
+      id: row.scheduleId ?? row.agendaId ?? row.key,
+      scheduleId: row.scheduleId,
+      agendaId: row.agendaId,
+      date: row.date,
+      startTime: row.startTime,
+      endTime: row.endTime,
+      durationMinutes: row.durationMinutes,
+      classId: row.classId,
+      subjectName: row.subjectName,
+      scheduledTeacherName: row.scheduledTeacherName,
+      scheduledTeacherId: schedule?.teacher_id ?? null,
+      actualTeacherName: row.actualTeacherName,
+      actualTeacherId: row.isBadal && row.substitution ? row.substitution.substitute_teacher_id : (schedule?.teacher_id ?? null),
+      isBadal: row.isBadal,
+      status: row.status,
+      hasDocumentation: row.hasDocumentation,
+      evidenceUrl: row.evidenceUrl,
+      agenda: row.agenda,
+      substitution: row.substitution,
+      isUnscheduledAgenda: row.isUnscheduled,
+    };
+  });
+
+  // 5. Terapkan filter (satu-satunya tempat filter harian berada)
   return items.filter((item) => {
     if (teacherName && teacherName !== 'SEMUA') {
-      const matchScheduled =
-        item.scheduledTeacherName.trim().toLowerCase() === teacherName.trim().toLowerCase();
-      const matchActual =
-        item.actualTeacherName.trim().toLowerCase() === teacherName.trim().toLowerCase();
+      const matchScheduled = item.scheduledTeacherName.trim().toLowerCase() === teacherName.trim().toLowerCase();
+      const matchActual = item.actualTeacherName.trim().toLowerCase() === teacherName.trim().toLowerCase();
       if (!matchScheduled && !matchActual) return false;
     }
-
-    if (classId && classId !== 'SEMUA') {
-      if (item.classId !== classId) return false;
-    }
-
-    if (subjectName && subjectName !== 'SEMUA') {
-      if (item.subjectName.trim().toLowerCase() !== subjectName.trim().toLowerCase()) return false;
-    }
-
-    if (statusFilter && statusFilter !== 'ALL') {
-      if (item.status !== statusFilter) return false;
-    }
-
+    if (classId && classId !== 'SEMUA' && item.classId !== classId) return false;
+    if (subjectName && subjectName !== 'SEMUA' && item.subjectName.trim().toLowerCase() !== subjectName.trim().toLowerCase())
+      return false;
+    if (statusFilter && statusFilter !== 'ALL' && item.status !== statusFilter) return false;
     return true;
   });
 }
@@ -367,29 +255,22 @@ export async function getDailyReport(options: {
 // 2. REKAP MINGGUAN (WEEKLY REPORT)
 // ---------------------------------------------------------------------------
 
-/**
- * Menghitung tanggal Senin s.d. Minggu dari tanggal tertentu.
- */
+/** Menghitung tanggal Senin s.d. Minggu dari tanggal tertentu. */
 export function getMondayToSundayRange(d: Date): { monday: string; sunday: string; days: string[] } {
-  const current = new Date(d);
-  const day = current.getDay(); // 0 = Minggu, 1 = Senin, ...
+  const day = d.getDay(); // 0=Minggu … 6=Sabtu
   const diffToMonday = day === 0 ? -6 : 1 - day;
-
-  const mondayDate = new Date(current);
-  mondayDate.setDate(current.getDate() + diffToMonday);
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diffToMonday);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
 
   const days: string[] = [];
-  for (let i = 0; i < 7; i++) {
-    const nextDate = new Date(mondayDate);
-    nextDate.setDate(mondayDate.getDate() + i);
-    days.push(localDateString(nextDate));
+  for (let i = 0; i <= 6; i++) {
+    const cur = new Date(monday);
+    cur.setDate(monday.getDate() + i);
+    days.push(localDateString(cur));
   }
-
-  return {
-    monday: days[0],
-    sunday: days[6],
-    days,
-  };
+  return { monday: localDateString(monday), sunday: localDateString(sunday), days };
 }
 
 export async function getWeeklyReport(options: {
@@ -400,28 +281,20 @@ export async function getWeeklyReport(options: {
 }): Promise<WeeklyReportResult> {
   const { startDate, endDate, academicYearId, teacherFilter } = options;
 
-  // 1. Ambil Academic Year
-  const allAYs = await getAcademicYears();
-  let selectedAY = allAYs.find((ay) => ay.id === academicYearId);
-  if (!selectedAY) {
-    selectedAY =
-      allAYs.find((ay) => ay.status === 'ACTIVE') ||
-      allAYs.find((ay) => startDate >= ay.start_date && startDate <= ay.end_date) ||
-      allAYs[0];
-  }
+  const selectedAY = await resolveAcademicYear(academicYearId, startDate);
 
-  // 2. Ambil semua guru terdaftar untuk inisialisasi baris
+  // Semua guru terdaftar tetap muncul sebagai baris (meski 0 JP).
   const { data: guruData } = await supabase
     .from('guru')
     .select('id, nama_guru, created_at')
     .order('nama_guru');
   const allTeachers: Guru[] = guruData || [];
 
-  // Inisialisasi Map statistik per guru
   const statsMap = new Map<string, TeacherSummaryStats>();
   for (const g of allTeachers) {
-    statsMap.set(g.nama_guru.trim(), {
-      teacherName: g.nama_guru.trim(),
+    const name = g.nama_guru.trim();
+    statsMap.set(name, {
+      teacherName: name,
       teacherId: g.id,
       jpScheduled: 0,
       jpRealized: 0,
@@ -433,150 +306,77 @@ export async function getWeeklyReport(options: {
       realizationRate: 0,
     });
   }
-
-  // 3. Ambil seluruh schedules aktif untuk AY ini
-  let aySchedules: ScheduleItem[] = [];
-  if (selectedAY) {
-    aySchedules = await getSchedules({
-      academicYearId: selectedAY.id,
-      status: 'ACTIVE',
-    });
-  }
-
-  // 4. Ambil semua agenda dalam rentang tanggal
-  const weeklyAgendas = await getRekapAgenda({
-    startDate,
-    endDate,
-  });
-
-  // 5. Ambil semua badal dalam rentang tanggal
-  const weeklySubs = await getSubstitutionHistory({
-    startDate,
-    endDate,
-  });
-  const subMap = new Map<string, Substitution>();
-  for (const sub of weeklySubs) {
-    if (!sub.cancelled_at) {
-      subMap.set(`${sub.schedule_id}_${sub.substitution_date}`, sub);
+  const ensureStat = (name: string, teacherId?: string | null): TeacherSummaryStats => {
+    const key = name.trim();
+    let stat = statsMap.get(key);
+    if (!stat) {
+      stat = {
+        teacherName: key,
+        teacherId: teacherId ?? null,
+        jpScheduled: 0,
+        jpRealized: 0,
+        durationScheduledMin: 0,
+        durationRealizedMin: 0,
+        badalIn: 0,
+        badalOut: 0,
+        notRealized: 0,
+        realizationRate: 0,
+      };
+      statsMap.set(key, stat);
     }
-  }
+    return stat;
+  };
 
-  // 6. Iterasi setiap hari dalam rentang (Senin - Minggu)
-  // Catatan: Jadwal sekolah aktif pada hari kerja (Senin–Jumat)
-  const startObj = new Date(startDate + 'T00:00:00');
-  const endObj = new Date(endDate + 'T00:00:00');
+  // Jadwal aktif (seluruh hari) + agenda & badal dalam rentang
+  const aySchedules: ScheduleItem[] = selectedAY
+    ? await getSchedules({ academicYearId: selectedAY.id, status: 'ACTIVE' })
+    : [];
+  const agendas = await attachSignedUrls(await getRekapAgenda({ startDate, endDate }));
+  const substitutions = await getSubstitutionHistory({ startDate, endDate });
 
-  const curDate = new Date(startObj);
-  while (curDate <= endObj) {
-    const curDateStr = localDateString(curDate);
-    const dayKey = getScheduleDayFromDate(curDate);
+  // Aturan hitung: view-model yang sama dengan Rekap Harian
+  const rows = buildSlotRows({
+    dates: listDates(startDate, endDate),
+    schedules: aySchedules,
+    agendas,
+    substitutions,
+  });
 
-    if (dayKey) {
-      // Dapatkan schedule yang cocok dengan hari ini
-      const daySchedules = aySchedules.filter((s) => s.day === dayKey);
+  const scheduleById = new Map(aySchedules.map((s) => [s.id, s]));
 
-      for (const sch of daySchedules) {
-        const teacherName = sch.teacher_name.trim();
-        let stat = statsMap.get(teacherName);
-        if (!stat) {
-          stat = {
-            teacherName,
-            teacherId: sch.teacher_id,
-            jpScheduled: 0,
-            jpRealized: 0,
-            durationScheduledMin: 0,
-            durationRealizedMin: 0,
-            badalIn: 0,
-            badalOut: 0,
-            notRealized: 0,
-            realizationRate: 0,
-          };
-          statsMap.set(teacherName, stat);
-        }
+  for (const row of rows) {
+    // Agenda di luar jadwal tidak punya slot, jadi tidak dihitung sebagai JP.
+    if (row.scheduleId === null) continue;
+    const schedule = scheduleById.get(row.scheduleId);
+    if (!schedule) continue;
 
-        const durMin = calculateSlotDurationMinutes(sch.start_time, sch.end_time);
+    const stat = ensureStat(schedule.teacher_name, schedule.teacher_id);
+    const durMin = row.durationMinutes ?? 0;
+    stat.jpScheduled += 1;
+    stat.durationScheduledMin += durMin;
 
-        // JP Terjadwal SELALU bertambah untuk Guru Terjadwal
-        stat.jpScheduled += 1;
-        stat.durationScheduledMin += durMin;
-
-        // Cek apakah ada agenda yang merealisasikan jadwal ini pada tanggal tersebut
-        const matchingAgenda = weeklyAgendas.find(
-          (a) =>
-            a.header.schedule_id === sch.id && a.header.tanggal === curDateStr
-        ) ||
-        weeklyAgendas.find(
-          (a) =>
-            !a.header.schedule_id &&
-            a.header.kelas === sch.class_id &&
-            a.header.tanggal === curDateStr &&
-            a.kbm.some(
-              (k) =>
-                k.nama_guru.trim().toLowerCase() === teacherName.toLowerCase() &&
-                k.mapel.trim().toLowerCase() === sch.subject_name.trim().toLowerCase()
-            )
+    if (isFilledStatus(row.status)) {
+      if (row.isBadal) {
+        // Guru terjadwal kehilangan JP (badal keluar), guru pengganti mendapat
+        // JP terealisasi + badal masuk.
+        stat.badalOut += 1;
+        const subStat = ensureStat(
+          row.actualTeacherName,
+          row.substitution?.substitute_teacher_id ?? schedule.teacher_id
         );
-
-        // Cek badal aktif
-        const sub = subMap.get(`${sch.id}_${curDateStr}`);
-
-        if (matchingAgenda) {
-          // Agenda ADA -> Terlaksana
-          // Cek apakah diajarkan oleh guru pengganti
-          let actualTeacher = teacherName;
-          let isBadal = false;
-
-          if (sub) {
-            actualTeacher = sub.substitute_teacher_name.trim();
-            isBadal = true;
-          } else if (
-            matchingAgenda.header.actual_teacher_name &&
-            matchingAgenda.header.actual_teacher_name.trim().toLowerCase() !==
-              teacherName.toLowerCase()
-          ) {
-            actualTeacher = matchingAgenda.header.actual_teacher_name.trim();
-            isBadal = true;
-          }
-
-          if (isBadal) {
-            // Guru Terjadwal dapat Badal Keluar
-            stat.badalOut += 1;
-
-            // Guru Pengganti dapat JP Terealisasi, Durasi Terealisasi, & Badal Masuk
-            let subStat = statsMap.get(actualTeacher);
-            if (!subStat) {
-              subStat = {
-                teacherName: actualTeacher,
-                jpScheduled: 0,
-                jpRealized: 0,
-                durationScheduledMin: 0,
-                durationRealizedMin: 0,
-                badalIn: 0,
-                badalOut: 0,
-                notRealized: 0,
-                realizationRate: 0,
-              };
-              statsMap.set(actualTeacher, subStat);
-            }
-            subStat.jpRealized += 1;
-            subStat.durationRealizedMin += durMin;
-            subStat.badalIn += 1;
-          } else {
-            // Normal: JP Terealisasi masuk ke guru terjadwal
-            stat.jpRealized += 1;
-            stat.durationRealizedMin += durMin;
-          }
-        } else {
-          // Agenda TIDAK ADA -> Belum Terealisasi
-          stat.notRealized += 1;
-        }
+        subStat.jpRealized += 1;
+        subStat.durationRealizedMin += durMin;
+        subStat.badalIn += 1;
+      } else {
+        stat.jpRealized += 1;
+        stat.durationRealizedMin += durMin;
       }
+    } else {
+      stat.notRealized += 1;
     }
-
-    curDate.setDate(curDate.getDate() + 1);
   }
 
-  // 7. Hitung persentase realisasi & kumpulkan daftar
+  // Persentase + filter guru
   const summaries: TeacherSummaryStats[] = [];
   let totSched = 0;
   let totReal = 0;
@@ -587,14 +387,13 @@ export async function getWeeklyReport(options: {
   let totNotReal = 0;
 
   for (const s of statsMap.values()) {
-    // Tangani pembagian nol
-    if (s.jpScheduled > 0) {
-      s.realizationRate = Number(((s.jpRealized / s.jpScheduled) * 100).toFixed(1));
-    } else {
-      s.realizationRate = s.jpRealized > 0 ? 100 : 0;
-    }
+    s.realizationRate =
+      s.jpScheduled > 0
+        ? Number(((s.jpRealized / s.jpScheduled) * 100).toFixed(1))
+        : s.jpRealized > 0
+          ? 100
+          : 0;
 
-    // Filter teacher jika dipilih
     if (
       !teacherFilter ||
       teacherFilter === 'SEMUA' ||
@@ -611,16 +410,12 @@ export async function getWeeklyReport(options: {
     }
   }
 
-  // Sort berdasarkan nama guru
   summaries.sort((a, b) => a.teacherName.localeCompare(b.teacherName));
-
-  const overallRate =
-    totSched > 0 ? Number(((totReal / totSched) * 100).toFixed(1)) : 0;
 
   return {
     startDate,
     endDate,
-    academicYear: selectedAY || null,
+    academicYear: selectedAY,
     teacherSummaries: summaries,
     totals: {
       totalJpScheduled: totSched,
@@ -630,7 +425,7 @@ export async function getWeeklyReport(options: {
       totalBadalIn: totBadalIn,
       totalBadalOut: totBadalOut,
       totalNotRealized: totNotReal,
-      overallRealizationRate: overallRate,
+      overallRealizationRate: totSched > 0 ? Number(((totReal / totSched) * 100).toFixed(1)) : 0,
     },
   };
 }
@@ -663,18 +458,12 @@ export async function getMonthlyReport(options: {
   const { year, month, academicYearId, teacherFilter } = options;
   const monthName = NAMA_BULAN[month - 1] || `Bulan ${month}`;
 
-  // Tentukan start_date dan end_date bulan tersebut
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
   const lastDay = new Date(year, month, 0).getDate();
   const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-  // Menggunakan kalkulasi mingguan/rentang yang sudah tervalidasi
-  const weeklyRes = await getWeeklyReport({
-    startDate,
-    endDate,
-    academicYearId,
-    teacherFilter,
-  });
+  // Memakai perhitungan rentang yang sama dengan mingguan.
+  const weeklyRes = await getWeeklyReport({ startDate, endDate, academicYearId, teacherFilter });
 
   return {
     year,
@@ -687,7 +476,10 @@ export async function getMonthlyReport(options: {
       totalJpRealized: weeklyRes.totals.totalJpRealized,
       totalDurationScheduledMin: weeklyRes.totals.totalDurationScheduledMin,
       totalDurationRealizedMin: weeklyRes.totals.totalDurationRealizedMin,
-      totalBadal: weeklyRes.totals.totalBadalIn,
+      // Bulanan sebelumnya hanya menampilkan badal yang "masuk" di kedua kolom
+      // (+ dan −), sehingga angkanya tidak bisa dipercaya.
+      totalBadalIn: weeklyRes.totals.totalBadalIn,
+      totalBadalOut: weeklyRes.totals.totalBadalOut,
       totalNotRealized: weeklyRes.totals.totalNotRealized,
       overallRealizationRate: weeklyRes.totals.overallRealizationRate,
     },
