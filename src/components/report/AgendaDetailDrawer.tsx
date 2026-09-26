@@ -44,6 +44,16 @@ export const AgendaDetailDrawer: React.FC<AgendaDetailDrawerProps> = ({
     return () => window.removeEventListener('keydown', onKey);
   }, [agendaId, onClose]);
 
+  // Kunci scroll halaman di belakang selama drawer terbuka.
+  useEffect(() => {
+    if (!agendaId) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [agendaId]);
+
   if (!agendaId) return null;
 
   return (
@@ -55,7 +65,7 @@ export const AgendaDetailDrawer: React.FC<AgendaDetailDrawerProps> = ({
       <aside
         role="dialog"
         aria-label="Detail agenda"
-        className="fixed inset-y-0 right-0 z-50 w-full sm:w-[480px] bg-white border-l border-slate-200 shadow-2xl flex flex-col no-print animate-in slide-in-from-right duration-200"
+        className="fixed top-3 right-3 bottom-3 z-50 w-[calc(100%-1.5rem)] sm:w-[520px] max-h-[85vh] bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col overflow-hidden no-print animate-in slide-in-from-right duration-200"
       >
         {/* `key` membuat state lahir baru setiap agenda dibuka, jadi tidak perlu
             reset manual di dalam effect. */}
@@ -130,7 +140,7 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
   return (
     <>
       {/* Header */}
-      <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-emerald-50 to-white">
+      <div className="shrink-0 flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-emerald-50 to-white">
         <div>
           <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
             <BookOpen className="w-4 h-4 text-emerald-700" />
@@ -151,7 +161,10 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-5">
+      {/* Body — hanya bagian ini yang scroll; `min-h-0` supaya `max-h-[85vh]`
+          di panel benar-benar respected, `overscroll-contain` supaya scroll
+          tidak diteruskan ke halaman di belakang. */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 space-y-5 leading-relaxed">
         {isLoading && (
           <div className="py-10 flex flex-col items-center gap-2 text-xs text-slate-500">
             <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />

@@ -12,7 +12,7 @@ import {
 } from '../../services/periodTemplateService';
 import { PageHeader } from '../../components/admin/PageHeader';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { DataTable, type Column } from '../../components/common';
+import { DataTable, FormModal, formStyles, type Column } from '../../components/common';
 
 interface PeriodTemplatePageProps {
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
@@ -393,29 +393,48 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
         </div>
       )}
 
-      {/* Modal Tambah / Edit JP */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full border border-slate-200">
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50 rounded-t-xl">
-              <div>
-                <h3 className="font-bold text-slate-800 text-sm">
-                  {formMode === 'create' ? 'Tambah Jam Pelajaran' : 'Edit Jam Pelajaran'}
-                </h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  {selectedAY?.name ?? ''}
-                </p>
-              </div>
+      {/* Modal Tambah / Edit JP — FormModal (scroll-safe + body scroll lock) */}
+      <FormModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={formMode === 'create' ? 'Tambah Jam Pelajaran' : 'Edit Jam Pelajaran'}
+        subtitle={selectedAY?.name ?? ''}
+        size="sm"
+        onSubmit={handleSave}
+        busy={isSaving}
+        footer={(formId) => (
+          <>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.is_active}
+                onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))}
+                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-1 focus:ring-slate-400"
+              />
+              <span className="text-xs font-semibold text-slate-600">JP Aktif</span>
+            </label>
+
+            <div className="flex items-center gap-2">
               <button
+                type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition text-lg leading-none"
+                className={formStyles.ghostBtn}
               >
-                &times;
+                Batal
+              </button>
+              <button
+                type="submit"
+                form={formId}
+                disabled={isSaving}
+                className={formStyles.primaryBtn}
+              >
+                {isSaving ? 'Menyimpan...' : formMode === 'create' ? 'Tambah' : 'Perbarui'}
               </button>
             </div>
-
-            <form onSubmit={handleSave} className="p-5 space-y-4">
+          </>
+        )}
+      >
+        <div className="p-5 space-y-4">
               {formError && (
                 <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-rose-800 text-xs">
                   <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
@@ -425,7 +444,7 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  <label className={formStyles.label}>
                     Nomor JP
                   </label>
                   <input
@@ -437,12 +456,12 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
                       const n = parseInt(e.target.value, 10) || 1;
                       setForm((f) => ({ ...f, period_number: n, label: `JP ${n}` }));
                     }}
-                    className="w-full px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-center font-bold"
+                    className="w-full px-2.5 py-1.5 text-xs text-center font-bold bg-white text-slate-800 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  <label className={formStyles.label}>
                     Label
                   </label>
                   <input
@@ -450,33 +469,33 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
                     value={form.label}
                     onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
                     placeholder="JP 1"
-                    className="w-full px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full px-2.5 py-1.5 text-xs bg-white text-slate-800 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  <label className={formStyles.label}>
                     Jam Mulai
                   </label>
                   <input
                     type="time"
                     value={form.start_time}
                     onChange={(e) => setForm((f) => ({ ...f, start_time: e.target.value }))}
-                    className="w-full px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full px-2.5 py-1.5 text-xs bg-white text-slate-800 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  <label className={formStyles.label}>
                     Jam Selesai
                   </label>
                   <input
                     type="time"
                     value={form.end_time}
                     onChange={(e) => setForm((f) => ({ ...f, end_time: e.target.value }))}
-                    className="w-full px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full px-2.5 py-1.5 text-xs bg-white text-slate-800 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition"
                   />
                 </div>
               </div>
@@ -490,39 +509,8 @@ export const PeriodTemplatePage: React.FC<PeriodTemplatePageProps> = ({ showToas
                   </span>
                 </div>
               )}
-
-              <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.is_active}
-                    onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))}
-                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <span className="text-xs font-semibold text-slate-600">JP Aktif</span>
-                </label>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg border border-slate-300 transition"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition"
-                  >
-                    {isSaving ? 'Menyimpan...' : formMode === 'create' ? 'Tambah' : 'Perbarui'}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
         </div>
-      )}
+      </FormModal>
 
       {/* Dialog konfirmasi hapus JP */}
       <ConfirmDialog

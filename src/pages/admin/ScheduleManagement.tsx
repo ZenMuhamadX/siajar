@@ -37,6 +37,8 @@ import {
   DataTable,
   StatusBadge,
   FilterBar,
+  FormModal,
+  formStyles,
   type Column,
 } from '../../components/common';
 
@@ -694,45 +696,65 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
       />
 
 
-      {/* Create / Edit Schedule Modal */}
-      {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-indigo-50 to-white">
-              <div>
-                <h3 className="font-bold text-slate-800 text-sm sm:text-base">
-                  {editingItem ? 'Edit Jadwal Mengajar' : 'Tambah Jadwal Baru'}
-                </h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  {editingItem
-                    ? 'Perbarui informasi slot jadwal pelajaran'
-                    : 'Isi semua field untuk menambah slot jadwal'}
-                </p>
-              </div>
-              <button
-                onClick={() => setIsEditModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition text-lg leading-none"
+      {/* Create / Edit Schedule Modal — FormModal supaya aman saat form lebih
+          tinggi dari layar (dulu kepala modal terpotong dan scroll-nya jatuh ke
+          tabel jadwal di belakang). */}
+      <FormModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title={editingItem ? 'Edit Jadwal Mengajar' : 'Tambah Jadwal Baru'}
+        subtitle={
+          editingItem
+            ? 'Perbarui informasi slot jadwal pelajaran'
+            : 'Isi semua field untuk menambah slot jadwal'
+        }
+        onSubmit={handleSaveSchedule}
+        busy={isSaving}
+        footer={(formId) => (
+          <>
+            <div className="flex items-center gap-2">
+              <label className="text-[11px] font-semibold text-slate-500">Status</label>
+              <select
+                value={formData.status}
+                onChange={(e) =>
+                  setFormData({ ...formData, status: e.target.value as ScheduleStatus })
+                }
+                className={`${formStyles.select} w-auto py-1`}
               >
-                &times;
-              </button>
+                <option value="DRAFT">Draft</option>
+                <option value="ACTIVE">Aktif</option>
+                <option value="ARCHIVED">Arsip</option>
+              </select>
             </div>
 
-            <form onSubmit={handleSaveSchedule} className="overflow-y-auto">
-              {formConflictError && (
-                <div className="mx-5 mt-4 p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-rose-800 text-xs">
-                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                  <p>{formConflictError}</p>
-                </div>
-              )}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className={formStyles.ghostBtn}
+              >
+                Batal
+              </button>
+              <button type="submit" form={formId} disabled={isSaving} className={formStyles.primaryBtn}>
+                {isSaving ? 'Menyimpan...' : editingItem ? 'Perbarui' : 'Simpan Jadwal'}
+              </button>
+            </div>
+          </>
+        )}
+      >
+        {formConflictError && (
+          <div className="mx-5 mt-4 p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-rose-800 text-xs">
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <p>{formConflictError}</p>
+          </div>
+        )}
 
-              <div className="p-5 space-y-5">
+        <div className="p-5 space-y-5">
 
                 {/* ── Section 1: Waktu & Jadwal ── */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">
+                    <span className={formStyles.sectionTitle}>
                       Waktu &amp; Jadwal
                     </span>
                     <div className="flex-1 h-px bg-indigo-100" />
@@ -741,7 +763,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
                   {/* Hari + JP Selector */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      <label className={formStyles.label}>
                         Hari
                       </label>
                       <select
@@ -749,7 +771,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
                         onChange={(e) =>
                           setFormData({ ...formData, day: e.target.value as ScheduleDay })
                         }
-                        className="w-full px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                        className={formStyles.select}
                       >
                         {SCHEDULE_DAYS.map((d) => (
                           <option key={d.key} value={d.key}>
@@ -760,7 +782,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      <label className={formStyles.label}>
                         Jam Pelajaran (JP)
                       </label>
                       {periodTemplates.length === 0 ? (
@@ -790,7 +812,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
                               }));
                             }
                           }}
-                          className="w-full px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                          className={formStyles.select}
                         >
                           <option value="">-- Pilih JP --</option>
                           {periodTemplates.map((pt) => (
@@ -822,7 +844,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
                 {/* ── Section 2: Kelas & Mata Pelajaran ── */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">
+                    <span className={formStyles.sectionTitle}>
                       Kelas &amp; Mata Pelajaran
                     </span>
                     <div className="flex-1 h-px bg-indigo-100" />
@@ -830,7 +852,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      <label className={formStyles.label}>
                         Kelas
                       </label>
                       <select
@@ -838,7 +860,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
                         onChange={(e) =>
                           setFormData({ ...formData, class_id: e.target.value })
                         }
-                        className="w-full px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                        className={formStyles.select}
                       >
                         {DAFTAR_KELAS.map((c) => (
                           <option key={c} value={c}>
@@ -849,7 +871,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      <label className={formStyles.label}>
                         Mata Pelajaran
                       </label>
                       <select
@@ -857,7 +879,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
                         onChange={(e) =>
                           setFormData({ ...formData, subject_name: e.target.value })
                         }
-                        className="w-full px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                        className={formStyles.select}
                       >
                         <option value="">-- Pilih Mapel --</option>
                         {subjects.map((m) => (
@@ -873,7 +895,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
                 {/* ── Section 3: Guru Pengampu ── */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">
+                    <span className={formStyles.sectionTitle}>
                       Guru Pengampu
                     </span>
                     <div className="flex-1 h-px bg-indigo-100" />
@@ -884,7 +906,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
                     onChange={(e) =>
                       setFormData({ ...formData, teacher_name: e.target.value })
                     }
-                    className="w-full px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                    className={formStyles.select}
                   >
                     <option value="">-- Pilih Guru --</option>
                     {teachers.map((g) => (
@@ -896,48 +918,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
                 </div>
 
               </div>
-
-              {/* Footer */}
-              <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <label className="text-[11px] font-semibold text-slate-500">Status</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        status: e.target.value as ScheduleStatus,
-                      })
-                    }
-                    className="px-2 py-1 text-xs bg-white border border-slate-300 rounded-md focus:outline-hidden"
-                  >
-                    <option value="DRAFT">Draft</option>
-                    <option value="ACTIVE">Aktif</option>
-                    <option value="ARCHIVED">Arsip</option>
-                  </select>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsEditModalOpen(false)}
-                    className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg border border-slate-300 transition"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition shadow-xs"
-                  >
-                    {isSaving ? 'Menyimpan...' : editingItem ? 'Perbarui' : 'Simpan Jadwal'}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      </FormModal>
 
       {/* Dialog konfirmasi hapus jadwal */}
       <ConfirmDialog
