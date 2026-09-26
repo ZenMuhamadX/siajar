@@ -52,6 +52,23 @@ export async function getDaftarGuru(): Promise<Guru[]> {
   return data || [];
 }
 
+/**
+ * Direktori guru untuk halaman LOGIN (dipakai sebelum ada sesi).
+ *
+ * Hanya kolom id + nama_guru yang di-grant ke role anon (lihat bagian 4
+ * supabase/stage_7_rls_auth.sql). Query ini sengaja TIDAK menyentuh kolom lain,
+ * karena kolom lain akan ditolak server. Jangan tambahkan kolom di sini tanpa
+ * menyesuaikan grant-nya.
+ */
+export async function getGuruDirectory(): Promise<Pick<Guru, 'id' | 'nama_guru'>[]> {
+  const { data, error } = await supabase
+    .from('guru')
+    .select('id, nama_guru')
+    .order('nama_guru', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
 export async function addGuru(nama: string): Promise<Guru> {
   const { data, error } = await supabase
     .from('guru')

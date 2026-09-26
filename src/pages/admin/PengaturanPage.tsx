@@ -34,7 +34,7 @@ export const PengaturanPage: React.FC = () => {
                 <Database className="w-3.5 h-3.5 text-slate-500" />
                 Basis Data
               </span>
-              <p className="text-slate-500 text-[11px]">
+              <p className="text-slate-500 text-[13px]">
                 Supabase PostgreSQL (Schema: <code className="bg-slate-200/80 px-1 rounded">agenda</code>)
               </p>
             </div>
@@ -44,8 +44,8 @@ export const PengaturanPage: React.FC = () => {
                 <KeyRound className="w-3.5 h-3.5 text-slate-500" />
                 Metode Autentikasi
               </span>
-              <p className="text-slate-500 text-[11px]">
-                PIN Sekolah Universal & PIN Admin Terproteksi
+              <p className="text-slate-500 text-[13px]">
+                Supabase Auth &middot; kode sekolah bersama, diverifikasi di server
               </p>
             </div>
           </div>
@@ -56,19 +56,19 @@ export const PengaturanPage: React.FC = () => {
           <h3 className="font-bold text-slate-900 text-sm">Informasi Satuan Pendidikan</h3>
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-xs">
             <div>
-              <dt className="text-slate-500 text-[11px]">Nama Sekolah</dt>
+              <dt className="text-slate-500 text-[13px]">Nama Sekolah</dt>
               <dd className="font-semibold text-slate-800">SDIT AS-SYIFA</dd>
             </div>
             <div>
-              <dt className="text-slate-500 text-[11px]">Aplikasi</dt>
+              <dt className="text-slate-500 text-[13px]">Aplikasi</dt>
               <dd className="font-semibold text-slate-800">SIAJAR (Sistem Agenda Pembelajaran)</dd>
             </div>
             {/* <div>
-              <dt className="text-slate-500 text-[11px]">Model Jam Pelajaran (JP)</dt>
+              <dt className="text-slate-500 text-[13px]">Model Jam Pelajaran (JP)</dt>
               <dd className="font-semibold text-slate-800">35 Menit / Jam Pelajaran</dd>
             </div> */}
             <div>
-              <dt className="text-slate-500 text-[11px]">Versi Sistem</dt>
+              <dt className="text-slate-500 text-[13px]">Versi Sistem</dt>
               <dd className="font-semibold text-slate-800">V0.1 (Beta)</dd>
             </div>
           </dl>
