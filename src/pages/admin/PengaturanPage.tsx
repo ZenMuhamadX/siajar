@@ -583,7 +583,7 @@ export const PengaturanPage: React.FC = () => {
               <dt className="text-slate-500 text-[11px]">Metode Autentikasi</dt>
               <dd className="font-semibold text-slate-800 flex items-center gap-1.5">
                 <KeyRound className="w-3.5 h-3.5 text-slate-400" />
-                PIN Sekolah Universal &amp; PIN Admin Terproteksi
+                Supabase Auth &middot; kode sekolah bersama
               </dd>
             </div>
             <div>

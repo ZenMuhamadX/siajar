@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSchoolName } from '../contexts/SettingsContext';
-import { getDaftarGuru } from '../services/agendaService';
-import type { Guru } from '../types';
+import { getGuruDirectory } from '../services/agendaService';
 import { LogIn, Lock, User, AlertCircle, Loader2, Shield, Eye, EyeOff } from 'lucide-react';
+
+type GuruOption = { id: string; nama_guru: string };
 
 export const LoginPage: React.FC = () => {
   const { loginAsTeacher, loginAsAdmin } = useAuth();
@@ -11,9 +12,9 @@ export const LoginPage: React.FC = () => {
   // supaya halaman login tidak menunggu jaringan.
   const schoolName = useSchoolName();
   const [mode, setMode] = useState<'teacher' | 'admin'>('teacher');
-  const [daftarGuru, setDaftarGuru] = useState<Guru[]>([]);
+  const [daftarGuru, setDaftarGuru] = useState<GuruOption[]>([]);
   const [selectedGuru, setSelectedGuru] = useState('');
-  const [pin, setPin] = useState('');
+  const [kode, setKode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoadingGuru, setIsLoadingGuru] = useState(true);
@@ -23,10 +24,10 @@ export const LoginPage: React.FC = () => {
     async function loadTeachers() {
       setIsLoadingGuru(true);
       try {
-        const teachers = await getDaftarGuru();
+        const teachers = await getGuruDirectory();
         setDaftarGuru(teachers);
         if (teachers.length > 0) {
-          setSelectedGuru(teachers[0].nama_guru);
+          setSelectedGuru(teachers[0].id);
         }
       } catch (err) {
         console.error('Gagal mengambil daftar guru:', err);
@@ -44,14 +45,14 @@ export const LoginPage: React.FC = () => {
 
     try {
       if (mode === 'admin') {
-        const res = await loginAsAdmin(pin);
+        const res = await loginAsAdmin(kode);
         if (!res.success) {
           setErrorMsg(res.message || 'Login Admin gagal.');
         }
       } else {
-        const res = await loginAsTeacher(selectedGuru, pin);
+        const res = await loginAsTeacher(selectedGuru, kode);
         if (!res.success) {
-          setErrorMsg(res.message || 'PIN atau Guru tidak valid.');
+          setErrorMsg(res.message || 'Nama atau kode sekolah tidak cocok.');
         }
       }
     } catch (err: any) {
@@ -124,58 +125,66 @@ export const LoginPage: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'teacher' ? (
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label
+                  htmlFor="login-guru"
+                  className="block text-xs font-semibold text-slate-700 mb-1.5"
+                >
                   Masuk sebagai
                 </label>
                 <div className="relative">
                   <select
+                    id="login-guru"
                     required
                     disabled={isLoadingGuru || daftarGuru.length === 0}
                     value={selectedGuru}
                     onChange={(e) => setSelectedGuru(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition font-medium"
+                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition font-medium"
                   >
                     {daftarGuru.length === 0 ? (
                       <option value="">{isLoadingGuru ? 'Memuat guru...' : 'Belum ada data guru'}</option>
                     ) : (
                       daftarGuru.map((g) => (
-                        <option key={g.id} value={g.nama_guru}>
+                        <option key={g.id} value={g.id}>
                           {g.nama_guru}
                         </option>
                       ))
                     )}
                   </select>
-                  <User className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <User className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
                 </div>
               </div>
             ) : (
-              <div className="p-3 bg-purple-50 border border-purple-100 rounded-xl text-xs text-purple-800 flex items-center gap-2">
-                <Shield className="w-4 h-4 text-purple-600 shrink-0" />
+              <div className="p-3 bg-primary-50 border border-primary-100 rounded-xl text-xs text-primary-800 flex items-center gap-2">
+                <Shield className="w-4 h-4 text-primary-600 shrink-0" />
                 <span>Login Admin untuk mengelola semua data </span>
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Sandi
+              <label
+                htmlFor="login-sandi"
+                className="block text-xs font-semibold text-slate-700 mb-1.5"
+              >
+                Kode Sekolah
               </label>
               <div className="relative">
                 <input
+                  id="login-sandi"
                   type={showPassword ? 'text' : 'password'}
                   required
-                  placeholder="Masukan Sandi"
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
+                  placeholder="Masukkan kode sekolah"
+                  value={kode}
+                  onChange={(e) => setKode(e.target.value)}
                   className={`w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:bg-white transition ${
-                    mode === 'admin' ? 'focus:ring-purple-500' : 'focus:ring-emerald-500'
+                    mode === 'admin' ? 'focus:ring-primary-500' : 'focus:ring-primary-500'
                   }`}
                 />
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-2.5 p-0.5 text-slate-400 hover:text-slate-600 focus:outline-none transition rounded"
-                  title={showPassword ? 'Sembunyikan Sandi' : 'Lihat Sandi'}
+                  className="absolute right-3 top-2.5 p-0.5 text-slate-600 hover:text-slate-600 transition rounded"
+                  title={showPassword ? 'Sembunyikan' : 'Lihat'}
                 >
                   {showPassword ? (
                     <EyeOff className="w-4 h-4" />
@@ -191,8 +200,8 @@ export const LoginPage: React.FC = () => {
               disabled={isSubmitting || (mode === 'teacher' && daftarGuru.length === 0)}
               className={`w-full py-3 text-white font-bold rounded-xl text-sm shadow-sm hover:shadow transition flex items-center justify-center gap-2 disabled:opacity-50 mt-2 ${
                 mode === 'admin'
-                  ? 'bg-purple-600 hover:bg-purple-700'
-                  : 'bg-emerald-600 hover:bg-emerald-700'
+                  ? 'bg-primary-600 hover:bg-primary-700'
+                  : 'bg-primary-600 hover:bg-primary-700'
               }`}
             >
               {isSubmitting ? (

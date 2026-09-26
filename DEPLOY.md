@@ -2,7 +2,7 @@
 
 Aplikasi ini adalah SPA statis (React + Vite). Tidak ada server aplikasi: browser mengakses Supabase secara langsung.
 
-> **Model keamanan:** login memakai PIN yang ditanam saat build. PIN bukan autentikasi per pengguna dan tidak membatasi akses database. Policy database dalam mode ini mengizinkan akses anon agar frontend dapat bekerja. Jangan anggap aplikasi ini memiliki RBAC atau audit identitas yang kuat.
+> **Model keamanan:** login memakai Supabase Auth dengan kode sekolah bersama. Verifikasi terjadi di **server**, peran (`guru`/`admin`) dibaca dari `app_metadata` JWT, dan seluruh akses data dibatasi RLS di `supabase/stage_7_rls_auth.sql`. Anon key tetap ada di bundle (itu normal), tetapi tanpa sesi yang sah ia hanya boleh membaca nama guru untuk mengisi halaman login.
 
 Docker tidak digunakan. Build dilakukan di komputer lokal atau server build, lalu hanya isi folder `dist/` yang diunggah ke document root aaPanel.
 
@@ -14,10 +14,25 @@ Salin `.env.example` menjadi `.env`, lalu isi:
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
-- `VITE_TEACHER_PIN`
-- `VITE_ADMIN_PIN`
+- `VITE_AUTH_DOMAIN` (mis. `siajar.local`)
+- `VITE_ADMIN_EMAIL` (mis. `admin@siajar.local`)
 
-Jangan pernah memasukkan `service_role` key. Nilai `VITE_*` akan masuk ke bundle browser.
+Untuk skrip provisioning (dijalankan lokal / server tepercaya, **tidak ikut ke bundle**):
+
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SCHOOL_CODE`
+- `ADMIN_CODE`
+
+Nilai `VITE_*` masuk ke bundle browser, jadi hanya boleh berisi alamat atau nama — **bukan rahasia**. Kode sekolah dan kode admin sengaja tanpa prefiks `VITE_` supaya tidak ikut ter-bundle.
+
+Siapkan akun guru setelah `.env` terisi:
+
+```bash
+bun scripts/provision-auth-accounts.ts --dry-run   # lihat rencana
+bun scripts/provision-auth-accounts.ts             # buat / segarkan akun
+```
+
+Lalu atur masa sesi di dashboard Supabase → **Authentication → Settings**: JWT expiry `3600` detik dan **Refresh token expiry `30` hari**, supaya guru cukup masuk sekali per perangkat.
 
 Build:
 
@@ -77,34 +92,33 @@ Aktifkan TLS melalui **Website → SSL → Let's Encrypt**, lalu aktifkan **Forc
 
 ### 4.1 Instalasi baru
 
-Untuk database kosong, cukup jalankan **satu file**:
+Untuk database kosong, jalankan **dua file berurutan**:
 
 ```text
-supabase/schema.sql
+supabase/schema.sql            -- struktur: tabel, index, RLS (gagal-tertutup), bucket Storage
+supabase/stage_7_rls_auth.sql  -- keamanan: policy otorisasi, grant, policy Storage
 ```
 
-File tersebut sudah mencakup seluruh tabel aktif, tahun ajaran, jadwal, homeroom, agenda, absensi, substitusi, bukti foto, Kotak Saran, RLS policy publik, grant `anon`, bucket Storage, dan policy Storage.
+`schema.sql` mencakup seluruh tabel aktif, tahun ajaran, jadwal, homeroom, agenda, absensi, substitusi, bukti foto, dan Kotak Saran. `schema.sql` tidak lagi membuat `guru_kelas`; tabel penugasan wali kelas yang aktif adalah `homeroom_assignment`.
 
-`schema.sql` tidak lagi membuat `guru_kelas`; tabel penugasan wali kelas yang aktif adalah `homeroom_assignment`.
+**Keduanya wajib.** Setelah `schema.sql` saja, aplikasi belum dapat mengakses data — ini disengaja, karena gagal-tertutup jauh lebih baik daripada database terbuka.
 
-Migration incremental di folder `supabase/` tetap dipertahankan untuk database existing, tetapi tidak perlu dijalankan untuk instalasi baru.
+### 4.2 Database existing
 
-### 4.2 Databases yang sudah menjalankan Stage 5 Auth
+Backup database terlebih dahulu, lalu jalankan:
 
-Jika Supabase Auth pernah diaktifkan, **backup database terlebih dahulu**. Lalu jalankan:
+1. `supabase/stage_7_rls_auth.sql` — memasang RLS dan policy otorisasi.
+2. `supabase/stage_6_drop_guru_kelas.sql` — bila tabel legacy `guru_kelas` masih ada.
 
-1. `supabase/rollback_5_auth.sql` — menghapus policy/trigger/fungsi Stage 5, mengembalikan policy publik, grant anon, dan policy Storage.
-2. `supabase/stage_6_drop_guru_kelas.sql` — memindahkan data `guru_kelas` ke `homeroom_assignment` bila masih diperlukan, lalu menghapus tabel legacy.
-
-`stage_6_drop_guru_kelas.sql` berhenti tanpa menghapus data jika ada konflik guru per kelas atau tidak ada tahun ajaran `ACTIVE`.
-
-Setelah migration selesai, build versi login PIN dan upload `dist/`. Jangan menjalankan migrasi Stage 5 Auth; model deployment ini tidak membutuhkannya.
+`supabase/rollback_5_auth.sql` sudah **tidak dipakai**; jangan dijalankan karena mengembalikan model akses publik.
 
 ---
 
 ## 5. Checklist setelah deploy
 
-- [ ] Halaman login menampilkan dua opsi PIN, bukan form email.
+- [ ] Halaman login menampilkan pilihan nama guru dan kolom "Kode Sekolah".
+- [ ] Guru dapat masuk dengan kode sekolah dan tetap masuk setelah refresh.
+- [ ] Tanpa login, query langsung ke `agenda.siswa` ditolak server (bukan hanya disembunyikan UI).
 - [ ] Login admin dapat membuka panel admin.
 - [ ] Login guru dapat membuka agenda, absensi, jadwal, dan Kotak Saran.
 - [ ] **Kotak Saran** dapat dibuka dari navbar dan sidebar admin.

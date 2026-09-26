@@ -5,8 +5,12 @@
 -- baru. Jalankan setelah membuat backup, lalu jalankan aplikasi.
 --
 -- Catatan:
--- - Mode aplikasi memakai login PIN dan akses database publik.
--- - File ini tidak memakai Supabase Auth, auth.users, atau auth.uid().
+-- - File ini HANYA membuat struktur: tabel, index, dan bucket Storage.
+--   Tidak ada policy keamanan di sini.
+-- - WAJIB dilanjutkan dengan supabase/stage_7_rls_auth.sql. File itulah yang
+--   membuat RLS, policy otorisasi, grant, dan policy Storage.
+-- - Selama stage_7 belum dijalankan, aplikasi tidak dapat mengakses data
+--   (fail-closed). Ini disengaja: lebih baik gagal tertutup daripada terbuka.
 -- - Struktur assignment menggunakan homeroom_assignment.
 -- - File migration incremental tetap dipertahankan untuk database existing.
 -- =============================================================================
@@ -299,10 +303,16 @@ CREATE INDEX IF NOT EXISTS idx_agenda_evidence_uploaded_at
     ON agenda.agenda_evidence(uploaded_at);
 
 -- =============================================================================
--- 6. ROW LEVEL SECURITY (RLS) DAN POLICY PUBLIK
+-- 6. ROW LEVEL SECURITY (RLS)
 -- =============================================================================
--- Model PIN sengaja memakai policy publik. PIN bukan mechanism keamanan
--- database; jangan menambahkan service_role key ke frontend.
+-- RLS diaktifkan di sini agar setiap tabel gagal-tertutup (deny all) sampai
+-- policy dibuat. Policy otorisasi TIDAK didefinisikan di file ini.
+-- Jalankan supabase/stage_7_rls_auth.sql setelah file ini untuk membuat:
+--   - fungsi helper (agenda.is_admin, agenda.is_member, agenda.can_manage_*)
+--   - seluruh policy baca/tulis berbasis auth.jwt()
+--   - grant untuk role authenticated dan grant kolom untuk halaman login
+--   - policy Storage bucket agenda-evidence
+-- =============================================================================
 
 ALTER TABLE agenda.siswa ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agenda.guru ENABLE ROW LEVEL SECURITY;
@@ -319,68 +329,26 @@ ALTER TABLE agenda.kotak_saran ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agenda.substitutions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agenda.agenda_evidence ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Allow public read-write siswa" ON agenda.siswa;
-DROP POLICY IF EXISTS "Allow public read-write guru" ON agenda.guru;
-DROP POLICY IF EXISTS "Allow public read-write mapel" ON agenda.mapel;
-DROP POLICY IF EXISTS "Allow public read-write academic_year" ON agenda.academic_year;
-DROP POLICY IF EXISTS "Allow public read-write period_templates" ON agenda.period_templates;
-DROP POLICY IF EXISTS "Allow public read-write schedule" ON agenda.schedule;
-DROP POLICY IF EXISTS "Allow public read-write homeroom_assignment" ON agenda.homeroom_assignment;
-DROP POLICY IF EXISTS "Allow public read-write agenda_header" ON agenda.agenda_header;
-DROP POLICY IF EXISTS "Allow public read-write agenda_kbm" ON agenda.agenda_kbm;
-DROP POLICY IF EXISTS "Allow public read-write agenda_absensi" ON agenda.agenda_absensi;
-DROP POLICY IF EXISTS "Allow public read-write agenda_kejadian" ON agenda.agenda_kejadian;
-DROP POLICY IF EXISTS "Allow public read-write kotak_saran" ON agenda.kotak_saran;
-DROP POLICY IF EXISTS "Allow public read-write substitutions" ON agenda.substitutions;
-DROP POLICY IF EXISTS "Allow public read-write agenda_evidence" ON agenda.agenda_evidence;
-
-CREATE POLICY "Allow public read-write siswa"
-    ON agenda.siswa FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read-write guru"
-    ON agenda.guru FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read-write mapel"
-    ON agenda.mapel FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read-write academic_year"
-    ON agenda.academic_year FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read-write period_templates"
-    ON agenda.period_templates FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read-write schedule"
-    ON agenda.schedule FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read-write homeroom_assignment"
-    ON agenda.homeroom_assignment FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read-write agenda_header"
-    ON agenda.agenda_header FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read-write agenda_kbm"
-    ON agenda.agenda_kbm FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read-write agenda_absensi"
-    ON agenda.agenda_absensi FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read-write agenda_kejadian"
-    ON agenda.agenda_kejadian FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read-write kotak_saran"
-    ON agenda.kotak_saran FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read-write substitutions"
-    ON agenda.substitutions FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read-write agenda_evidence"
-    ON agenda.agenda_evidence FOR ALL USING (true) WITH CHECK (true);
+-- Policy otorisasi sengaja TIDAK dibuat di sini.
+-- Lihat bagian 6 di supabase/stage_7_rls_auth.sql — file itu wajib dijalankan
+-- dan berisi seluruh policy baca/tulis berbasis auth.jwt().
 
 -- =============================================================================
--- 7. GRANT UNTUK FRONTEND PIN
+-- 7. GRANT
 -- =============================================================================
-
-GRANT USAGE ON SCHEMA agenda TO anon, authenticated;
-GRANT ALL ON ALL TABLES IN SCHEMA agenda TO anon, authenticated;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA agenda TO anon, authenticated;
-ALTER DEFAULT PRIVILEGES IN SCHEMA agenda
-    GRANT ALL ON TABLES TO anon, authenticated;
-ALTER DEFAULT PRIVILEGES IN SCHEMA agenda
-    GRANT ALL ON SEQUENCES TO anon, authenticated;
+-- Grant sengaja TIDAK dibuat di sini. Tanpa grant, role anon/authenticated
+-- tidak bisa menyentuh schema agenda sama sekali (fail-closed).
+-- Grant yang benar ada di bagian 4 supabase/stage_7_rls_auth.sql:
+--   - authenticated : ALL (dibatasi policy RLS)
+--   - anon          : hanya kolom guru(id, nama_guru) untuk halaman login
+-- =============================================================================
 
 -- =============================================================================
 -- 8. SUPABASE STORAGE — BUKTI FOTO
 -- =============================================================================
--- Bucket tetap private. Akses anon diperlukan karena frontend memakai login
--- PIN tanpa Supabase Auth; policy di bawah mengizinkan operasi bucket khusus
--- agenda-evidence.
+-- Bucket tetap private. File ini hanya membuat bucket-nya.
+-- Policy akses bucket ada di bagian 5 supabase/stage_7_rls_auth.sql dan hanya
+-- mengizinkan anggota sekolah yang sudah login.
 
 DO $$
 BEGIN
@@ -410,48 +378,14 @@ BEGIN
     END IF;
 END $$;
 
-DO $$
-BEGIN
-    IF to_regclass('storage.objects') IS NULL THEN
-        RAISE NOTICE 'storage.objects tidak tersedia; policy Storage dilewati.';
-        RETURN;
-    END IF;
-
-    EXECUTE 'DROP POLICY IF EXISTS "Allow anon & authenticated read agenda-evidence" ON storage.objects';
-    EXECUTE 'DROP POLICY IF EXISTS "Allow anon & authenticated upload agenda-evidence" ON storage.objects';
-    EXECUTE 'DROP POLICY IF EXISTS "Allow anon & authenticated update agenda-evidence" ON storage.objects';
-    EXECUTE 'DROP POLICY IF EXISTS "Allow anon & authenticated delete agenda-evidence" ON storage.objects';
-
-    EXECUTE $policy$
-        CREATE POLICY "Allow anon & authenticated read agenda-evidence"
-        ON storage.objects FOR SELECT
-        USING (bucket_id = 'agenda-evidence')
-    $policy$;
-
-    EXECUTE $policy$
-        CREATE POLICY "Allow anon & authenticated upload agenda-evidence"
-        ON storage.objects FOR INSERT
-        WITH CHECK (bucket_id = 'agenda-evidence')
-    $policy$;
-
-    EXECUTE $policy$
-        CREATE POLICY "Allow anon & authenticated update agenda-evidence"
-        ON storage.objects FOR UPDATE
-        USING (bucket_id = 'agenda-evidence')
-        WITH CHECK (bucket_id = 'agenda-evidence')
-    $policy$;
-
-    EXECUTE $policy$
-        CREATE POLICY "Allow anon & authenticated delete agenda-evidence"
-        ON storage.objects FOR DELETE
-        USING (bucket_id = 'agenda-evidence')
-    $policy$;
-END $$;
+-- Policy Storage sengaja TIDAK dibuat di sini.
+-- Lihat bagian 5 di supabase/stage_7_rls_auth.sql — hanya anggota sekolah yang
+-- sudah login yang boleh membaca/mengunggah/menghapus bukti foto.
 
 -- =============================================================================
 -- 9. VERIFIKASI RINGKAS
 -- =============================================================================
--- Jalankan query berikut setelah schema.sql selesai:
+-- Jalankan query berikut setelah schema.sql DAN stage_7_rls_auth.sql selesai:
 --
 -- SELECT table_name
 -- FROM information_schema.tables

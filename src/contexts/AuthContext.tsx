@@ -1,83 +1,135 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import type { Session, User } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
+
+/**
+ * Autentikasi berbasis Supabase Auth.
+ *
+ * Yang berubah dibanding model PIN lama:
+ *   - Verifikasi kode sekolah dilakukan SERVER (Supabase Auth), bukan di bundle.
+ *   - Tidak ada lagi PIN yang tertanam di berkas JavaScript.
+ *   - Peran admin/guru dibaca dari app_metadata JWT, yang hanya bisa ditulis
+ *     lewat service_role (scripts/provision-auth-accounts.ts) sehingga tidak
+ *     bisa dipalsukan dari browser.
+ *   - Sesi disimpan di perangkat dan diperbarui otomatis → guru masuk sekali.
+ *
+ * UX untuk guru tetap sama: pilih nama, ketik kode sekolah, masuk.
+ */
+
+const AUTH_DOMAIN = (import.meta.env?.VITE_AUTH_DOMAIN as string) || 'siajar.local';
+const ADMIN_EMAIL = (import.meta.env?.VITE_ADMIN_EMAIL as string) || `admin@${AUTH_DOMAIN}`;
+
+/** Email sintetis per guru. Bukan rahasia — hanya identitas akun. */
+const emailForGuru = (guruId: string) => `guru-${guruId}@${AUTH_DOMAIN}`;
 
 interface AuthContextType {
   activeTeacherName: string | null;
   isAdmin: boolean;
   isDev: boolean;
   loading: boolean;
-  loginAsTeacher: (namaGuru: string, pin: string) => Promise<{ success: boolean; message?: string }>;
-  loginAsAdmin: (pin: string) => Promise<{ success: boolean; message?: string }>;
-  signOut: () => void;
+  loginAsTeacher: (guruId: string, kode: string) => Promise<{ success: boolean; message?: string }>;
+  loginAsAdmin: (kode: string) => Promise<{ success: boolean; message?: string }>;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Shared Universal PIN for Teachers (can be overridden via env)
-export const UNIVERSAL_TEACHER_PIN = import.meta.env.VITE_TEACHER_PIN;
-// Superuser / Admin PIN (can be overridden via env)
-export const ADMIN_PIN = import.meta.env.VITE_ADMIN_PIN
+function roleOf(user: User | null): string {
+  const meta = (user?.app_metadata ?? {}) as Record<string, unknown>;
+  return typeof meta.role === 'string' ? meta.role : '';
+}
 
-const STORAGE_KEY_TEACHER = 'active_teacher_name';
-const STORAGE_KEY_IS_ADMIN = 'is_admin_session';
+function nameOf(user: User | null): string | null {
+  const meta = (user?.app_metadata ?? {}) as Record<string, unknown>;
+  return typeof meta.guru_name === 'string' ? meta.guru_name : null;
+}
+
+/** Terjemahkan pesan galat Supabase jadi kalimat yang ramah guru. */
+function pesanError(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes('invalid login credentials')) return 'Nama atau kode sekolah tidak cocok.';
+  if (m.includes('email not confirmed')) return 'Akun ini belum diaktifkan. Hubungi admin sekolah.';
+  if (m.includes('too many requests') || m.includes('rate limit')) {
+    return 'Terlalu banyak percobaan masuk. Coba lagi beberapa saat lagi.';
+  }
+  if (m.includes('failed to fetch') || m.includes('network')) {
+    return 'Tidak dapat menghubungi server. Periksa koneksi internet.';
+  }
+  return message;
+}
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [activeTeacherName, setActiveTeacherName] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const storedTeacher = localStorage.getItem(STORAGE_KEY_TEACHER);
-      const storedAdmin = localStorage.getItem(STORAGE_KEY_IS_ADMIN) === 'true';
+    let mounted = true;
 
-      if (storedTeacher) {
-        setActiveTeacherName(storedTeacher);
-      }
-      setIsAdmin(storedAdmin);
-    } catch (e) {
-      console.error('Error loading stored auth state:', e);
-    } finally {
-      setLoading(false);
-    }
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!mounted) return;
+        setSession(data.session);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+      setSession(next);
+    });
+
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
-  const loginAsTeacher = async (namaGuru: string, pin: string): Promise<{ success: boolean; message?: string }> => {
-    if (!namaGuru || !namaGuru.trim()) {
-      return { success: false, message: 'Pilih nama guru terlebih dahulu.' };
+  const user = session?.user ?? null;
+  const role = roleOf(user);
+  const isValidMember = role === 'guru' || role === 'admin';
+
+  // Akun yang tidak punya klaim peran yang sah tidak dianggap login.
+  useEffect(() => {
+    if (session && !isValidMember) {
+      void supabase.auth.signOut();
     }
-    if (pin.trim() !== UNIVERSAL_TEACHER_PIN && pin.trim() !== ADMIN_PIN) {
-      return { success: false, message: 'PIN Sekolah tidak valid.' };
-    }
+  }, [session, isValidMember]);
 
-    const trimmedName = namaGuru.trim();
-    setActiveTeacherName(trimmedName);
-    setIsAdmin(false);
+  const activeTeacherName = isValidMember ? nameOf(user) : null;
+  const isAdmin = role === 'admin';
 
-    localStorage.setItem(STORAGE_KEY_TEACHER, trimmedName);
-    localStorage.removeItem(STORAGE_KEY_IS_ADMIN);
+  const loginAsTeacher = async (
+    guruId: string,
+    kode: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    if (!guruId) return { success: false, message: 'Pilih nama guru terlebih dahulu.' };
+    if (!kode || !kode.trim()) return { success: false, message: 'Kode sekolah belum diisi.' };
 
+    const { error } = await supabase.auth.signInWithPassword({
+      email: emailForGuru(guruId),
+      password: kode.trim(),
+    });
+
+    if (error) return { success: false, message: pesanError(error.message) };
     return { success: true };
   };
 
-  const loginAsAdmin = async (pin: string): Promise<{ success: boolean; message?: string }> => {
-    if (pin.trim() !== ADMIN_PIN) {
-      return { success: false, message: 'PIN Admin / Superuser tidak valid.' };
-    }
+  const loginAsAdmin = async (kode: string): Promise<{ success: boolean; message?: string }> => {
+    if (!kode || !kode.trim()) return { success: false, message: 'Kode admin belum diisi.' };
 
-    setActiveTeacherName('Administrator');
-    setIsAdmin(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: ADMIN_EMAIL,
+      password: kode.trim(),
+    });
 
-    localStorage.setItem(STORAGE_KEY_TEACHER, 'Administrator');
-    localStorage.setItem(STORAGE_KEY_IS_ADMIN, 'true');
-
+    if (error) return { success: false, message: pesanError(error.message) };
     return { success: true };
   };
 
-  const signOut = () => {
-    setActiveTeacherName(null);
-    setIsAdmin(false);
-    localStorage.removeItem(STORAGE_KEY_TEACHER);
-    localStorage.removeItem(STORAGE_KEY_IS_ADMIN);
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setSession(null);
   };
 
   return (
