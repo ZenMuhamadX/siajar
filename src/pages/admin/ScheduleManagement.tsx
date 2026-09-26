@@ -23,6 +23,11 @@ import { getPeriodTemplates } from '../../services/periodTemplateService';
 import { getDaftarGuru, getDaftarMapel } from '../../services/agendaService';
 import { PageHeader } from '../../components/admin/PageHeader';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { buildScheduleExportModel } from '../../services/export/scheduleExportModel';
+import {
+  downloadScheduleWorkbook,
+  ScheduleExportError,
+} from '../../services/export/scheduleExcelExport';
 import {
   Plus,
   CheckCircle2,
@@ -32,6 +37,8 @@ import {
   AlertTriangle,
   RefreshCw,
   Clock,
+  FileSpreadsheet,
+  Loader2,
 } from 'lucide-react';
 import {
   DataTable,
@@ -99,6 +106,57 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
   // Dialog hapus (menggantikan confirm() bawaan browser)
   const [deleteTarget, setDeleteTarget] = useState<ScheduleItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Export Excel (Stage 5.2)
+  const [isExporting, setIsExporting] = useState(false);
+
+  /**
+   * Export jadwal ke .xlsx.
+   *
+   * Sumber data = state `schedules`, yang sudah di-scope ke `selectedAYId`
+   * oleh `getSchedules({ academicYearId })`. Sengaja TIDAK memakai
+   * `filteredSchedules`: filter hari/kelas/guru/status di layar tidak
+   * mempersempit file, supaya jadwal mingguan yang dihasilkan utuh dan
+   * siap dicetak. Tidak ada query baru, tidak ada perubahan business logic.
+   */
+  const handleExportExcel = async () => {
+    if (isExporting) return;
+
+    if (!selectedAYId) {
+      showToast('error', 'Pilih tahun ajaran terlebih dahulu.');
+      return;
+    }
+    const academicYearName = academicYears.find((y) => y.id === selectedAYId)?.name;
+    if (!academicYearName) {
+      showToast('error', 'Tahun ajaran tidak ditemukan. Muat ulang halaman lalu coba lagi.');
+      return;
+    }
+    if (schedules.length === 0) {
+      showToast('error', 'Belum ada jadwal untuk tahun ajaran ini.');
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const model = buildScheduleExportModel({
+        schedules,
+        academicYearName,
+        teachers,
+      });
+      const fileName = await downloadScheduleWorkbook(model);
+      showToast(
+        'success',
+        `${fileName} berhasil diunduh (${model.exportedCount} slot, ${model.academicYearName}).`,
+      );
+    } catch (err) {
+      showToast(
+        'error',
+        err instanceof ScheduleExportError ? err.message : 'Gagal mengekspor jadwal.',
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // Load masters & initial data
   const loadData = async () => {
@@ -665,14 +723,31 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
             </>
           }
           actions={
-            <button
-              type="button"
-              onClick={() => loadData()}
-              className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-slate-200 transition"
-              title="Refresh Data"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                disabled={isExporting}
+                className={`${formStyles.ghostBtn} disabled:opacity-60 disabled:cursor-not-allowed`}
+                title="Unduh jadwal pelajaran (.xlsx) untuk tahun ajaran terpilih"
+              >
+                {isExporting ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
+                )}
+                {isExporting ? 'Exporting...' : 'Export Excel'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => loadData()}
+                className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-slate-200 transition"
+                title="Refresh Data"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
           }
         />
       </div>
