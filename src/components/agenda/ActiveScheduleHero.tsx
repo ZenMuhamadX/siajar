@@ -23,35 +23,44 @@ export const ActiveScheduleHero: React.FC<ActiveScheduleHeroProps> = ({
       <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-2">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-700/80 border border-emerald-500/30 rounded-full text-xs font-bold text-emerald-100 tracking-wide uppercase">
-            <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping inline-block" />
-            <span>Jadwal Sedang Berlangsung</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping inline-block" aria-hidden="true" />
+            <span>Sedang Berlangsung</span>
           </div>
 
           <div>
-            <div className="flex items-center gap-2 text-emerald-200 text-xs font-mono font-medium">
-              <Clock className="w-3.5 h-3.5 text-emerald-300" />
-              <span>{startTime} – {endTime}</span>
-              <span>&bull;</span>
-              <span>Jam {schedule.period_number}</span>
+            <div className="flex items-center gap-2 text-emerald-100 text-xs font-medium tabular-nums">
+              <Clock className="w-4 h-4 text-emerald-200" aria-hidden="true" />
+              <span>
+                {startTime}–{endTime}
+              </span>
+              <span aria-hidden="true">&bull;</span>
+              <span>Jam ke-{schedule.period_number}</span>
             </div>
-            <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-white mt-0.5">
+            <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-white mt-1">
               {schedule.subject_name}
             </h2>
-            <p className="text-xs text-emerald-100/90 mt-0.5">
-              <strong className="text-white">{schedule.class_id}</strong> &bull; {schedule.teacher_name}
+            <p className="text-sm text-emerald-50/90 mt-0.5">
+              <strong className="text-white">{schedule.class_id}</strong>
+              <span aria-hidden="true"> &bull; </span>
+              {schedule.teacher_name}
             </p>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => onOpenAgenda(slot)}
-          className="px-5 py-3 bg-white hover:bg-emerald-50 active:scale-98 text-emerald-900 font-bold text-xs rounded-xl shadow-sm flex items-center justify-center gap-2 transition shrink-0"
-        >
-          <Edit3 className="w-4 h-4 text-emerald-700" />
-          <span>Isi Agenda Sekarang</span>
-          <ArrowRight className="w-3.5 h-3.5 text-emerald-700" />
-        </button>
+        <div className="shrink-0 space-y-2 sm:text-right">
+          <button
+            type="button"
+            onClick={() => onOpenAgenda(slot)}
+            className="w-full sm:w-auto px-5 py-3.5 min-h-12 bg-white hover:bg-emerald-50 text-emerald-900 font-bold text-sm rounded-xl shadow-sm flex items-center justify-center gap-2 transition"
+          >
+            <Edit3 className="w-5 h-5 text-emerald-700" aria-hidden="true" />
+            <span>Isi Agenda Sekarang</span>
+            <ArrowRight className="w-4 h-4 text-emerald-700" aria-hidden="true" />
+          </button>
+          <p className="text-xs text-emerald-100/80">
+            Foto, materi, dan kehadiran — sekitar satu menit.
+          </p>
+        </div>
       </div>
     </div>
   );

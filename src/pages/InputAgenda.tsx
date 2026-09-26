@@ -105,6 +105,24 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
   const isFormViewActive = Boolean(editData) || isSubstituteFormOpen || canOpenSlot;
   const formSlot = isSubstituteFormOpen ? substituteSlot : resolvedSlot;
 
+  /**
+   * Kembalikan posisi gulir ke atas setiap kali masuk ke tampilan form, atau
+   * berpindah slot di dalam form (termasuk saat lanjut ke slot terlewat
+   * berikutnya).
+   *
+   * `ScrollToTop` global hanya bereaksi pada `pathname`, sedangkan slot dibuka
+   * lewat `?slot=` (search param). Tanpa efek ini, guru yang mengetuk slot ke-5
+   * dari bawah akan mendarat di tengah/bawah form — kemungkinan besar langsung
+   * di bagian foto — bukan di bagian pertama yang harus diisi.
+   *
+   * Sengaja tidak menggulir saat KELUAR dari form, supaya posisi daftar jadwal
+   * tetap di tempat guru meninggalkannya.
+   */
+  useEffect(() => {
+    if (!isFormViewActive) return;
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [isFormViewActive, slotId, editData?.header.id]);
+
   // Buang `?slot=` yang tidak bisa dipakai: `?edit=` selalu menang, timeline
   // sudah selesai dimuat tapi slot tidak ditemukan (link basi / milik guru
   // lain / tanggal salah), atau statusnya UPCOMING. Setelah dibuang, kondisi di
@@ -277,14 +295,59 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
     }
   };
 
-  const handleSuccessSave = () => {
-    fetchTimeline();
-    fetchOtherSlots();
+  /**
+   * Setelah berhasil menyimpan, langsung buka slot TERLEWAT berikutnya bila ada.
+   *
+   * Alasan: guru paling sering mengisi beberapa agenda sekaligus untuk
+   * mengejar ketertinggalan. Sebelumnya setiap penyimpanan mengembalikan ke
+   * daftar jadwal, lalu guru harus mencari sendiri slot berikutnya — delapan
+   * jam mengajar berarti delapan kali bolak-balik.
+   *
+   * Hanya slot berstatus OVERDUE (sudah lewat, belum diisi) yang dibuka
+   * otomatis: slot UPCOMING belum boleh diisi, jadi melompat ke sana justru
+   * membingungkan. Bila tidak ada, kembali ke daftar seperti biasa.
+   */
+  const handleSuccessSave = async () => {
+    // Identitas slot yang baru disimpan harus diambil SEBELUM state/URL diubah.
+    const savedScheduleId = formSlot?.schedule.id ?? editData?.header.schedule_id ?? null;
+
     setSubstituteSlot(null);
     setActiveSubstitution(null);
     setIsSubstituteMode(false);
-    closeSlot(); // buang ?slot=; onSuccess membuang ?edit= (no-op bila tidak ada)
-    onSuccess();
+    onSuccess(); // buang ?edit= bila ada
+
+    if (!activeTeacherName) {
+      closeSlot();
+      return;
+    }
+
+    try {
+      const fresh = await getTeacherDailyTimeline(activeTeacherName, selectedDate, new Date());
+      setTimelineData(fresh);
+      setLoadedDate(selectedDate);
+
+      const slots = fresh?.slots ?? [];
+      const savedIndex = savedScheduleId
+        ? slots.findIndex((s) => s.schedule.id === savedScheduleId)
+        : -1;
+      const nextOverdue =
+        savedIndex >= 0 ? slots.slice(savedIndex + 1).find((s) => s.status === 'OVERDUE') : undefined;
+
+      if (nextOverdue) {
+        showToast(
+          'info',
+          `Lanjut ke ${nextOverdue.schedule.subject_name} ${nextOverdue.schedule.class_id} — jam terlewat berikutnya.`
+        );
+        openSlot(nextOverdue.schedule.id, selectedDate);
+      } else {
+        closeSlot();
+      }
+    } catch (err) {
+      console.error('Gagal memuat timeline setelah menyimpan:', err);
+      closeSlot();
+    }
+
+    fetchOtherSlots();
   };
 
   // Open substitution modal for a slot from another class
@@ -469,7 +532,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
         <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+              <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
                 Isi Agenda Mengajar
               </h1>
               <p className="text-xs text-slate-600 mt-0.5">
@@ -532,7 +595,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
               Sekarang jadi angka besar + bar yang bisa dibaca sekilas. */}
           <div className="mt-3 pt-3 border-t border-slate-200/60 space-y-2.5">
             <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <span className="text-sm font-bold text-slate-800">
+              <span className="text-base font-bold text-slate-900">
                 {formatDateIndo(selectedDate)}
               </span>
 
@@ -654,8 +717,8 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
               {/* SECTION 2: JADWAL HARI INI / TIMELINE LIST */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between pb-1 border-b border-slate-100">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-emerald-700" />
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-emerald-700" aria-hidden="true" />
                     <span>
                       {isViewingToday ? 'Jadwal Hari Ini' : `Jadwal (${timelineData.dayName})`}
                     </span>
