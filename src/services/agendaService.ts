@@ -1,9 +1,9 @@
 import { supabase } from '../lib/supabase';
+import { getSettingsSync } from './settings/settingsService';
 import type {
   Siswa,
   Guru,
   MataPelajaran,
-  GuruKelas,
   FullAgenda,
   AgendaKBM,
   KotakSaran,
@@ -47,60 +47,50 @@ export async function deleteSiswa(id: string): Promise<void> {
 export async function getDaftarGuru(): Promise<Guru[]> {
   const { data, error } = await supabase
     .from('guru')
-    .select('*')
+    .select('id, nama_guru, created_at')
     .order('nama_guru', { ascending: true });
   if (error) throw error;
   return data || [];
 }
 
-export async function addGuru(nama: string, kelasList?: string[]): Promise<Guru> {
+/**
+ * Direktori guru untuk halaman LOGIN (dipakai sebelum ada sesi).
+ *
+ * Hanya kolom id + nama_guru yang di-grant ke role anon (lihat bagian 4
+ * supabase/stage_7_rls_auth.sql). Query ini sengaja TIDAK menyentuh kolom lain,
+ * karena kolom lain akan ditolak server. Jangan tambahkan kolom di sini tanpa
+ * menyesuaikan grant-nya.
+ */
+export async function getGuruDirectory(): Promise<Pick<Guru, 'id' | 'nama_guru'>[]> {
+  const { data, error } = await supabase
+    .from('guru')
+    .select('id, nama_guru')
+    .order('nama_guru', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function addGuru(nama: string): Promise<Guru> {
   const { data, error } = await supabase
     .from('guru')
     .insert([{ nama_guru: nama.trim() }])
     .select()
     .single();
   if (error) throw error;
-
-  if (kelasList && kelasList.length > 0) {
-    const rows = kelasList.map((k) => ({
-      nama_guru: nama.trim(),
-      kelas: k,
-    }));
-    await supabase.from('guru_kelas').insert(rows);
-  }
-
   return data;
 }
 
-export async function updateGuru(
-  id: string,
-  namaLama: string,
-  namaBaru: string,
-  kelasList?: string[]
-): Promise<void> {
+export async function updateGuru(id: string, namaBaru: string): Promise<void> {
   const { error } = await supabase
     .from('guru')
     .update({ nama_guru: namaBaru.trim() })
     .eq('id', id);
   if (error) throw error;
-
-  // Sync guru_kelas
-  await supabase.from('guru_kelas').delete().eq('nama_guru', namaLama.trim());
-  if (kelasList && kelasList.length > 0) {
-    const rows = kelasList.map((k) => ({
-      nama_guru: namaBaru.trim(),
-      kelas: k,
-    }));
-    await supabase.from('guru_kelas').insert(rows);
-  }
 }
 
-export async function deleteGuru(id: string, nama: string): Promise<void> {
+export async function deleteGuru(id: string): Promise<void> {
   const { error } = await supabase.from('guru').delete().eq('id', id);
   if (error) throw error;
-
-  // Hapus relasi kelas
-  await supabase.from('guru_kelas').delete().eq('nama_guru', nama.trim());
 }
 
 // ----------------- MATA PELAJARAN SERVICES -----------------
@@ -143,62 +133,11 @@ export async function deleteMapel(id: string): Promise<void> {
   if (error) throw error;
 }
 
-// ----------------- GURU KELAS SERVICES (PENUGASAN) -----------------
-export async function getDaftarGuruKelas(): Promise<GuruKelas[]> {
-  const { data, error } = await supabase
-    .from('guru_kelas')
-    .select('*')
-    .order('kelas', { ascending: true });
-  if (error) {
-    console.warn('guru_kelas check fallback:', error.message);
-    return [];
-  }
-  return data || [];
-}
-
-export async function getKelasByGuru(namaGuru: string): Promise<string[]> {
-  if (!namaGuru) return [];
-  try {
-    const { data, error } = await supabase
-      .from('guru_kelas')
-      .select('kelas')
-      .eq('nama_guru', namaGuru.trim());
-    if (error) return [];
-    return (data || []).map((d) => d.kelas);
-  } catch (e) {
-    return [];
-  }
-}
-
-export async function checkGuruKelas(namaGuru: string, kelas: string): Promise<boolean> {
-  if (!namaGuru || !kelas) return false;
-  try {
-    const { data, error } = await supabase
-      .from('guru_kelas')
-      .select('id')
-      .eq('nama_guru', namaGuru.trim())
-      .eq('kelas', kelas.trim())
-      .limit(1);
-
-    if (error) {
-      console.warn('Gagal cek guru_kelas:', error.message);
-      return true;
-    }
-
-    const { count } = await supabase.from('guru_kelas').select('*', { count: 'exact', head: true });
-    if (count === 0 || count === null) {
-      return true;
-    }
-
-    return (data && data.length > 0) || false;
-  } catch (e) {
-    return true;
-  }
-}
-
 // ----------------- AGENDA SERVICES -----------------
 export interface SimpanAgendaPayload {
   agendaId?: string;
+  schedule_id?: string | null;
+  actual_teacher_name?: string | null;
   sekolah?: string;
   kelas: string;
   tanggal: string;
@@ -208,14 +147,30 @@ export interface SimpanAgendaPayload {
 }
 
 export async function simpanAgenda(payload: SimpanAgendaPayload): Promise<{ id: string }> {
-  const { agendaId, sekolah = 'SDIT AS-SYIFA', kelas, tanggal, kbm, absensi, uraian_kejadian } = payload;
+  const {
+    agendaId,
+    schedule_id,
+    actual_teacher_name,
+    // Nama sekolah dari Pengaturan. Agenda lama tetap memakai nilai yang
+    // tersimpan saat itu — itu memang benar untuk jejak audit.
+    sekolah = getSettingsSync().schoolName,
+    kelas,
+    tanggal,
+    kbm,
+    absensi,
+    uraian_kejadian,
+  } = payload;
 
   let currentAgendaId = agendaId;
+
+  const headerPayload: any = { sekolah, kelas, tanggal };
+  if (schedule_id !== undefined) headerPayload.schedule_id = schedule_id;
+  if (actual_teacher_name !== undefined) headerPayload.actual_teacher_name = actual_teacher_name;
 
   if (currentAgendaId) {
     const { error: headerErr } = await supabase
       .from('agenda_header')
-      .update({ sekolah, kelas, tanggal })
+      .update(headerPayload)
       .eq('id', currentAgendaId);
     if (headerErr) throw headerErr;
 
@@ -225,7 +180,7 @@ export async function simpanAgenda(payload: SimpanAgendaPayload): Promise<{ id: 
   } else {
     const { data: headerData, error: headerErr } = await supabase
       .from('agenda_header')
-      .insert([{ sekolah, kelas, tanggal }])
+      .insert([headerPayload])
       .select()
       .single();
     if (headerErr) throw headerErr;
@@ -266,16 +221,8 @@ export async function simpanAgenda(payload: SimpanAgendaPayload): Promise<{ id: 
   return { id: currentAgendaId! };
 }
 
-export async function getRekapAgenda(filters?: {
-  kelas?: string;
-  tanggal?: string;
-  startDate?: string;
-  endDate?: string;
-  nama_guru?: string;
-}): Promise<FullAgenda[]> {
-  let query = supabase
-    .from('agenda_header')
-    .select(`
+/** Kolom + relasi agenda yang dibutuhkan untuk membangun `FullAgenda`. */
+const AGENDA_DETAIL_SELECT = `
       *,
       agenda_kbm (*),
       agenda_absensi (
@@ -284,7 +231,66 @@ export async function getRekapAgenda(filters?: {
       ),
       agenda_kejadian (*),
       agenda_evidence (*)
-    `)
+    `;
+
+/** Ubah satu baris `agenda_header` (dengan relasinya) menjadi bentuk `FullAgenda`. */
+function mapAgendaRow(item: any): FullAgenda {
+  const rawEvidence = Array.isArray(item.agenda_evidence)
+    ? item.agenda_evidence[0]
+    : item.agenda_evidence;
+
+  return {
+    header: {
+      id: item.id,
+      sekolah: item.sekolah,
+      kelas: item.kelas,
+      tanggal: item.tanggal,
+      schedule_id: item.schedule_id || null,
+      actual_teacher_name: item.actual_teacher_name || null,
+      created_at: item.created_at,
+    },
+    kbm: (item.agenda_kbm || []).sort((a: any, b: any) =>
+      a.jam_ke.localeCompare(b.jam_ke, undefined, { numeric: true })
+    ),
+    absensi: (item.agenda_absensi || []).map((ab: any) => ({
+      id: ab.id,
+      agenda_id: ab.agenda_id,
+      siswa_id: ab.siswa_id,
+      status: ab.status,
+      siswa: ab.siswa,
+      nama_siswa: ab.siswa?.nama_siswa || '',
+    })),
+    kejadian: item.agenda_kejadian || [],
+    evidence: rawEvidence
+      ? {
+          id: rawEvidence.id,
+          agenda_id: rawEvidence.agenda_id,
+          storage_path: rawEvidence.storage_path,
+          file_name: rawEvidence.file_name,
+          file_size: rawEvidence.file_size,
+          mime_type: rawEvidence.mime_type,
+          captured_at: rawEvidence.captured_at,
+          uploaded_at: rawEvidence.uploaded_at,
+          actual_teacher_name: rawEvidence.actual_teacher_name,
+          actual_teacher_id: rawEvidence.actual_teacher_id,
+          created_at: rawEvidence.created_at,
+        }
+      : null,
+  };
+}
+
+export async function getRekapAgenda(filters?: {
+  kelas?: string;
+  tanggal?: string;
+  startDate?: string;
+  endDate?: string;
+  nama_guru?: string;
+  /** Batasi jumlah baris (untuk "terbaru" / dashboard) — opsional. */
+  limit?: number;
+}): Promise<FullAgenda[]> {
+  let query = supabase
+    .from('agenda_header')
+    .select(AGENDA_DETAIL_SELECT)
     .order('tanggal', { ascending: false })
     .order('created_at', { ascending: false });
 
@@ -300,49 +306,14 @@ export async function getRekapAgenda(filters?: {
   if (filters?.endDate) {
     query = query.lte('tanggal', filters.endDate);
   }
+  if (filters?.limit && filters.limit > 0) {
+    query = query.limit(filters.limit);
+  }
 
   const { data, error } = await query;
   if (error) throw error;
 
-  let results: FullAgenda[] = (data || []).map((item: any) => {
-    const rawEvidence = Array.isArray(item.agenda_evidence)
-      ? item.agenda_evidence[0]
-      : item.agenda_evidence;
-
-    return {
-      header: {
-        id: item.id,
-        sekolah: item.sekolah,
-        kelas: item.kelas,
-        tanggal: item.tanggal,
-        created_at: item.created_at,
-      },
-      kbm: (item.agenda_kbm || []).sort((a: any, b: any) =>
-        a.jam_ke.localeCompare(b.jam_ke, undefined, { numeric: true })
-      ),
-      absensi: (item.agenda_absensi || []).map((ab: any) => ({
-        id: ab.id,
-        agenda_id: ab.agenda_id,
-        siswa_id: ab.siswa_id,
-        status: ab.status,
-        siswa: ab.siswa,
-        nama_siswa: ab.siswa?.nama_siswa || '',
-      })),
-      kejadian: item.agenda_kejadian || [],
-      evidence: rawEvidence
-        ? {
-            id: rawEvidence.id,
-            agenda_id: rawEvidence.agenda_id,
-            storage_path: rawEvidence.storage_path,
-            file_name: rawEvidence.file_name,
-            file_size: rawEvidence.file_size,
-            mime_type: rawEvidence.mime_type,
-            uploaded_at: rawEvidence.uploaded_at,
-            created_at: rawEvidence.created_at,
-          }
-        : null,
-    };
-  });
+  let results: FullAgenda[] = (data || []).map(mapAgendaRow);
 
   if (filters?.nama_guru && filters.nama_guru !== 'Administrator') {
     const teacherName = filters.nama_guru.trim();
@@ -352,6 +323,23 @@ export async function getRekapAgenda(filters?: {
   }
 
   return results;
+}
+
+/**
+ * Ambil satu agenda lengkap berdasarkan id — dipakai untuk handoff edit via URL
+ * (`?edit=<id>`). Mengembalikan `null` bila id tidak ditemukan (link basi /
+ * agenda sudah dihapus), sehingga pemanggil bisa menampilkan pesan + membersihkan query.
+ */
+export async function getAgendaById(agendaId: string): Promise<FullAgenda | null> {
+  const { data, error } = await supabase
+    .from('agenda_header')
+    .select(AGENDA_DETAIL_SELECT)
+    .eq('id', agendaId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? mapAgendaRow(data) : null;
 }
 
 export async function deleteAgenda(agendaId: string): Promise<void> {

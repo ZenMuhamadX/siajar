@@ -49,42 +49,50 @@ export async function getEvidenceSignedUrl(
 }
 
 /**
- * Upload bukti foto ke Supabase Storage dan simpan/update metadata di database.
- * Melakukan cleanup file lama jika ada penggantian foto.
+ * Upload bukti foto langsung ke Supabase Storage dan simpan metadata di database.
+ * Menerima file (File/Blob) hasil capture kamera, capturedAt, dan actualTeacher info.
  */
 export async function uploadAgendaEvidence(params: {
   agendaId: string;
-  file: File;
+  file: File | Blob;
   tanggal: string; // YYYY-MM-DD
+  capturedAt?: string;
+  actualTeacherName?: string;
+  actualTeacherId?: string | null;
+  academicYearId?: string;
   oldStoragePath?: string;
 }): Promise<AgendaEvidence> {
-  const { agendaId, file, tanggal, oldStoragePath } = params;
+  const {
+    agendaId,
+    file,
+    tanggal,
+    capturedAt = new Date().toISOString(),
+    actualTeacherName,
+    actualTeacherId,
+    academicYearId,
+    oldStoragePath,
+  } = params;
 
-  console.log(`[Evidence] Upload started for agenda ${agendaId}`);
+  console.log(`[Evidence] photo_upload_started for agenda ${agendaId}`);
 
-  // 1. Client-side compression
-  const compression = await compressEvidencePhoto(file);
+  // 1. Konversi ke File object jika masih Blob mentah
+  const fileObj =
+    file instanceof File
+      ? file
+      : new File([file], `evidence_${Date.now()}.jpg`, { type: 'image/jpeg' });
+
+  // 2. Client-side compression
+  const compression = await compressEvidencePhoto(fileObj);
   const fileToUpload = compression.file;
   const extension = fileToUpload.type === 'image/webp' ? 'webp' : 'jpg';
 
-  // 2. Tentukan storage path: agenda-evidence/{tahun}/{bulan}/{tanggal}/{agenda_id}/evidence_{timestamp}.webp
-  let year = '2026';
-  let month = '01';
-  let day = '01';
+  // 3. Tentukan storage path terstruktur:
+  // Format: {academic_year_id atau tahun}/{agenda_date}/{agenda_id}.webp
+  const folderPrefix = academicYearId ? academicYearId : (tanggal ? tanggal.split('-')[0] : '2026');
+  const dateFolder = tanggal || 'undated';
+  const storagePath = `${folderPrefix}/${dateFolder}/${agendaId}.${extension}`;
 
-  if (tanggal && tanggal.includes('-')) {
-    const parts = tanggal.split('-');
-    if (parts.length === 3) {
-      year = parts[0];
-      month = parts[1];
-      day = parts[2];
-    }
-  }
-
-  const timestamp = Date.now();
-  const storagePath = `${year}/${month}/${day}/${agendaId}/evidence_${timestamp}.${extension}`;
-
-  // 3. Upload ke Storage
+  // 4. Upload ke Supabase Storage
   const { error: uploadErr } = await supabase.storage
     .from(EVIDENCE_BUCKET)
     .upload(storagePath, fileToUpload, {
@@ -93,38 +101,42 @@ export async function uploadAgendaEvidence(params: {
     });
 
   if (uploadErr) {
-    console.error(`[Evidence] Upload failed for agenda ${agendaId}:`, uploadErr.message);
-    throw new Error('Foto gagal diunggah. Periksa koneksi internet lalu coba lagi.');
+    console.error(`[Evidence] photo_upload_failed for agenda ${agendaId}:`, uploadErr.message);
+    throw new Error('Foto dokumentasi gagal diunggah ke storage. Periksa koneksi internet lalu coba lagi.');
   }
 
-  console.log(`[Evidence] Upload success to storage: ${storagePath}`);
+  console.log(`[Evidence] photo_upload_success to storage: ${storagePath}`);
 
-  // 4. Simpan metadata ke tabel agenda.agenda_evidence
+  // 5. Simpan metadata ke tabel agenda.agenda_evidence
   try {
+    const uploadedAt = new Date().toISOString();
+    const payload: Record<string, any> = {
+      agenda_id: agendaId,
+      storage_path: storagePath,
+      file_name: `${agendaId}.${extension}`,
+      file_size: fileToUpload.size,
+      mime_type: fileToUpload.type,
+      captured_at: capturedAt,
+      uploaded_at: uploadedAt,
+    };
+
+    if (actualTeacherName) payload.actual_teacher_name = actualTeacherName;
+    if (actualTeacherId) payload.actual_teacher_id = actualTeacherId;
+
     const { data: evidenceData, error: dbErr } = await supabase
       .from('agenda_evidence')
-      .upsert(
-        {
-          agenda_id: agendaId,
-          storage_path: storagePath,
-          file_name: file.name,
-          file_size: fileToUpload.size,
-          mime_type: fileToUpload.type,
-          uploaded_at: new Date().toISOString(),
-        },
-        { onConflict: 'agenda_id' }
-      )
+      .upsert(payload, { onConflict: 'agenda_id' })
       .select()
       .single();
 
     if (dbErr) {
       console.error(`[Evidence] DB save failed for agenda ${agendaId}:`, dbErr.message);
-      // Hapus file yang baru diupload agar tidak orphan
+      // Orphan cleanup: hapus file yang baru saja diupload jika insert metadata database gagal
       await supabase.storage.from(EVIDENCE_BUCKET).remove([storagePath]);
       throw new Error('Gagal menyimpan metadata bukti foto di database.');
     }
 
-    // 5. Cleanup file lama jika ini adalah penggantian foto (replace)
+    // 6. Cleanup file lama jika path berbeda
     if (oldStoragePath && oldStoragePath !== storagePath) {
       try {
         await supabase.storage.from(EVIDENCE_BUCKET).remove([oldStoragePath]);
@@ -135,7 +147,7 @@ export async function uploadAgendaEvidence(params: {
       }
     }
 
-    // Dapatkan signed URL untuk preview langsung
+    // Ambil signed URL untuk preview langsung
     const signedUrl = await getEvidenceSignedUrl(storagePath);
 
     return {
@@ -145,21 +157,29 @@ export async function uploadAgendaEvidence(params: {
       file_name: evidenceData.file_name,
       file_size: evidenceData.file_size,
       mime_type: evidenceData.mime_type,
+      captured_at: evidenceData.captured_at,
       uploaded_at: evidenceData.uploaded_at,
+      actual_teacher_name: evidenceData.actual_teacher_name,
+      actual_teacher_id: evidenceData.actual_teacher_id,
       created_at: evidenceData.created_at,
       signedUrl: signedUrl || undefined,
     };
   } catch (err: any) {
-    console.error(`[Evidence] Error in save flow:`, err.message);
+    console.error(`[Evidence] photo_upload_failed during DB metadata step:`, err.message);
     throw err;
   }
 }
 
 /**
  * Hapus bukti foto (Storage & Database record).
+ * Digunakan oleh admin untuk mereset dokumentasi agenda.
  */
-export async function deleteAgendaEvidence(agendaId: string, storagePath?: string): Promise<void> {
-  console.log(`[Evidence] Delete started for agenda ${agendaId}`);
+export async function deleteAgendaEvidence(
+  agendaId: string,
+  storagePath?: string,
+  isAdminAction = false
+): Promise<void> {
+  console.log(`[Evidence] Delete started for agenda ${agendaId}. AdminAction: ${isAdminAction}`);
 
   // 1. Hapus dari database terlebih dahulu
   const { error: dbErr } = await supabase
@@ -189,6 +209,10 @@ export async function deleteAgendaEvidence(agendaId: string, storagePath?: strin
       console.warn(`[Evidence] Storage delete exception:`, err?.message);
     }
   }
+
+  if (isAdminAction) {
+    console.log(`[Evidence] photo_deleted_by_admin for agenda ${agendaId}`);
+  }
 }
 
 /**
@@ -215,7 +239,10 @@ export async function getAgendaEvidence(agendaId: string): Promise<AgendaEvidenc
       file_name: data.file_name,
       file_size: data.file_size,
       mime_type: data.mime_type,
+      captured_at: data.captured_at,
       uploaded_at: data.uploaded_at,
+      actual_teacher_name: data.actual_teacher_name,
+      actual_teacher_id: data.actual_teacher_id,
       created_at: data.created_at,
       signedUrl: signedUrl || undefined,
     };

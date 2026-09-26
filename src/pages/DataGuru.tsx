@@ -1,53 +1,85 @@
 import React, { useState, useEffect } from 'react';
-import { DAFTAR_KELAS, type Guru } from '../types';
+import type { Guru } from '../types';
 import {
   getDaftarGuru,
   addGuru,
   updateGuru,
   deleteGuru,
-  getDaftarGuruKelas,
 } from '../services/agendaService';
 import {
+  createTeacherAccount,
+  listTeacherAccounts,
+  setTeacherActive,
+  setTeacherCode,
+  type TeacherAccount,
+} from '../services/userAdminService';
+import {
   UserCheck,
-  UserPlus,
   Edit2,
   Trash2,
   Check,
-  X,
-  GraduationCap,
+  Plus,
+  KeyRound,
+  RefreshCw,
+  Copy,
+  Eye,
+  EyeOff,
+  AlertCircle,
 } from 'lucide-react';
+import {
+  DataTable,
+  StatusBadge,
+  FilterBar,
+  FormModal,
+  FormField,
+  TextInput,
+  formStyles,
+} from '../components/common';
+import { PageHeader } from '../components/admin/PageHeader';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 interface DataGuruProps {
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
 }
 
+const MIN_CODE_LENGTH = 6;
+
+/** Kode acak yang mudah dibaca: tanpa I/O/0/1 supaya tidak salah ketik. */
+function generateCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const pick = (n: number) =>
+    Array.from({ length: n }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  return `${pick(3)}-${pick(3)}`;
+}
+
 export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
   const [guruList, setGuruList] = useState<Guru[]>([]);
-  const [guruKelasMap, setGuruKelasMap] = useState<Record<string, string[]>>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Form states for Add / Edit
   const [namaInput, setNamaInput] = useState<string>('');
-  const [selectedKelas, setSelectedKelas] = useState<string[]>([]);
   const [editingGuru, setEditingGuru] = useState<Guru | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // --- Akun login ---------------------------------------------------------
+  const [accounts, setAccounts] = useState<Record<string, TeacherAccount>>({});
+  const [accountsError, setAccountsError] = useState<string | null>(null);
+
+  const [accountTarget, setAccountTarget] = useState<Guru | null>(null);
+  const [kodeInput, setKodeInput] = useState('');
+  const [showKode, setShowKode] = useState(false);
+  const [isSavingKode, setIsSavingKode] = useState(false);
+  const [isTogglingActive, setIsTogglingActive] = useState(false);
+  const [savedCode, setSavedCode] = useState<string | null>(null);
+  const [accountError, setAccountError] = useState('');
 
   const fetchGuru = async () => {
     setIsLoading(true);
     try {
-      const [dataG, dataGK] = await Promise.all([
-        getDaftarGuru(),
-        getDaftarGuruKelas(),
-      ]);
+      const dataG = await getDaftarGuru();
       setGuruList(dataG);
-
-      const mapping: Record<string, string[]> = {};
-      dataGK.forEach((item) => {
-        if (!mapping[item.nama_guru]) {
-          mapping[item.nama_guru] = [];
-        }
-        mapping[item.nama_guru].push(item.kelas);
-      });
-      setGuruKelasMap(mapping);
     } catch (err) {
       console.error(err);
       showToast('error', 'Gagal memuat data guru.');
@@ -56,25 +88,23 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
     }
   };
 
-  useEffect(() => {
-    fetchGuru();
-  }, []);
-
-  const handleToggleKelas = (kelasName: string) => {
-    setSelectedKelas((prev) =>
-      prev.includes(kelasName)
-        ? prev.filter((k) => k !== kelasName)
-        : [...prev, kelasName]
-    );
-  };
-
-  const handleSelectAllKelas = () => {
-    if (selectedKelas.length === DAFTAR_KELAS.length) {
-      setSelectedKelas([]);
-    } else {
-      setSelectedKelas([...DAFTAR_KELAS]);
+  const fetchAccounts = async () => {
+    try {
+      const list = await listTeacherAccounts();
+      const map: Record<string, TeacherAccount> = {};
+      for (const acc of list) map[acc.guru_id] = acc;
+      setAccounts(map);
+      setAccountsError(null);
+    } catch (err) {
+      // Biasanya karena Edge Function belum di-deploy. Panel tetap bisa dipakai.
+      setAccountsError((err as Error).message);
     }
   };
+
+  useEffect(() => {
+    fetchGuru();
+    fetchAccounts();
+  }, []);
 
   const handleSaveGuru = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,330 +113,522 @@ export const DataGuru: React.FC<DataGuruProps> = ({ showToast }) => {
       return;
     }
 
+    setIsSaving(true);
     try {
       if (editingGuru) {
-        await updateGuru(
-          editingGuru.id,
-          editingGuru.nama_guru,
-          namaInput,
-          selectedKelas
-        );
-        showToast('success', 'Data guru dan penugasan kelas berhasil diperbarui.');
+        await updateGuru(editingGuru.id, namaInput);
+        showToast('success', 'Data guru berhasil diperbarui.');
         setEditingGuru(null);
       } else {
-        await addGuru(namaInput, selectedKelas);
-        showToast(
-          'success',
-          `Guru ${namaInput} berhasil ditambahkan (${selectedKelas.length} kelas penugasan).`
-        );
+        await addGuru(namaInput);
+        showToast('success', `Guru ${namaInput} berhasil ditambahkan.`);
       }
       setNamaInput('');
-      setSelectedKelas([]);
+      setIsFormOpen(false);
       fetchGuru();
     } catch (err: any) {
       showToast('error', 'Gagal menyimpan data guru. ' + (err?.message || ''));
+    } finally {
+      setIsSaving(false);
     }
+  };
+
+  const handleOpenCreate = () => {
+    setEditingGuru(null);
+    setNamaInput('');
+    setIsFormOpen(true);
   };
 
   const handleEditClick = (guru: Guru) => {
     setEditingGuru(guru);
     setNamaInput(guru.nama_guru);
-    setSelectedKelas(guruKelasMap[guru.nama_guru] || []);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setIsFormOpen(true);
   };
 
-  const handleCancelEdit = () => {
+  const handleCloseForm = () => {
+    setIsFormOpen(false);
     setEditingGuru(null);
     setNamaInput('');
-    setSelectedKelas([]);
   };
 
-  const handleDelete = async (id: string, nama: string) => {
-    if (confirm(`Yakin ingin menghapus data guru "${nama}"?`)) {
-      try {
-        await deleteGuru(id, nama);
-        showToast('success', `Guru ${nama} berhasil dihapus.`);
-        fetchGuru();
-      } catch (err) {
-        showToast('error', 'Gagal menghapus data guru.');
-      }
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; nama: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = (id: string, nama: string) => {
+    setDeleteTarget({ id, nama });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      await deleteGuru(deleteTarget.id);
+      showToast('success', `Guru ${deleteTarget.nama} berhasil dihapus.`);
+      setDeleteTarget(null);
+      fetchGuru();
+      fetchAccounts();
+    } catch {
+      showToast('error', 'Gagal menghapus data guru.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
+  // --- Kelola akun --------------------------------------------------------
+
+  const openAccountModal = (guru: Guru) => {
+    setAccountTarget(guru);
+    setKodeInput('');
+    setShowKode(false);
+    setSavedCode(null);
+    setAccountError('');
+  };
+
+  const closeAccountModal = () => {
+    setAccountTarget(null);
+    setKodeInput('');
+    setShowKode(false);
+    setSavedCode(null);
+    setAccountError('');
+  };
+
+  const handleSaveKode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!accountTarget) return;
+
+    const kode = kodeInput.trim();
+    if (kode.length < MIN_CODE_LENGTH) {
+      setAccountError(`Kode minimal ${MIN_CODE_LENGTH} karakter.`);
+      return;
+    }
+
+    setAccountError('');
+    setIsSavingKode(true);
+    const existing = accounts[accountTarget.id]?.has_account;
+    try {
+      if (existing) {
+        await setTeacherCode(accountTarget.id, kode);
+      } else {
+        await createTeacherAccount(accountTarget.id, kode);
+      }
+      setSavedCode(kode);
+      await fetchAccounts();
+    } catch (err) {
+      setAccountError((err as Error).message);
+    } finally {
+      setIsSavingKode(false);
+    }
+  };
+
+  const handleToggleActive = async () => {
+    if (!accountTarget) return;
+    const acc = accounts[accountTarget.id];
+    if (!acc?.has_account) return;
+
+    setIsTogglingActive(true);
+    try {
+      await setTeacherActive(accountTarget.id, !acc.active);
+      showToast(
+        'success',
+        acc.active
+          ? `Akun ${accountTarget.nama_guru} dinonaktifkan.`
+          : `Akun ${accountTarget.nama_guru} diaktifkan kembali.`
+      );
+      await fetchAccounts();
+    } catch (err) {
+      showToast('error', (err as Error).message);
+    } finally {
+      setIsTogglingActive(false);
+    }
+  };
+
+  const copyCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      showToast('success', 'Kode disalin.');
+    } catch {
+      showToast('error', 'Gagal menyalin. Salin manual dari kotak di atas.');
+    }
+  };
+
+  const targetAccount = accountTarget ? accounts[accountTarget.id] : undefined;
+
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
-      {/* Header & Add/Edit Form */}
-      <div className="bg-white rounded-xl p-4 sm:p-6 border border-slate-200 shadow-xs space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-purple-100 flex items-center justify-center text-purple-700 shrink-0">
-            <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5" />
-          </div>
-          <div>
-            <h2 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">
-              {editingGuru ? 'Edit Data Guru & Kelas' : 'Kelola Data Guru & Penugasan'}
-            </h2>
-            <p className="text-[11px] sm:text-xs text-slate-500">
-              Atur daftar guru beserta penugasan kelas yang diajar
-            </p>
-          </div>
+    <div className="space-y-4">
+      <PageHeader
+        title="Data Guru"
+        description="Atur daftar guru, akun login, dan kode masing-masing."
+      />
+
+      {accountsError && (
+        <div className="p-3.5 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-xl flex items-start gap-2.5">
+          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <span className="font-medium leading-relaxed">
+            Kelola akun tidak aktif: {accountsError}
+          </span>
         </div>
-
-        <form
-          onSubmit={handleSaveGuru}
-          className="p-3 sm:p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3"
-        >
-          <div className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-            {editingGuru ? (
-              <>
-                <Edit2 className="w-3.5 h-3.5 text-amber-600" />
-                <span>Perbarui Data Guru & Penugasan</span>
-              </>
-            ) : (
-              <>
-                <UserPlus className="w-3.5 h-3.5 text-purple-600" />
-                <span>Tambah Guru Baru</span>
-              </>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-[10px] sm:text-[11px] font-semibold text-slate-600 mb-1">
-              Nama Lengkap Guru (beserta gelar jika ada)
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="Contoh: Abdullah, S.Pd.I / Fatimah, S.Pd"
-              value={namaInput}
-              onChange={(e) => setNamaInput(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white focus:ring-1 focus:ring-purple-500 focus:outline-none"
-            />
-          </div>
-
-          {/* Penugasan Kelas (Checkbox) */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-[10px] sm:text-[11px] font-semibold text-slate-600">
-                Penugasan Mengajar di Kelas:
-              </label>
-              <button
-                type="button"
-                onClick={handleSelectAllKelas}
-                className="text-[10px] sm:text-[11px] text-purple-600 hover:text-purple-800 font-semibold underline"
-              >
-                {selectedKelas.length === DAFTAR_KELAS.length
-                  ? 'Batal Semua'
-                  : 'Pilih Semua'}
-              </button>
-            </div>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 bg-white p-2 sm:p-2.5 border border-slate-200 rounded-lg">
-              {DAFTAR_KELAS.map((k) => {
-                const isChecked = selectedKelas.includes(k);
-                return (
-                  <label
-                    key={k}
-                    className={`flex items-center justify-center gap-1.5 p-1.5 rounded-md border text-[11px] font-bold cursor-pointer transition select-none ${
-                      isChecked
-                        ? 'bg-purple-50 border-purple-400 text-purple-900'
-                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={() => handleToggleKelas(k)}
-                      className="w-3.5 h-3.5 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer"
-                    />
-                    <span>{k.replace('KELAS ', 'K-')}</span>
-                  </label>
-                );
-              })}
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1">
-              Jika guru mengajar di kelas selain yang dicentang, otomatis masuk validasi Guru Badal.
-            </p>
-          </div>
-
-          <div className="flex justify-end gap-1.5 pt-2 border-t border-slate-200">
-            {editingGuru && (
-              <button
-                type="button"
-                onClick={handleCancelEdit}
-                className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg text-xs transition"
-              >
-                <X className="w-3.5 h-3.5 inline mr-0.5" />
-                Batal
-              </button>
-            )}
-            <button
-              type="submit"
-              className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-xs shadow-xs transition flex items-center gap-1"
-            >
-              <Check className="w-3.5 h-3.5" />
-              <span>{editingGuru ? 'Simpan' : 'Tambah Guru'}</span>
-            </button>
-          </div>
-        </form>
-      </div>
+      )}
 
       {/* List Guru */}
-      <div className="bg-white rounded-xl p-4 sm:p-6 border border-slate-200 shadow-xs space-y-3">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <h3 className="font-bold text-slate-800 text-xs sm:text-sm flex items-center gap-2">
-            <UserCheck className="w-4 h-4 text-purple-600" />
-            <span>Daftar Guru</span>
-            <span className="text-[11px] font-semibold px-2 py-0.2 bg-slate-100 text-slate-600 rounded-full">
-              {guruList.length} Guru
-            </span>
-          </h3>
-        </div>
-
-        {isLoading ? (
-          <p className="text-center py-6 text-xs text-slate-500">Memuat data guru...</p>
-        ) : guruList.length === 0 ? (
-          <div className="text-center py-8 border border-dashed border-slate-200 rounded-lg">
-            <GraduationCap className="w-7 h-7 text-slate-300 mx-auto mb-1.5" />
-            <p className="text-xs font-semibold text-slate-600">
-              Belum ada data guru.
-            </p>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Gunakan formulir di atas untuk menambahkan guru baru.
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* Desktop Table View */}
-            <div className="hidden sm:block overflow-x-auto border border-slate-200 rounded-lg">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                    <th className="py-2 px-3 w-12 text-center">No</th>
-                    <th className="py-2 px-3 w-48">Nama Guru</th>
-                    <th className="py-2 px-3">Kelas yang Diajar</th>
-                    <th className="py-2 px-3 w-20 text-center">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {guruList.map((guru, idx) => {
-                    const kelasList = guruKelasMap[guru.nama_guru] || [];
-                    return (
-                      <tr
-                        key={guru.id}
-                        className={`hover:bg-slate-50/70 transition ${
-                          editingGuru?.id === guru.id ? 'bg-amber-50/80 font-medium' : ''
-                        }`}
-                      >
-                        <td className="py-2 px-3 text-center text-slate-400 font-medium">
-                          {idx + 1}
-                        </td>
-                        <td className="py-2 px-3 font-semibold text-slate-800">
-                          {guru.nama_guru}
-                        </td>
-                        <td className="py-2 px-3">
-                          {kelasList.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {kelasList.map((k) => (
-                                <span
-                                  key={k}
-                                  className="px-2 py-0.5 bg-purple-50 text-purple-800 font-bold rounded-md border border-purple-200 text-[10px]"
-                                >
-                                  {k}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-slate-400 italic text-[11px]">
-                              Belum diatur kelas
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-2 px-3 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              onClick={() => handleEditClick(guru)}
-                              className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition"
-                              title="Edit"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(guru.id, guru.nama_guru)}
-                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
-                              title="Hapus"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+      <div className="space-y-3">
+        {/* Toolbar & FilterBar */}
+        <FilterBar
+          searchValue={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder="Cari nama guru..."
+          isFiltered={Boolean(searchQuery.trim())}
+          onResetFilters={() => setSearchQuery('')}
+          actions={
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
+                <UserCheck className="w-4 h-4 text-indigo-600" />
+                <span>{guruList.length} Guru Terdaftar</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenCreate}
+                className={formStyles.primaryBtn}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Tambah Guru
+              </button>
             </div>
+          }
+        />
 
-            {/* Mobile Card / List View */}
-            <div className="sm:hidden divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
-              {guruList.map((guru, idx) => {
-                const kelasList = guruKelasMap[guru.nama_guru] || [];
-                return (
-                  <div
-                    key={guru.id}
-                    className={`p-2.5 space-y-1.5 text-xs transition ${
-                      editingGuru?.id === guru.id ? 'bg-amber-50' : 'bg-white hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-slate-400 text-[10px] font-bold shrink-0">
-                          {idx + 1}.
-                        </span>
-                        <p className="font-semibold text-slate-800 truncate">
-                          {guru.nama_guru}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          onClick={() => handleEditClick(guru)}
-                          className="p-1 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-md border border-slate-200 transition"
-                          title="Edit"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(guru.id, guru.nama_guru)}
-                          className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-md border border-slate-200 transition"
-                          title="Hapus"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-1 pl-4">
-                      {kelasList.length > 0 ? (
-                        kelasList.map((k) => (
-                          <span
-                            key={k}
-                            className="px-1.5 py-0.2 bg-purple-50 text-purple-800 font-bold rounded border border-purple-200 text-[9px]"
-                          >
-                            {k}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-slate-400 italic text-[10px]">
-                          Belum ada kelas
-                        </span>
-                      )}
-                    </div>
-                  </div>
+        {/* Standardized DataTable */}
+        <DataTable
+          columns={[
+            {
+              key: 'no',
+              header: 'No',
+              width: '50px',
+              align: 'center',
+              accessor: (_item, idx) => (
+                <span className="text-slate-400 font-medium">{idx + 1}</span>
+              ),
+            },
+            {
+              key: 'nama_guru',
+              header: 'Nama Lengkap Guru',
+              align: 'left',
+              accessor: (item) => (
+                <span className="font-semibold text-slate-900">
+                  {item.nama_guru}
+                </span>
+              ),
+            },
+            {
+              key: 'akun',
+              header: 'Akun Login',
+              width: '150px',
+              align: 'center',
+              accessor: (item) => {
+                if (accountsError) {
+                  return <span className="text-[11px] text-slate-400">Tidak tersedia</span>;
+                }
+                const acc = accounts[item.id];
+                if (!acc) return <span className="text-[11px] text-slate-400">Memuat...</span>;
+                if (!acc.has_account) {
+                  return <StatusBadge status="DRAFT" label="Belum dibuatkan" />;
+                }
+                return acc.active ? (
+                  <StatusBadge status="Aktif" />
+                ) : (
+                  <StatusBadge status="Nonaktif" />
                 );
-              })}
+              },
+            },
+            {
+              key: 'actions',
+              header: 'Aksi',
+              width: '140px',
+              align: 'right',
+              accessor: (item) => (
+                <div className="flex items-center justify-end gap-1">
+                  <button
+                    type="button"
+                    onClick={() => openAccountModal(item)}
+                    disabled={Boolean(accountsError)}
+                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+                    title="Kelola akun login"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleEditClick(item)}
+                    className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition"
+                    title="Edit Data Guru"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(item.id, item.nama_guru)}
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition"
+                    title="Hapus Data Guru"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ),
+            },
+          ]}
+          data={guruList.filter((g) =>
+            searchQuery.trim()
+              ? g.nama_guru.toLowerCase().includes(searchQuery.toLowerCase().trim())
+              : true
+          )}
+          keyExtractor={(item) => item.id}
+          isLoading={isLoading}
+          isFiltered={Boolean(searchQuery.trim())}
+          onResetFilter={() => setSearchQuery('')}
+          emptyTitle="Belum ada data guru"
+          emptyDescription={
+            searchQuery.trim()
+              ? 'Tidak ada guru yang sesuai dengan pencarian.'
+              : 'Klik "Tambah Guru" untuk menambahkan guru baru.'
+          }
+          rowClassName={(item) =>
+            editingGuru?.id === item.id ? 'bg-amber-50/80 font-medium' : ''
+          }
+          enablePagination={true}
+          defaultPageSize={25}
+        />
+      </div>
+
+      {/* Modal Tambah / Edit Guru */}
+      <FormModal
+        isOpen={isFormOpen}
+        onClose={handleCloseForm}
+        title={editingGuru ? 'Perbarui Data Guru' : 'Tambah Guru Baru'}
+        subtitle={
+          editingGuru
+            ? 'Perbarui nama guru yang sudah terdaftar.'
+            : 'Guru ini akan tersedia pada agenda dan jadwal.'
+        }
+        size="sm"
+        onSubmit={handleSaveGuru}
+        busy={isSaving}
+        footer={(formId) => (
+          <>
+            <span />
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={handleCloseForm} className={formStyles.ghostBtn}>
+                Batal
+              </button>
+              <button type="submit" form={formId} disabled={isSaving} className={formStyles.primaryBtn}>
+                <Check className="w-3.5 h-3.5" />
+                {isSaving ? 'Menyimpan...' : editingGuru ? 'Simpan' : 'Tambah Guru'}
+              </button>
             </div>
           </>
         )}
-      </div>
+      >
+        <div className="p-5">
+          <FormField
+            label="Nama Lengkap Guru"
+            htmlFor="guru-nama"
+            required
+            hint="beserta gelar jika ada"
+          >
+            <TextInput
+              id="guru-nama"
+              type="text"
+              required
+              autoFocus
+              placeholder="Contoh: Abdullah, S.Pd.I / Fatimah, S.Pd"
+              value={namaInput}
+              onChange={(e) => setNamaInput(e.target.value)}
+            />
+          </FormField>
+        </div>
+      </FormModal>
+
+      {/* Modal Kelola Akun Login */}
+      <FormModal
+        isOpen={Boolean(accountTarget)}
+        onClose={closeAccountModal}
+        title="Akun Login Guru"
+        subtitle={accountTarget?.nama_guru}
+        size="sm"
+        onSubmit={savedCode ? (e) => { e.preventDefault(); closeAccountModal(); } : handleSaveKode}
+        busy={isSavingKode}
+        footer={(formId) => (
+          <>
+            <span />
+            <div className="flex items-center gap-2">
+              {savedCode ? (
+                <button type="button" onClick={closeAccountModal} className={formStyles.primaryBtn}>
+                  <Check className="w-3.5 h-3.5" />
+                  Selesai
+                </button>
+              ) : (
+                <>
+                  <button type="button" onClick={closeAccountModal} className={formStyles.ghostBtn}>
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    form={formId}
+                    disabled={isSavingKode}
+                    className={formStyles.primaryBtn}
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    {isSavingKode
+                      ? 'Menyimpan...'
+                      : targetAccount?.has_account
+                        ? 'Simpan Kode Baru'
+                        : 'Buatkan Akun'}
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        )}
+      >
+        <div className="p-5 space-y-4">
+          {savedCode ? (
+            <div className="space-y-3">
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <p className="text-xs font-semibold text-emerald-900 mb-1">
+                  Kode tersimpan
+                </p>
+                <p className="text-[12px] text-emerald-800 leading-relaxed">
+                  Berikan kode ini kepada {accountTarget?.nama_guru}. Kode tidak
+                  bisa dilihat lagi setelah ditutup — kalau lupa, buat kode baru.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-bold tracking-wider text-slate-900 text-center">
+                  {savedCode}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => copyCode(savedCode)}
+                  className={formStyles.ghostBtn}
+                  title="Salin kode"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  Salin
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1">
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500">Status akun</span>
+                  <span className="font-semibold text-slate-800">
+                    {targetAccount?.has_account
+                      ? targetAccount.active
+                        ? 'Aktif'
+                        : 'Nonaktif'
+                      : 'Belum dibuatkan'}
+                  </span>
+                </div>
+                {targetAccount?.last_sign_in_at && (
+                  <div className="flex justify-between gap-3">
+                    <span className="text-slate-500">Terakhir masuk</span>
+                    <span className="font-semibold text-slate-800">
+                      {new Date(targetAccount.last_sign_in_at).toLocaleDateString('id-ID', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {accountError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <span className="font-medium leading-relaxed">{accountError}</span>
+                </div>
+              )}
+
+              <FormField
+                label={targetAccount?.has_account ? 'Kode Baru' : 'Kode untuk Guru Ini'}
+                htmlFor="guru-kode"
+                required
+                hint={`Minimal ${MIN_CODE_LENGTH} karakter. Kode ini hanya untuk guru ini.`}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      id="guru-kode"
+                      type={showKode ? 'text' : 'password'}
+                      required
+                      autoFocus
+                      autoComplete="new-password"
+                      placeholder="Ketik atau klik Acak"
+                      value={kodeInput}
+                      onChange={(e) => setKodeInput(e.target.value)}
+                      className={formStyles.input}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowKode((v) => !v)}
+                      className="absolute right-2 top-1.5 p-0.5 text-slate-400 hover:text-slate-600 transition"
+                      title={showKode ? 'Sembunyikan' : 'Lihat'}
+                    >
+                      {showKode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setKodeInput(generateCode());
+                      setShowKode(true);
+                    }}
+                    className={formStyles.ghostBtn}
+                    title="Buat kode acak"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Acak
+                  </button>
+                </div>
+              </FormField>
+
+              {targetAccount?.has_account && (
+                <div className="pt-3 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={handleToggleActive}
+                    disabled={isTogglingActive}
+                    className={formStyles.ghostBtn}
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    {isTogglingActive
+                      ? 'Memproses...'
+                      : targetAccount.active
+                        ? 'Nonaktifkan akun ini'
+                        : 'Aktifkan kembali'}
+                  </button>
+                  <p className={formStyles.hint}>
+                    Akun nonaktif tidak bisa masuk, tetapi datanya tetap tersimpan.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </FormModal>
+
+      {/* Dialog konfirmasi hapus guru */}
+      <ConfirmDialog
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        isLoading={isDeleting}
+        title="Hapus data guru?"
+        message={
+          deleteTarget ? `Data guru "${deleteTarget.nama}" akan dihapus permanen.` : ''
+        }
+        confirmText="Hapus"
+      />
     </div>
   );
 };

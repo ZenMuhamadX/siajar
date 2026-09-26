@@ -74,11 +74,14 @@ export interface MataPelajaran {
   created_at?: string;
 }
 
-export interface GuruKelas {
+export interface HomeroomAssignment {
   id: string;
-  nama_guru: string;
-  kelas: string;
+  academic_year_id: string;
+  class_id: string;
+  teacher_id?: string | null;
+  teacher_name: string;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface AgendaHeader {
@@ -86,6 +89,8 @@ export interface AgendaHeader {
   sekolah: string;
   kelas: string;
   tanggal: string; // YYYY-MM-DD
+  schedule_id?: string | null;
+  actual_teacher_name?: string | null;
   created_at?: string;
 }
 
@@ -123,7 +128,10 @@ export interface AgendaEvidence {
   file_name?: string;
   file_size?: number;
   mime_type?: string;
+  captured_at?: string;
   uploaded_at?: string;
+  actual_teacher_name?: string;
+  actual_teacher_id?: string;
   created_at?: string;
   signedUrl?: string;
 }
@@ -146,3 +154,36 @@ export interface KotakSaran {
   is_anonim: boolean;
   created_at?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Stage 3 — Badal / Guru Pengganti
+// ---------------------------------------------------------------------------
+
+export type SubstitutionReason = 'Guru berhalangan' | 'Izin' | 'Sakit' | 'Tugas' | 'Lainnya';
+
+export const SUBSTITUTION_REASONS: SubstitutionReason[] = [
+  'Guru berhalangan',
+  'Izin',
+  'Sakit',
+  'Tugas',
+  'Lainnya',
+];
+
+export interface Substitution {
+  id: string;
+  schedule_id: string;
+  substitution_date: string; // YYYY-MM-DD
+  original_teacher_name: string;
+  original_teacher_id?: string | null;
+  substitute_teacher_name: string;
+  substitute_teacher_id?: string | null;
+  reason: string;
+  reason_detail?: string | null;
+  created_by: string;
+  created_at?: string;
+  updated_at?: string;
+  cancelled_at?: string | null;
+}
+
+export * from './schedule';
+

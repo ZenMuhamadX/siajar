@@ -1,9 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { DAFTAR_KELAS, type FullAgenda, type Guru } from '../types';
-import { getRekapAgenda, deleteAgenda, getDaftarGuru } from '../services/agendaService';
-import { getEvidenceSignedUrl } from '../services/evidenceService';
-import { PhotoLightboxModal } from '../components/PhotoLightboxModal';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { localDateString } from '../utils/date';
+import { DAFTAR_KELAS, type Guru } from '../types';
+import type { AcademicYear } from '../types/schedule';
+import { deleteAgenda, getDaftarGuru } from '../services/agendaService';
+import { getAcademicYears } from '../services/scheduleService';
+import { deleteAgendaEvidence } from '../services/evidenceService';
+import {
+  queryJournalRows,
+  queryJournalAbsenceStats,
+  type JournalRow,
+} from '../services/report/reportQuery';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { AgendaDetailDrawer } from '../components/report/AgendaDetailDrawer';
+import { ReportPrintLayout } from '../components/admin/report/ReportPrintLayout';
 import { useAuth } from '../contexts/AuthContext';
+import { useSchoolName } from '../contexts/SettingsContext';
+import { DataTable, FilterBar, type Column } from '../components/common';
+import { PageHeader } from '../components/admin/PageHeader';
 import {
   Printer,
   Calendar,
@@ -15,155 +28,212 @@ import {
   User,
   Camera,
   Eye,
-  Check,
 } from 'lucide-react';
 
 interface RekapAgendaProps {
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
-  onEditAgenda?: (agenda: FullAgenda) => void;
+  /** Handoff koreksi: dipanggil dengan `agenda_id`. */
+  onEditAgenda?: (agendaId: string) => void;
 }
 
-type PeriodeType = '30_hari' | 'bulan_ini' | 'harian' | 'custom';
+type PeriodeType = '7_hari' | '30_hari' | 'bulan_ini' | 'tahun_ajaran' | 'custom';
 
+const PERIODE_OPTIONS: { value: PeriodeType; label: string }[] = [
+  { value: '7_hari', label: '7 Hari' },
+  { value: '30_hari', label: '30 Hari' },
+  { value: 'bulan_ini', label: 'Bulan Ini' },
+  { value: 'tahun_ajaran', label: 'Tahun Ajaran' },
+  { value: 'custom', label: 'Kustom' },
+];
+
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+
+/**
+ * Log Jurnal Agenda — arsip isi agenda (tampilan "Log Jurnal" di Pusat Rekap).
+ *
+ * Prinsipnya:
+ *   - **payload ringan**: daftar hanya menarik kolom yang dirender tabel
+ *     (lihat `services/report/reportQuery.ts`); materi/PR/kehadiran/kejadian/foto
+ *     diambil saat baris dibuka (drawer detail),
+ *   - **filter di SQL**: kelas, guru, dan pencarian tidak lagi menyaring
+ *     di memori setelah semua data ditarik,
+ *   - **paginasi server**: satu bulan bisa ratusan agenda, jadi halaman hanya
+ *     mengambil satu halaman dan `total` untuk paginator.
+ */
 export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgenda }) => {
   const { isAdmin } = useAuth();
+  const schoolName = useSchoolName();
 
-  // Filter States
+  // ---- Filter state ----
+  // Default 30 hari terakhir (dulu "bulan kalender", yang di awal bulan kosong).
   const [periodeType, setPeriodeType] = useState<PeriodeType>('30_hari');
   const [selectedGuru, setSelectedGuru] = useState<string>('SEMUA');
   const [selectedKelas, setSelectedKelas] = useState<string>('SEMUA');
-  const [selectedTanggal, setSelectedTanggal] = useState<string>('');
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Data States
+  // ---- Data state ----
   const [daftarGuru, setDaftarGuru] = useState<Guru[]>([]);
-  const [agendas, setAgendas] = useState<FullAgenda[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [rows, setRows] = useState<JournalRow[]>([]);
+  const [totalRows, setTotalRows] = useState(0);
+  const [absenceStats, setAbsenceStats] = useState({ S: 0, I: 0, A: 0, total: 0 });
+  const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
-  // Load daftar guru untuk dropdown filter
+  // ---- Dialog & drawer state ----
+  const [detailAgendaId, setDetailAgendaId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<JournalRow | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [evidenceDeleteTarget, setEvidenceDeleteTarget] = useState<{
+    agendaId: string;
+    storagePath?: string;
+  } | null>(null);
+  const [isDeletingEvidence, setIsDeletingEvidence] = useState(false);
+
   useEffect(() => {
-    async function loadTeachers() {
+    async function loadOptions() {
       try {
-        const teachers = await getDaftarGuru();
+        const [teachers, ays] = await Promise.all([getDaftarGuru(), getAcademicYears()]);
         setDaftarGuru(teachers);
+        setAcademicYears(ays);
       } catch (err) {
-        console.error('Gagal mengambil daftar guru:', err);
+        console.error('Gagal memuat opsi filter:', err);
       }
     }
-    loadTeachers();
+    loadOptions();
   }, []);
 
-  const calculateDateRange = () => {
+  /** Rentang tanggal aktif sesuai preset. */
+  const dateRange = useMemo(() => {
     const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = localDateString(today);
+    const shift = (days: number) => {
+      const d = new Date(today);
+      d.setDate(d.getDate() - days);
+      return localDateString(d);
+    };
 
-    if (periodeType === 'harian') {
-      const tgl = selectedTanggal || todayStr;
-      return { tanggal: tgl, startDate: undefined, endDate: undefined };
+    switch (periodeType) {
+      case '7_hari':
+        return { startDate: shift(6), endDate: todayStr };
+      case '30_hari':
+        return { startDate: shift(29), endDate: todayStr };
+      case 'bulan_ini': {
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const lastDay = new Date(year, today.getMonth() + 1, 0).getDate();
+        return {
+          startDate: `${year}-${month}-01`,
+          endDate: `${year}-${month}-${String(lastDay).padStart(2, '0')}`,
+        };
+      }
+      case 'tahun_ajaran': {
+        const ay = academicYears.find((a) => a.status === 'ACTIVE') || academicYears[0];
+        const start = ay?.start_date || shift(180);
+        return { startDate: start, endDate: todayStr < (ay?.end_date || todayStr) ? todayStr : ay!.end_date };
+      }
+      case 'custom':
+      default:
+        return {
+          startDate: customStartDate || shift(29),
+          endDate: customEndDate || todayStr,
+        };
     }
+  }, [periodeType, customStartDate, customEndDate, academicYears]);
 
-    if (periodeType === 'bulan_ini') {
-      const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const lastDay = new Date(year, today.getMonth() + 1, 0).getDate();
-      return {
-        tanggal: undefined,
-        startDate: `${year}-${month}-01`,
-        endDate: `${year}-${month}-${String(lastDay).padStart(2, '0')}`,
-      };
-    }
+  const queryParams = useMemo(
+    () => ({
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      classId: selectedKelas,
+      teacherName: selectedGuru,
+      search: searchQuery.trim(),
+    }),
+    [dateRange, selectedKelas, selectedGuru, searchQuery]
+  );
 
-    if (periodeType === '30_hari') {
-      const past30 = new Date();
-      past30.setDate(today.getDate() - 30);
-      return {
-        tanggal: undefined,
-        startDate: past30.toISOString().split('T')[0],
-        endDate: todayStr,
-      };
-    }
-
-    if (periodeType === 'custom') {
-      return {
-        tanggal: undefined,
-        startDate: customStartDate || undefined,
-        endDate: customEndDate || undefined,
-      };
-    }
-
-    return { tanggal: undefined, startDate: undefined, endDate: undefined };
-  };
-
-  // Lightbox Modal State
-  const [activePhoto, setActivePhoto] = useState<{
-    url: string;
-    uploadedAt?: string;
-    title: string;
-  } | null>(null);
-
-  const fetchAgendas = async () => {
+  const fetchRows = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { tanggal, startDate, endDate } = calculateDateRange();
-      const data = await getRekapAgenda({
-        kelas: selectedKelas !== 'SEMUA' ? selectedKelas : undefined,
-        tanggal: tanggal,
-        startDate: startDate,
-        endDate: endDate,
-        nama_guru: selectedGuru !== 'SEMUA' ? selectedGuru : undefined,
-      });
-
-      // Load signed URL untuk agenda yang memiliki bukti foto
-      const withSignedUrls = await Promise.all(
-        data.map(async (item) => {
-          if (item.evidence?.storage_path) {
-            const url = await getEvidenceSignedUrl(item.evidence.storage_path);
-            return {
-              ...item,
-              evidence: {
-                ...item.evidence,
-                signedUrl: url || undefined,
-              },
-            };
-          }
-          return item;
-        })
-      );
-
-      setAgendas(withSignedUrls);
+      const res = await queryJournalRows({ ...queryParams, page, pageSize });
+      setRows(res.rows);
+      setTotalRows(res.total);
+      if (res.searchTruncated) {
+        showToast('info', 'Hasil pencarian terlalu banyak — persempit kata kunci untuk hasil lengkap.');
+      }
     } catch (err) {
       console.error(err);
       showToast('error', 'Gagal memuat rekap agenda.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [queryParams, page, pageSize, showToast]);
+
+  /** Statistik S/I/A mewakili SELURUH hasil filter, bukan hanya halaman aktif. */
+  const fetchAbsenceStats = useCallback(async () => {
+    try {
+      setAbsenceStats(await queryJournalAbsenceStats(queryParams));
+    } catch (err) {
+      console.error('Gagal menghitung rekap kehadiran:', err);
+    }
+  }, [queryParams]);
 
   useEffect(() => {
-    fetchAgendas();
-  }, [periodeType, selectedGuru, selectedKelas, selectedTanggal, customStartDate, customEndDate]);
+    fetchRows();
+  }, [fetchRows]);
 
-  const handlePrint = () => {
-    window.print();
+  useEffect(() => {
+    fetchAbsenceStats();
+  }, [fetchAbsenceStats]);
+
+  // Catatan: setiap perubahan filter/preset sudah memanggil `setPage(1)` di
+  // handler-nya masing-masing, jadi tidak perlu efek untuk mereset halaman.
+
+  const handlePrint = () => window.print();
+
+  // ---- Hapus agenda (selalu lewat dialog konfirmasi) ----
+  const confirmDeleteAgenda = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      await deleteAgenda(deleteTarget.id);
+      showToast('success', 'Agenda berhasil dihapus.');
+      setDeleteTarget(null);
+      fetchRows();
+    } catch {
+      showToast('error', 'Gagal menghapus agenda.');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
-  const handleDelete = async (id: string, kelas: string, tanggal: string) => {
-    if (confirm(`Yakin ingin menghapus agenda ${kelas} tanggal ${tanggal}?`)) {
-      try {
-        await deleteAgenda(id);
-        showToast('success', 'Agenda berhasil dihapus.');
-        fetchAgendas();
-      } catch (err) {
-        showToast('error', 'Gagal menghapus agenda.');
-      }
+  // ---- Hapus foto dokumentasi (dipanggil dari drawer) ----
+  const confirmDeleteEvidence = async () => {
+    if (!evidenceDeleteTarget) return;
+    setIsDeletingEvidence(true);
+    try {
+      await deleteAgendaEvidence(
+        evidenceDeleteTarget.agendaId,
+        evidenceDeleteTarget.storagePath,
+        true
+      );
+      showToast('success', 'Foto dokumentasi dihapus. Status agenda kembali ke belum ada foto.');
+      setEvidenceDeleteTarget(null);
+      setDetailAgendaId(null);
+      fetchRows();
+    } catch (err: any) {
+      showToast('error', 'Gagal menghapus foto dokumentasi: ' + (err?.message || ''));
+    } finally {
+      setIsDeletingEvidence(false);
     }
   };
 
   const formatDateIndo = (dateStr: string) => {
     try {
-      const date = new Date(dateStr + 'T00:00:00');
-      return date.toLocaleDateString('id-ID', {
+      return new Date(dateStr + 'T00:00:00').toLocaleDateString('id-ID', {
         weekday: 'long',
         day: 'numeric',
         month: 'long',
@@ -176,8 +246,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
 
   const formatSimpleDate = (dateStr: string) => {
     try {
-      const date = new Date(dateStr + 'T00:00:00');
-      return date.toLocaleDateString('id-ID', {
+      return new Date(dateStr + 'T00:00:00').toLocaleDateString('id-ID', {
         day: 'numeric',
         month: 'short',
         year: 'numeric',
@@ -187,141 +256,277 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
     }
   };
 
-  // Periode label untuk header cetak
   const getPeriodeLabel = () => {
-    const { tanggal, startDate, endDate } = calculateDateRange();
-    if (tanggal) return `Tanggal: ${formatDateIndo(tanggal)}`;
-    if (startDate && endDate) {
-      return `Periode: ${formatSimpleDate(startDate)} s.d. ${formatSimpleDate(endDate)}`;
+    if (periodeType === 'custom' && (customStartDate || customEndDate)) {
+      return `Periode: ${formatSimpleDate(customStartDate || dateRange.startDate)} s.d. ${formatSimpleDate(
+        customEndDate || dateRange.endDate
+      )}`;
     }
-    return 'Semua Periode';
+    const preset = PERIODE_OPTIONS.find((o) => o.value === periodeType)?.label;
+    return `${preset || 'Periode'}: ${formatSimpleDate(dateRange.startDate)} s.d. ${formatSimpleDate(
+      dateRange.endDate
+    )}`;
   };
 
-  // Hitung statistik akumulasi
-  const totalSakit = agendas.reduce(
-    (acc, ag) => acc + (ag.absensi?.filter((a) => a.status === 'S').length || 0),
-    0
-  );
-  const totalIzin = agendas.reduce(
-    (acc, ag) => acc + (ag.absensi?.filter((a) => a.status === 'I').length || 0),
-    0
-  );
-  const totalAlpha = agendas.reduce(
-    (acc, ag) => acc + (ag.absensi?.filter((a) => a.status === 'A').length || 0),
-    0
+  const isFiltered =
+    periodeType !== '30_hari' ||
+    selectedGuru !== 'SEMUA' ||
+    selectedKelas !== 'SEMUA' ||
+    Boolean(customStartDate) ||
+    Boolean(customEndDate) ||
+    Boolean(searchQuery.trim());
+
+  const handleResetFilters = () => {
+    setPeriodeType('30_hari');
+    setSelectedGuru('SEMUA');
+    setSelectedKelas('SEMUA');
+    setCustomStartDate('');
+    setCustomEndDate('');
+    setSearchQuery('');
+    setPage(1);
+  };
+
+  const kelasLabel = selectedKelas === 'SEMUA' ? 'Semua Kelas' : selectedKelas;
+  const guruLabel = selectedGuru === 'SEMUA' ? 'Semua Guru' : selectedGuru;
+
+  const columns: Column<JournalRow>[] = useMemo(
+    () => [
+      {
+        key: 'kelas',
+        header: 'Kelas',
+        align: 'center',
+        width: '90px',
+        accessor: (r) => (
+          <span className="inline-block px-2 py-0.5 bg-slate-800 text-white font-bold text-[11px] rounded print:border print:border-black print:text-black print:bg-white">
+            {r.kelas}
+          </span>
+        ),
+      },
+      {
+        key: 'tanggal',
+        header: 'Tanggal',
+        align: 'left',
+        width: '130px',
+        accessor: (r) => (
+          <span className="block font-medium text-slate-700 whitespace-nowrap" title={formatDateIndo(r.tanggal)}>
+            {formatSimpleDate(r.tanggal)}
+          </span>
+        ),
+      },
+      {
+        key: 'guru',
+        header: 'Guru',
+        align: 'left',
+        width: '160px',
+        accessor: (r) => {
+          const namaGuru = r.actualTeacherName || r.kbm?.[0]?.nama_guru || '-';
+          const isBadal = (r.kbm || []).some((k) => k.is_badal);
+          return (
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className="font-medium text-slate-800">{namaGuru}</span>
+              {isBadal && (
+                <span className="px-1 text-[9px] font-bold border border-amber-400 text-amber-700 rounded">
+                  Badal
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        key: 'mapel',
+        header: 'Mata Pelajaran',
+        align: 'left',
+        width: '140px',
+        accessor: (r) => {
+          const mapels = Array.from(new Set((r.kbm || []).map((k) => k.mapel).filter(Boolean)));
+          return <span className="text-slate-700">{mapels.length ? mapels.join(', ') : '-'}</span>;
+        },
+      },
+      {
+        key: 'jam',
+        header: 'Jam',
+        align: 'center',
+        width: '80px',
+        accessor: (r) => {
+          const jam = (r.kbm || []).map((k) => k.jam_ke).filter(Boolean);
+          return (
+            <span className="text-[11px] font-semibold text-slate-700">
+              {jam.length ? jam.join(', ') : '-'}
+            </span>
+          );
+        },
+      },
+      {
+        key: 'absensi',
+        header: 'Ketidakhadiran',
+        align: 'center',
+        width: '130px',
+        accessor: (r) => {
+          const absensi = r.absensi || [];
+          if (absensi.length === 0) return <span className="text-[11px] text-emerald-600">Hadir lengkap</span>;
+          const count = (status: 'S' | 'I' | 'A') => absensi.filter((x) => x.status === status).length;
+          return (
+            <div className="flex items-center justify-center gap-1 flex-wrap">
+              {count('S') > 0 && (
+                <span className="px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded text-[10px] font-bold">
+                  S {count('S')}
+                </span>
+              )}
+              {count('I') > 0 && (
+                <span className="px-1.5 py-0.5 bg-sky-50 border border-sky-200 text-sky-700 rounded text-[10px] font-bold">
+                  I {count('I')}
+                </span>
+              )}
+              {count('A') > 0 && (
+                <span className="px-1.5 py-0.5 bg-rose-50 border border-rose-200 text-rose-700 rounded text-[10px] font-bold">
+                  A {count('A')}
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        key: 'bukti',
+        header: 'Bukti Foto',
+        align: 'center',
+        width: '110px',
+        accessor: (r) =>
+          r.evidence?.storage_path ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDetailAgendaId(r.id);
+              }}
+              className="px-2 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded transition inline-flex items-center gap-1"
+              title="Lihat foto di detail agenda"
+            >
+              <Camera className="h-3 w-3 text-emerald-700" />
+              <span>Ada</span>
+            </button>
+          ) : (
+            <span className="text-[11px] text-slate-400" title="Belum ada bukti foto">
+              -
+            </span>
+          ),
+      },
+      {
+        key: 'actions',
+        header: 'Aksi',
+        align: 'right',
+        width: '150px',
+        accessor: (r) => (
+          <div className="flex items-center justify-end gap-1.5">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDetailAgendaId(r.id);
+              }}
+              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 rounded-lg transition"
+              title="Lihat Detail Agenda"
+            >
+              <Eye className="w-3.5 h-3.5" />
+            </button>
+            {onEditAgenda && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditAgenda(r.id);
+                }}
+                className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 rounded-lg transition"
+                title="Koreksi Agenda"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeleteTarget(r);
+                }}
+                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-lg transition"
+                title="Hapus Agenda"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        ),
+      },
+    ],
+    [isAdmin, onEditAgenda]
   );
 
   return (
     <div className="w-full space-y-4">
+      {/* PAGE HEADER (Screen Only, Hidden in Print) */}
+      <div className="no-print">
+        <PageHeader
+          title="Log Jurnal Agenda"
+          description="Arsip jurnal pembelajaran & KBM seluruh kelas — telusuri, saring, dan cetak laporan."
+        />
+      </div>
+
       {/* FILTER BAR (Screen Only, Hidden in Print) */}
-      <div className="bg-white rounded-xl p-4 border border-slate-200 space-y-3 no-print">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-          <div>
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-              <FileCheck className="w-4 h-4 text-slate-700" />
-              <span>Rekap Agenda Kelas & KBM</span>
-            </h2>
-            <p className="text-[11px] text-slate-500 mt-0.5">
-              {getPeriodeLabel()} &bull; {agendas.length} sesi agenda ditemukan
-            </p>
-          </div>
+      <FilterBar
+        className="no-print"
+        searchValue={searchQuery}
+        onSearchChange={(v) => {
+          setSearchQuery(v);
+          setPage(1);
+        }}
+        searchPlaceholder="Cari kelas, guru, mapel, materi..."
+        isFiltered={isFiltered}
+        onResetFilters={handleResetFilters}
+        filters={
+          <>
+            {/* Preset periode */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-medium overflow-x-auto no-scrollbar">
+              {PERIODE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    setPeriodeType(opt.value);
+                    setPage(1);
+                  }}
+                  className={`px-2.5 py-1 rounded whitespace-nowrap transition text-[11px] sm:text-xs ${
+                    periodeType === opt.value
+                      ? 'bg-white text-slate-900 font-bold shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={fetchAgendas}
-              className="p-2 text-slate-600 hover:bg-slate-100 border border-slate-200 rounded-lg transition"
-              title="Refresh"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            </button>
-
-            <button
-              onClick={handlePrint}
-              disabled={agendas.length === 0}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg text-xs transition disabled:opacity-50"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Cetak PDF / Print</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Filter Controls Row (Responsive Mobile Grid / Desktop Flex) */}
-        <div className="space-y-2.5 text-xs">
-          {/* Periode Tab Buttons (Horizontal scrollable / wrap in mobile) */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-medium overflow-x-auto no-scrollbar">
-            <button
-              onClick={() => setPeriodeType('30_hari')}
-              className={`px-2.5 py-1 rounded whitespace-nowrap transition text-[11px] sm:text-xs ${
-                periodeType === '30_hari'
-                  ? 'bg-white text-slate-900 font-bold shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              30 Hari
-            </button>
-            <button
-              onClick={() => setPeriodeType('bulan_ini')}
-              className={`px-2.5 py-1 rounded whitespace-nowrap transition text-[11px] sm:text-xs ${
-                periodeType === 'bulan_ini'
-                  ? 'bg-white text-slate-900 font-bold shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              Bulan Ini
-            </button>
-            <button
-              onClick={() => setPeriodeType('harian')}
-              className={`px-2.5 py-1 rounded whitespace-nowrap transition text-[11px] sm:text-xs ${
-                periodeType === 'harian'
-                  ? 'bg-white text-slate-900 font-bold shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              Harian
-            </button>
-            <button
-              onClick={() => setPeriodeType('custom')}
-              className={`px-2.5 py-1 rounded whitespace-nowrap transition text-[11px] sm:text-xs ${
-                periodeType === 'custom'
-                  ? 'bg-white text-slate-900 font-bold shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              Kustom
-            </button>
-          </div>
-
-          {/* Conditional Date Input & Dropdown Selectors */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:flex md:flex-wrap md:items-center gap-2">
-            {/* Conditional Date Input: Harian */}
-            {periodeType === 'harian' && (
-              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 w-full sm:w-auto">
-                <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <input
-                  type="date"
-                  value={selectedTanggal}
-                  onChange={(e) => setSelectedTanggal(e.target.value)}
-                  className="bg-transparent font-medium text-slate-800 focus:outline-none w-full text-xs"
-                />
-              </div>
-            )}
-
-            {/* Conditional Date Input: Custom Range */}
             {periodeType === 'custom' && (
               <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 w-full sm:w-auto">
                 <span className="text-slate-400 text-[10px] shrink-0">Dari:</span>
                 <input
                   type="date"
                   value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  onChange={(e) => {
+                    setCustomStartDate(e.target.value);
+                    setPage(1);
+                  }}
                   className="bg-transparent font-medium text-slate-800 focus:outline-none text-xs w-full"
                 />
                 <span className="text-slate-400 text-[10px] shrink-0">S.d:</span>
                 <input
                   type="date"
                   value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  onChange={(e) => {
+                    setCustomEndDate(e.target.value);
+                    setPage(1);
+                  }}
                   className="bg-transparent font-medium text-slate-800 focus:outline-none text-xs w-full"
                 />
               </div>
@@ -332,7 +537,10 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
               <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <select
                 value={selectedGuru}
-                onChange={(e) => setSelectedGuru(e.target.value)}
+                onChange={(e) => {
+                  setSelectedGuru(e.target.value);
+                  setPage(1);
+                }}
                 className="bg-transparent font-medium text-slate-800 focus:outline-none w-full text-xs"
               >
                 <option value="SEMUA">Semua Guru</option>
@@ -349,7 +557,10 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
               <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <select
                 value={selectedKelas}
-                onChange={(e) => setSelectedKelas(e.target.value)}
+                onChange={(e) => {
+                  setSelectedKelas(e.target.value);
+                  setPage(1);
+                }}
                 className="bg-transparent font-medium text-slate-800 focus:outline-none w-full text-xs"
               >
                 <option value="SEMUA">Semua Kelas</option>
@@ -360,374 +571,198 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
                 ))}
               </select>
             </div>
-          </div>
-        </div>
-      </div>
 
-      {/* STATISTIK RINGKAS (Screen Only) */}
+            {periodeType !== 'custom' && (
+              <span className="flex items-center gap-1.5 text-[11px] text-slate-500 whitespace-nowrap">
+                <Calendar className="w-3.5 h-3.5" />
+                {formatSimpleDate(dateRange.startDate)} – {formatSimpleDate(dateRange.endDate)}
+              </span>
+            )}
+          </>
+        }
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                fetchRows();
+                fetchAbsenceStats();
+              }}
+              className="p-2 text-slate-600 hover:bg-slate-100 border border-slate-200 rounded-lg transition"
+              title="Refresh"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePrint}
+              disabled={rows.length === 0}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg text-xs transition disabled:opacity-50"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Cetak PDF / Print</span>
+            </button>
+          </>
+        }
+      />
+
+      {/* STATISTIK RINGKAS — mengikuti filter, bukan hanya halaman aktif (Screen Only) */}
       <div className="grid grid-cols-3 gap-2.5 no-print">
-        <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] text-slate-500 font-medium">Total Sakit (S)</p>
-            <p className="text-lg font-bold text-slate-800">{totalSakit}</p>
+        {(
+          [
+            { label: 'Total Sakit (S)', value: absenceStats.S, code: 'S', tone: 'text-slate-800' },
+            { label: 'Total Izin (I)', value: absenceStats.I, code: 'I', tone: 'text-slate-800' },
+            { label: 'Total Alpha (A)', value: absenceStats.A, code: 'A', tone: 'text-slate-800' },
+          ] as const
+        ).map((s) => (
+          <div key={s.code} className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] text-slate-500 font-medium">{s.label}</p>
+              <p className={`text-lg font-bold ${s.tone}`}>{s.value}</p>
+            </div>
+            <span className="w-6 h-6 rounded bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-xs">
+              {s.code}
+            </span>
           </div>
-          <span className="w-6 h-6 rounded bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-xs">
-            S
-          </span>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] text-slate-500 font-medium">Total Izin (I)</p>
-            <p className="text-lg font-bold text-slate-800">{totalIzin}</p>
-          </div>
-          <span className="w-6 h-6 rounded bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-xs">
-            I
-          </span>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] text-slate-500 font-medium">Total Alpha (A)</p>
-            <p className="text-lg font-bold text-slate-800">{totalAlpha}</p>
-          </div>
-          <span className="w-6 h-6 rounded bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-xs">
-            A
-          </span>
-        </div>
+        ))}
       </div>
 
       {/* DOKUMEN REKAP & CETAK RESMI */}
-      {isLoading ? (
-        <div className="bg-white rounded-xl p-10 text-center border border-slate-200">
-          <RefreshCw className="w-6 h-6 text-slate-600 animate-spin mx-auto mb-2" />
-          <p className="text-xs text-slate-500">Memuat data rekap...</p>
-        </div>
-      ) : agendas.length === 0 ? (
-        <div className="bg-white rounded-xl p-10 text-center border border-slate-200">
-          <BookOpen className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-          <h3 className="text-sm font-semibold text-slate-700">Tidak Ada Data Agenda</h3>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Tidak ditemukan agenda untuk filter yang dipilih.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-4 print:space-y-6">
-          {/* HEADER RESMI CETAK (Hanya Muncul saat Print PDF) */}
-          <div className="hidden print:block text-center border-b-2 border-black pb-4 mb-4">
-            <div className="flex items-center justify-center gap-3">
-              <img src="/logo.png" alt="Logo" className="w-12 h-12 object-contain" />
+      <DataTable
+        title="Rekap Agenda Pembelajaran & KBM"
+        subtitle={`${getPeriodeLabel()} • ${
+          totalRows > 0 ? `${totalRows} sesi agenda ditemukan` : 'Belum ada agenda pada periode ini'
+        }`}
+        titleIcon={<FileCheck className="w-4 h-4 text-slate-700 shrink-0" />}
+        columns={columns}
+        data={rows}
+        keyExtractor={(r) => r.id}
+        isLoading={isLoading}
+        onRowClick={(r) => setDetailAgendaId(r.id)}
+        emptyTitle="Tidak Ada Data Agenda"
+        emptyDescription="Tidak ditemukan agenda untuk filter yang dipilih."
+        emptyIcon={<BookOpen className="w-5 h-5" />}
+        isFiltered={isFiltered}
+        onResetFilter={handleResetFilters}
+        enablePagination
+        defaultPageSize={25}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
+        serverPagination={{
+          page,
+          pageSize,
+          total: totalRows,
+          onPageChange: setPage,
+          onPageSizeChange: (size) => {
+            setPageSize(size);
+            setPage(1);
+          },
+        }}
+      />
+
+      {/* LAYOUT CETAK — satu kop resmi; isi tabel memakai kolom ringkas yang sama
+          dengan layar agar tidak ada isi layar yang bocor ke kertas. */}
+      {rows.length > 0 && (
+        <ReportPrintLayout
+          title="Laporan Rekapitulasi Agenda & KBM Kelas"
+          periodInfo={getPeriodeLabel()}
+          subtitle={`Kelas: ${kelasLabel} • Guru: ${guruLabel}`}
+          signature={
+            <div className="grid grid-cols-2 text-center">
               <div>
-                <h1 className="text-base font-bold tracking-tight uppercase">
-                  LAPORAN REKAPITULASI AGENDA & KBM KELAS
-                </h1>
-                <p className="text-xs font-semibold">SDIT AS-SYIFA</p>
-                <p className="text-[11px] text-slate-700 mt-0.5">
-                  {getPeriodeLabel()} &bull; Kelas: {selectedKelas} &bull; Guru:{' '}
-                  {selectedGuru}
-                </p>
+                <p>Mengetahui,</p>
+                <p className="font-bold">Kepala Sekolah {schoolName}</p>
+                <div className="h-16" />
+                <p className="font-bold underline">( ........................................ )</p>
+              </div>
+              <div>
+                <p>Pengawas / Guru Piket,</p>
+                <p className="font-bold">{schoolName}</p>
+                <div className="h-16" />
+                <p className="font-bold underline">( ........................................ )</p>
               </div>
             </div>
-          </div>
-
-          {/* LIST AGENDA HARIAN */}
-          {agendas.map((agenda, index) => (
-            <div
-              key={agenda.header.id || index}
-              className="bg-white rounded-xl border border-slate-200 overflow-hidden print:border-black print:rounded-none print:shadow-none page-break"
-            >
-              {/* Header Sesi Harian */}
-              <div className="bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex items-center justify-between print:bg-transparent print:border-b print:border-black">
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 bg-slate-800 text-white font-bold text-xs rounded print:border print:border-black print:text-black print:bg-white">
-                    {agenda.header.kelas}
-                  </span>
-                  <span className="text-xs font-bold text-slate-800">
-                    {formatDateIndo(agenda.header.tanggal)}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-1.5 no-print">
-                  {/* Indikator Bukti Foto */}
-                  {agenda.evidence ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (agenda.evidence?.signedUrl) {
-                          setActivePhoto({
-                            url: agenda.evidence.signedUrl,
-                            uploadedAt: agenda.evidence.uploaded_at,
-                            title: `Bukti Foto Mengajar - ${agenda.header.kelas}`,
-                          });
-                        }
-                      }}
-                      className="px-2 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded transition flex items-center gap-1"
-                      title={
-                        agenda.evidence.uploaded_at
-                          ? `Bukti foto tersedia (Diunggah: ${new Date(
-                              agenda.evidence.uploaded_at
-                            ).toLocaleDateString('id-ID', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              day: 'numeric',
-                              month: 'short',
-                            })})`
-                          : 'Bukti foto tersedia'
-                      }
-                    >
-                      <Camera className="w-3 h-3 text-emerald-700" />
-                      <span>Bukti: Ada</span>
-                    </button>
-                  ) : (
-                    <span
-                      className="px-2 py-1 text-[11px] text-slate-400 border border-slate-200 bg-slate-50/50 rounded flex items-center gap-1 cursor-default"
-                      title="Bukti foto belum tersedia"
-                    >
-                      <Camera className="w-3 h-3 text-slate-300" />
-                      <span>Bukti: -</span>
-                    </span>
-                  )}
-
-                  {onEditAgenda && (
-                    <button
-                      onClick={() => onEditAgenda(agenda)}
-                      className="px-2 py-1 text-[11px] font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded transition flex items-center gap-1"
-                      title="Edit / Koreksi Agenda"
-                    >
-                      <BookOpen className="w-3 h-3" />
-                      <span>Edit</span>
-                    </button>
-                  )}
-
-                  {isAdmin && (
-                    <button
-                      onClick={() =>
-                        handleDelete(
-                          agenda.header.id,
-                          agenda.header.kelas,
-                          agenda.header.tanggal
-                        )
-                      }
-                      className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
-                      title="Hapus Agenda"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* KBM Section: Responsive Dual-View (Mobile Card List + Desktop Table) */}
-              <div className="p-3 sm:p-4 space-y-3">
-                {/* 1. Mobile KBM Timeline View (no-print) */}
-                <div className="sm:hidden space-y-2 no-print">
-                  {agenda.kbm && agenda.kbm.length > 0 ? (
-                    agenda.kbm.map((k, kIdx) => (
-                      <div
-                        key={kIdx}
-                        className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1.5"
-                      >
-                        <div className="flex items-center justify-between gap-1.5">
-                          <span className="px-2 py-0.5 bg-slate-800 text-white font-bold text-[10px] rounded">
-                            Jam {k.jam_ke}
-                          </span>
-                          <span className="font-bold text-slate-800 text-[11px] truncate">
-                            {k.mapel}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-600 font-medium">
-                          <span>Guru: {k.nama_guru || '-'}</span>
-                          {k.is_badal && (
-                            <span className="px-1 py-0.2 text-[9px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-300">
-                              Badal
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="pt-1 border-t border-slate-200/80">
-                          <p className="text-[11px] text-slate-700 leading-snug whitespace-pre-wrap">
-                            <span className="font-semibold text-slate-600">Materi: </span>
-                            {k.materi}
-                          </p>
-                          {k.tugas_pr && (
-                            <p className="text-[10px] text-slate-500 mt-1">
-                              <span className="font-semibold text-slate-600">Tugas: </span>
-                              {k.tugas_pr}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-center py-2 text-slate-400 text-xs">Tidak ada data KBM.</p>
-                  )}
-                </div>
-
-                {/* 2. Desktop & Print Table View */}
-                <div className="hidden sm:block overflow-x-auto border border-slate-200 rounded print:block print:border-black print:rounded-none">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold print:border-b print:border-black print:bg-slate-50">
-                        <th className="py-1.5 px-2.5 w-14 text-center border-r border-slate-200 print:border-black">
-                          Jam
-                        </th>
-                        <th className="py-1.5 px-2.5 w-36 border-r border-slate-200 print:border-black">
-                          Guru
-                        </th>
-                        <th className="py-1.5 px-2.5 w-32 border-r border-slate-200 print:border-black">
-                          Mata Pelajaran
-                        </th>
-                        <th className="py-1.5 px-2.5 border-r border-slate-200 print:border-black">
-                          Materi Pembahasan
-                        </th>
-                        <th className="py-1.5 px-2.5 w-32">Tugas / PR</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 print:divide-black">
-                      {agenda.kbm && agenda.kbm.length > 0 ? (
-                        agenda.kbm.map((k, kIdx) => (
-                          <tr key={kIdx} className="hover:bg-slate-50/50">
-                            <td className="py-1.5 px-2.5 text-center font-medium border-r border-slate-200 print:border-black">
-                              {k.jam_ke}
-                            </td>
-                            <td className="py-1.5 px-2.5 font-medium border-r border-slate-200 print:border-black">
-                              <div className="flex items-center gap-1">
-                                <span>{k.nama_guru || '-'}</span>
-                                {k.is_badal && (
-                                  <span className="px-1 text-[9px] font-bold border border-slate-400 rounded">
-                                    Badal
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-1.5 px-2.5 font-medium border-r border-slate-200 print:border-black">
-                              {k.mapel}
-                            </td>
-                            <td className="py-1.5 px-2.5 text-slate-800 border-r border-slate-200 print:border-black">
-                              {k.materi}
-                            </td>
-                            <td className="py-1.5 px-2.5 text-slate-600">
-                              {k.tugas_pr || '-'}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={5} className="py-2 text-center text-slate-400">
-                            Tidak ada data KBM.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Sub info: Ketidakhadiran, Kejadian & Bukti Foto */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                  {/* Ketidakhadiran */}
-                  <div className="border border-slate-200 rounded p-2.5 bg-slate-50/40 print:bg-white print:border-black">
-                    <p className="font-bold text-slate-700 mb-1 text-[11px] sm:text-xs">
-                      Ketidakhadiran Siswa ({agenda.absensi?.length || 0})
-                    </p>
-                    {agenda.absensi && agenda.absensi.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {agenda.absensi.map((ab, abIdx) => (
-                          <span
-                            key={abIdx}
-                            className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] sm:text-[11px] text-slate-800"
-                          >
-                            {ab.nama_siswa || ab.siswa?.nama_siswa} ({ab.status})
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-[11px] text-slate-500">Hadir lengkap</p>
-                    )}
-                  </div>
-
-                  {/* Catatan Kejadian */}
-                  <div className="border border-slate-200 rounded p-2.5 bg-slate-50/40 print:bg-white print:border-black">
-                    <p className="font-bold text-slate-700 mb-1 text-[11px] sm:text-xs">Catatan Kejadian</p>
-                    {agenda.kejadian && agenda.kejadian.length > 0 ? (
-                      <p className="text-[11px] text-slate-700 leading-normal">
-                        {agenda.kejadian[0].uraian_kejadian}
-                      </p>
-                    ) : (
-                      <p className="text-[11px] text-slate-400 italic">Tidak ada catatan.</p>
-                    )}
-                  </div>
-
-                  {/* Bukti Foto Info */}
-                  <div className="border border-slate-200 rounded p-2.5 bg-slate-50/40 print:bg-white print:border-black">
-                    <p className="font-bold text-slate-700 mb-1 text-[11px] sm:text-xs">Bukti Foto Mengajar</p>
-                    {agenda.evidence ? (
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <p className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1">
-                            <Check className="w-3 h-3 text-emerald-600" />
-                            <span>Tersedia</span>
-                          </p>
-                          {agenda.evidence.uploaded_at && (
-                            <p className="text-[10px] text-slate-500 mt-0.5">
-                              {new Date(agenda.evidence.uploaded_at).toLocaleDateString('id-ID', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                day: 'numeric',
-                                month: 'short',
-                              })}
-                            </p>
-                          )}
-                        </div>
-                        {agenda.evidence.signedUrl && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setActivePhoto({
-                                url: agenda.evidence!.signedUrl!,
-                                uploadedAt: agenda.evidence!.uploaded_at,
-                                title: `Bukti Foto Mengajar - ${agenda.header.kelas}`,
-                              })
-                            }
-                            className="px-2 py-1 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold rounded text-[11px] flex items-center gap-1 transition no-print shrink-0"
-                          >
-                            <Eye className="w-3 h-3 text-slate-500" />
-                            <span>Buka</span>
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-[11px] text-slate-400 italic">Belum tersedia</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-
-          {/* Kolom Tanda Tangan Cetak PDF (Hanya di print) */}
-          <div className="hidden print:grid grid-cols-2 pt-8 text-center text-xs page-break">
-            <div>
-              <p>Mengetahui,</p>
-              <p className="font-bold">Kepala Sekolah SDIT AS-SYIFA</p>
-              <div className="h-16" />
-              <p className="font-bold underline">( ........................................ )</p>
-            </div>
-            <div>
-              <p>Pengawas / Guru Piket,</p>
-              <p className="font-bold">SDIT AS-SYIFA</p>
-              <div className="h-16" />
-              <p className="font-bold underline">( ........................................ )</p>
-            </div>
-          </div>
-        </div>
+          }
+        >
+          <table className="w-full text-left text-[10px] border-collapse border border-slate-900">
+            <thead className="bg-slate-100 border-b border-slate-900 font-bold uppercase">
+              <tr>
+                <th className="p-1.5 border-r border-slate-900 text-center w-8">No</th>
+                <th className="p-1.5 border-r border-slate-900 text-center w-24">Tanggal</th>
+                <th className="p-1.5 border-r border-slate-900 text-center w-20">Kelas</th>
+                <th className="p-1.5 border-r border-slate-900">Guru</th>
+                <th className="p-1.5 border-r border-slate-900">Mata Pelajaran</th>
+                <th className="p-1.5 border-r border-slate-900 text-center w-16">Jam</th>
+                <th className="p-1.5 border-r border-slate-900 text-center w-24">Tidak Hadir</th>
+                <th className="p-1.5 text-center w-20">Foto</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-400">
+              {rows.map((r, i) => {
+                const s = r.absensi.filter((x) => x.status === 'S').length;
+                const iz = r.absensi.filter((x) => x.status === 'I').length;
+                const al = r.absensi.filter((x) => x.status === 'A').length;
+                const mapel = Array.from(new Set(r.kbm.map((k) => k.mapel).filter(Boolean)));
+                return (
+                  <tr key={r.id}>
+                    <td className="p-1.5 border-r border-slate-900 text-center">{i + 1}</td>
+                    <td className="p-1.5 border-r border-slate-900 text-center">{formatSimpleDate(r.tanggal)}</td>
+                    <td className="p-1.5 border-r border-slate-900 text-center font-bold">{r.kelas}</td>
+                    <td className="p-1.5 border-r border-slate-900">
+                      {r.actualTeacherName || r.kbm?.[0]?.nama_guru || '-'}
+                      {r.kbm.some((k) => k.is_badal) ? ' (Badal)' : ''}
+                    </td>
+                    <td className="p-1.5 border-r border-slate-900">{mapel.join(', ') || '-'}</td>
+                    <td className="p-1.5 border-r border-slate-900 text-center">
+                      {r.kbm.map((k) => k.jam_ke).filter(Boolean).join(', ') || '-'}
+                    </td>
+                    <td className="p-1.5 border-r border-slate-900 text-center">
+                      {r.absensi.length === 0 ? 'Lengkap' : `S ${s} · I ${iz} · A ${al}`}
+                    </td>
+                    <td className="p-1.5 text-center">{r.evidence?.storage_path ? 'Ada' : '-'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </ReportPrintLayout>
       )}
 
-      {/* Lightbox Modal untuk Bukti Foto Mengajar */}
-      <PhotoLightboxModal
-        isOpen={!!activePhoto}
-        onClose={() => setActivePhoto(null)}
-        imageUrl={activePhoto?.url}
-        uploadedAt={activePhoto?.uploadedAt}
-        title={activePhoto?.title}
+      {/* Drawer detail: isi agenda lengkap (KBM, absensi, kejadian, foto) */}
+      <AgendaDetailDrawer
+        agendaId={detailAgendaId}
+        onClose={() => setDetailAgendaId(null)}
+        onEdit={onEditAgenda}
+        isAdmin={isAdmin}
+        onAdminDeleteEvidence={(agendaId, storagePath) =>
+          setEvidenceDeleteTarget({ agendaId, storagePath })
+        }
+      />
+
+      {/* Konfirmasi hapus agenda (selalu dialog, tidak pernah confirm() native) */}
+      <ConfirmDialog
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDeleteAgenda}
+        isLoading={isDeleting}
+        title="Hapus agenda ini?"
+        message={
+          deleteTarget
+            ? `Agenda ${deleteTarget.kelas} tanggal ${deleteTarget.tanggal} beserta KBM, absensi, dan catatan kejadian akan dihapus permanen.`
+            : ''
+        }
+        confirmText="Hapus"
+      />
+
+      {/* Konfirmasi hapus foto dokumentasi */}
+      <ConfirmDialog
+        isOpen={Boolean(evidenceDeleteTarget)}
+        onClose={() => setEvidenceDeleteTarget(null)}
+        onConfirm={confirmDeleteEvidence}
+        isLoading={isDeletingEvidence}
+        title="Hapus foto dokumentasi?"
+        message="Foto akan dihapus dan status agenda kembali ke “Belum ada foto”. Isi agenda tidak ikut terhapus."
+        confirmText="Hapus Foto"
       />
     </div>
   );

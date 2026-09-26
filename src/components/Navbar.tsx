@@ -1,29 +1,31 @@
-import React from 'react';
 import {
   LogOut,
   ShieldCheck,
   User as UserIcon,
-  LayoutDashboard,
   FileEdit,
   History,
   MessageSquarePlus,
+  CalendarDays,
 } from 'lucide-react';
+import { NavLink, useLocation } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
-
-export type MainViewType = 'agenda' | 'riwayat' | 'dev';
+import { useSchoolName } from '../contexts/SettingsContext';
 
 interface NavbarProps {
-  currentView: MainViewType;
-  onToggleView: (view: MainViewType) => void;
   onOpenKotakSaran: () => void;
+  onOpenSchedule?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({
-  currentView,
-  onToggleView,
-  onOpenKotakSaran,
-}) => {
+export const Navbar: React.FC<NavbarProps> = ({ onOpenKotakSaran, onOpenSchedule }) => {
   const { activeTeacherName, isAdmin, signOut } = useAuth();
+  const { pathname } = useLocation();
+  const schoolName = useSchoolName();
+
+  // View aktif diturunkan dari URL (/ vs /riwayat), bukan state terpisah,
+  // supaya refresh & tombol Back tetap berada di halaman yang sama.
+  const currentView: 'agenda' | 'riwayat' = pathname.startsWith('/riwayat')
+    ? 'riwayat'
+    : 'agenda';
 
   return (
     <>
@@ -35,21 +37,22 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="flex items-center gap-2.5">
               <img
                 src="/logo.png"
-                alt="Logo SDIT AS-SYIFA"
+                alt={`Logo ${schoolName}`}
                 className="w-8 h-8 sm:w-9 sm:h-9 object-contain rounded-lg shadow-xs"
               />
               <div>
                 <h1 className="font-bold text-slate-900 leading-tight text-xs sm:text-base">
-                  SDIT AS-SYIFA
+                  {schoolName}
                 </h1>
-                <p className="text-[10px] sm:text-xs text-slate-500">Agenda Kelas</p>
+                <p className="text-[10px] sm:text-xs text-slate-500">Agenda Pembelajaran</p>
               </div>
             </div>
 
             {/* Desktop Navigation Links */}
             <div className="hidden md:flex items-center gap-2">
-              <button
-                onClick={() => onToggleView('agenda')}
+              <NavLink
+                to="/"
+                end
                 className={`px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition ${
                   currentView === 'agenda'
                     ? 'bg-slate-100 text-slate-900 border border-slate-300 font-bold'
@@ -58,10 +61,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <FileEdit className="w-3.5 h-3.5" />
                 <span>Isi Agenda</span>
-              </button>
+              </NavLink>
 
-              <button
-                onClick={() => onToggleView('riwayat')}
+              <NavLink
+                to="/riwayat"
                 className={`px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition ${
                   currentView === 'riwayat'
                     ? 'bg-slate-100 text-slate-900 border border-slate-300 font-bold'
@@ -70,7 +73,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <History className="w-3.5 h-3.5" />
                 <span>Riwayat Agenda</span>
-              </button>
+              </NavLink>
+
+              {onOpenSchedule && (
+                <button
+                  onClick={onOpenSchedule}
+                  className="px-2.5 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition"
+                  title="Lihat Jadwal Mengajar Saya"
+                >
+                  <CalendarDays className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Jadwal Saya</span>
+                </button>
+              )}
 
               <button
                 onClick={onOpenKotakSaran}
@@ -83,24 +97,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Right User Info & Logout */}
             <div className="flex items-center gap-2 sm:gap-3">
-              {isAdmin && (
-                <button
-                  onClick={() => onToggleView(currentView === 'dev' ? 'agenda' : 'dev')}
-                  className={`px-2 py-1 sm:px-2.5 sm:py-1.5 rounded text-[11px] sm:text-xs font-semibold flex items-center gap-1 transition border ${
-                    currentView === 'dev'
-                      ? 'bg-slate-900 text-white border-slate-900'
-                      : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-200'
-                  }`}
-                >
-                  <LayoutDashboard className="w-3 h-3 text-purple-600" />
-                  <span className="hidden sm:inline">Panel Admin</span>
-                  <span className="sm:hidden">Admin</span>
-                </button>
-              )}
-
               {/* Teacher Info */}
               <div className="flex flex-col items-end">
-                <span className="text-[11px] sm:text-xs font-bold text-slate-800 max-w-[120px] sm:max-w-[150px] truncate">
+                <span className="text-[11px] sm:text-xs font-bold text-slate-800 max-w-30 sm:max-w-37.5 truncate">
                   {activeTeacherName || 'Guru'}
                 </span>
                 <span className="text-[9px] sm:text-[10px] text-slate-400 font-medium flex items-center gap-0.5">
@@ -131,8 +130,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Bottom Navigation Bar for Mobile (Thumb-Friendly, Fixed Bottom with iOS safe-area support) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xs border-t border-slate-200 shadow-lg px-2 pt-1.5 safe-bottom flex items-center justify-around no-print">
-        <button
-          onClick={() => onToggleView('agenda')}
+        <NavLink
+          to="/"
+          end
           className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition min-h-[44px] ${
             currentView === 'agenda'
               ? 'text-emerald-700 font-bold bg-emerald-50/50'
@@ -141,10 +141,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <FileEdit className={`w-5 h-5 mb-0.5 ${currentView === 'agenda' ? 'stroke-[2.5]' : ''}`} />
           <span className="text-[10px]">Isi Agenda</span>
-        </button>
+        </NavLink>
 
-        <button
-          onClick={() => onToggleView('riwayat')}
+        <NavLink
+          to="/riwayat"
           className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition min-h-[44px] ${
             currentView === 'riwayat'
               ? 'text-emerald-700 font-bold bg-emerald-50/50'
@@ -153,7 +153,17 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <History className={`w-5 h-5 mb-0.5 ${currentView === 'riwayat' ? 'stroke-[2.5]' : ''}`} />
           <span className="text-[10px]">Riwayat</span>
-        </button>
+        </NavLink>
+
+        {onOpenSchedule && (
+          <button
+            onClick={onOpenSchedule}
+            className="flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg text-purple-700 hover:text-purple-900 transition min-h-[44px]"
+          >
+            <CalendarDays className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px]">Jadwal</span>
+          </button>
+        )}
 
         <button
           onClick={onOpenKotakSaran}

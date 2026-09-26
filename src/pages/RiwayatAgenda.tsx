@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { localDateString } from '../utils/date';
 import { useAuth } from '../contexts/AuthContext';
 import { getRekapAgenda, deleteAgenda } from '../services/agendaService';
 import { getEvidenceSignedUrl } from '../services/evidenceService';
@@ -23,10 +24,12 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
   const [activePhoto, setActivePhoto] = useState<{
     url: string;
     uploadedAt?: string;
+    capturedAt?: string;
+    actualTeacherName?: string;
     title: string;
   } | null>(null);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = localDateString();
 
   const fetchRiwayat = async () => {
     setIsLoading(true);
@@ -66,14 +69,15 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
   }, [activeTeacherName]);
 
   const handleDelete = async (id: string, kelas: string, tanggal: string) => {
-    if (confirm(`Hapus agenda ${kelas} tanggal ${tanggal}?`)) {
-      try {
-        await deleteAgenda(id);
-        showToast('success', 'Agenda berhasil dihapus.');
-        fetchRiwayat();
-      } catch (err) {
-        showToast('error', 'Gagal menghapus agenda.');
-      }
+    if (!import.meta.env.DEV && !confirm(`Hapus agenda ${kelas} tanggal ${tanggal}?`)) {
+      return;
+    }
+    try {
+      await deleteAgenda(id);
+      showToast('success', 'Agenda berhasil dihapus.');
+      fetchRiwayat();
+    } catch (err) {
+      showToast('error', 'Gagal menghapus agenda.');
     }
   };
 
@@ -253,7 +257,9 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                                 setActivePhoto({
                                   url: agenda.evidence!.signedUrl!,
                                   uploadedAt: agenda.evidence!.uploaded_at,
-                                  title: `Bukti Foto Mengajar - ${agenda.header.kelas}`,
+                                  capturedAt: agenda.evidence!.captured_at,
+                                  actualTeacherName: agenda.evidence!.actual_teacher_name || agenda.header.actual_teacher_name || agenda.kbm?.[0]?.nama_guru,
+                                  title: `Dokumentasi Foto - ${agenda.header.kelas}`,
                                 })
                               }
                             />
@@ -451,7 +457,9 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
                             setActivePhoto({
                               url: agenda.evidence!.signedUrl!,
                               uploadedAt: agenda.evidence!.uploaded_at,
-                              title: `Bukti Foto Mengajar - ${agenda.header.kelas}`,
+                              capturedAt: agenda.evidence!.captured_at,
+                              actualTeacherName: agenda.evidence!.actual_teacher_name || agenda.header.actual_teacher_name || agenda.kbm?.[0]?.nama_guru,
+                              title: `Dokumentasi Foto - ${agenda.header.kelas}`,
                             })
                           }
                           className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold rounded text-xs flex items-center gap-1.5 transition"
@@ -511,6 +519,8 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({
         onClose={() => setActivePhoto(null)}
         imageUrl={activePhoto?.url}
         uploadedAt={activePhoto?.uploadedAt}
+        capturedAt={activePhoto?.capturedAt}
+        actualTeacherName={activePhoto?.actualTeacherName}
         title={activePhoto?.title}
       />
     </div>
