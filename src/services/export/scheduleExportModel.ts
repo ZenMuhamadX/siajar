@@ -23,6 +23,9 @@ import { SCHEDULE_DAYS } from '../../types/schedule';
 /** Kelas yang tidak lagi berlaku — tidak ikut dicetak (§5 "jadwal yang berlaku"). */
 const EXCLUDED_STATUS = 'ARCHIVED';
 
+/** Fallback bila Pengaturan belum termuat — sama dengan `DEFAULT_SETTINGS`. */
+const DEFAULT_SCHOOL_NAME = 'SDIT AS-SYIFA';
+
 export interface ScheduleExportInput {
   /** Jadwal mentah untuk satu tahun ajaran (hasil `getSchedules({ academicYearId })`). */
   schedules: ScheduleItem[];
@@ -32,6 +35,18 @@ export interface ScheduleExportInput {
   teachers?: Guru[];
   /** Override kolom kelas, default `DAFTAR_KELAS`. */
   classOptions?: string[];
+  /** Nama sekolah dari Pengaturan — baris subjudul di sheet mingguan. */
+  schoolName?: string;
+  /**
+   * Tampilkan nama depan guru di bawah mata pelajaran.
+   * Default `true` = perilaku Stage 5.2 yang sudah disetujui.
+   */
+  showTeacherName?: boolean;
+  /**
+   * Ekspor juga slot berstatus DRAFT.
+   * Default `true` = perilaku Stage 5.2 (DRAFT ikut + footnote).
+   */
+  includeDraft?: boolean;
 }
 
 export interface WeeklyRow {
@@ -63,6 +78,8 @@ export interface DetailRow {
 
 export interface ScheduleExportModel {
   academicYearName: string;
+  /** Nama sekolah dari Pengaturan — dipakai sebagai baris subjudul. */
+  schoolName: string;
   classOptions: string[];
   weekly: WeeklyDay[];
   detail: DetailRow[];
@@ -72,6 +89,8 @@ export interface ScheduleExportModel {
   archivedCount: number;
   /** Jumlah slot DRAFT yang ikut — dipakai untuk footnote di sheet mingguan. */
   draftCount: number;
+  /** Jumlah slot DRAFT yang dikecualikan karena pengaturan `includeDraft`. */
+  draftExcludedCount: number;
 }
 
 /** Ambil jam-menyit dari "HH:mm" / "HH:mm:ss" / "HH:mm:ss.sss+00". */
@@ -132,9 +151,9 @@ function cellText(subject: string, teacher: string): string {
  * Sheet utama: grid per hari. Baris = slot waktu, kolom = kelas.
  * Tidak ada merge — dua slot berurutan dengan mapel sama tetap dua baris (§10).
  *
- * Catatan: `classOptions` tidak dipakai di sini. Kolom kelas ditentukan saat
- * menulis sheet (menekan kolom yang kosong di grid), jadi grid storing hanya
- * mapel yang benar-benar ada. Kelas tanpa jadwal otomatis menjadi cell kosong.
+ * `teacherName` sudah diputuskan di luar: kalau pengaturan mematikan nama guru,
+ * caller mengoper fungsi yang selalu mengembalikan string kosong — sehingga semua
+ * kode di bawah tidak perlu tahu apa-apa soal toggle tersebut.
  */
 export function buildWeeklyGrid(
   schedules: ScheduleItem[],
@@ -205,25 +224,42 @@ export function exportFileName(academicYearName: string): string {
 
 /**
  * Satu-satunya pintu masuk: dari page → model → writer Excel.
- * ARCHIVED dibuang di sini (satu sumber kebenaran), DRAFT tetap ikut
- * kecatatannya supaya sheet bisa memberi catatan kaki.
+ *
+ * ARCHIVED selalu dibuang (satu sumber kebenaran). DRAFT mengikuti pengaturan
+ * `includeDraft` — kalau dimatikan, DRAFT diperlakukan seperti arsip: tidak
+ * ikut dicetak dan jumlahnya dilaporkan supaya bisa muncul di catatan kaki.
  */
 export function buildScheduleExportModel(input: ScheduleExportInput): ScheduleExportModel {
-  const { schedules, academicYearName, teachers = [], classOptions = DAFTAR_KELAS } = input;
+  const {
+    schedules,
+    academicYearName,
+    teachers = [],
+    classOptions = DAFTAR_KELAS,
+    showTeacherName = true,
+    includeDraft = true,
+    schoolName = DEFAULT_SCHOOL_NAME,
+  } = input;
 
-  const included = schedules.filter((s) => s.status !== EXCLUDED_STATUS);
-  const archivedCount = schedules.length - included.length;
-  const draftCount = included.filter((s) => s.status === 'DRAFT').length;
+  const draftTotal = schedules.filter((s) => s.status === 'DRAFT').length;
+  const included = schedules.filter(
+    (s) => s.status !== EXCLUDED_STATUS && (includeDraft || s.status !== 'DRAFT'),
+  );
+  const archivedCount = schedules.filter((s) => s.status === EXCLUDED_STATUS).length;
+  const draftCount = includeDraft ? draftTotal : 0;
+  const draftExcludedCount = includeDraft ? 0 : draftTotal;
 
-  const teacherName = buildTeacherResolver(teachers);
+  // Saat nama guru dimatikan, cukup resolver yang mengembalikan string kosong.
+  const teacherName = showTeacherName ? buildTeacherResolver(teachers) : () => '';
 
   return {
     academicYearName,
+    schoolName,
     classOptions: [...classOptions],
     weekly: buildWeeklyGrid(included, teacherName),
     detail: buildDetailRows(included, academicYearName, teacherName),
     exportedCount: included.length,
     archivedCount,
     draftCount,
+    draftExcludedCount,
   };
 }

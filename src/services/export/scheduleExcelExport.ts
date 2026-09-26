@@ -1,3 +1,5 @@
+import type { ExcelSettings } from '../settings/appSettings';
+import { DEFAULT_SETTINGS } from '../settings/appSettings';
 import type { ScheduleExportModel, WeeklyRow } from './scheduleExportModel';
 import { exportFileName } from './scheduleExportModel';
 
@@ -12,45 +14,22 @@ import { exportFileName } from './scheduleExportModel';
  * saat app dimuat. Vite meng-code-split-nya jadi chunk sendiri (sudah
  * diverifikasi lewat `vite build`).
  *
- * Gaya mengikuti file referensi "JADWAL PELAJARAN 2026-2027.xlsx":
- *   - font Bookman Old Style (judul 20pt bold, subjudul 16pt, header 12pt, isi 11pt)
- *   - border tipis semua sisi, tanpa frame tebal
- *   - alignment center/center + wrapText
- *   - lebar kolom WAKTU 16.3, kolom kelas 14.7
- *   - tinggi baris: header 18, isi 20.1, spasi 6.75
- *   - judul 3 baris di-merge, header tabel diulang per hari
+ * Tampilan seluruhnya diambil dari Pengaturan (`ExcelSettings`) — tidak ada
+ * warna/font/orientasi yang tertanam di sini. Nilai bawaannya meniru hasil
+ * Stage 5.2 yang sudah disetujui, termasuk gaya file referensi
+ * "JADWAL PELAJARAN 2026-2027.xlsx": font Bookman Old Style, border tipis
+ * tanpa frame tebal, center/center + wrapText, lebar kolom WAKTU 16.3 & kelas
+ * 14.7, tinggi baris 18/20.1/6.75, judul 3 baris di-merge, header tabel
+ * diulang per hari.
  *
  * Yang SENGAJA deviasi dari file referensi (sudah disepakati):
  *   - Sheet bernama "Jadwal Mingguan" / "Detail Jadwal", bukan Sheet1/Sheet2
- *   - Band hari horizontal (merge A:G), bukan kolom A teks putar 90°
- *   - Tidak ada merge sel mapel (§10/§19), sehingga 2 slot = 2 baris
- *   - Landscape + fit-to-width, bukan portrait scale 65%
- *   - Satu warna utama (navy) + tintnya, bukan kuning/sian
+ *   - Band hari horizontal (merge A:G), bukan kolom A teks putar 90 derajat
+ *   - Tidak ada merge sel mapel, sehingga 2 slot = 2 baris
+ *   - Satu warna utama + tint-nya, bukan kuning/sian
  */
 
-/** Font dokumen sekolah — sama dengan file referensi. */
-const FONT = 'Bookman Old Style';
-
-/** Satu keluarga warna: navy untuk header, tint terang untuk band hari. */
-const NAVY = 'FF1F3864';
-const NAVY_LIGHT = 'FFD9E2F3';
-const TITLE_TEXT = 'FF1F3864';
-const BORDER = 'FF9CA3AF';
-
-const THIN_BORDER = {
-  top: { style: 'thin' as const, color: { argb: BORDER } },
-  left: { style: 'thin' as const, color: { argb: BORDER } },
-  bottom: { style: 'thin' as const, color: { argb: BORDER } },
-  right: { style: 'thin' as const, color: { argb: BORDER } },
-};
-
-const solid = (argb: string) => ({
-  type: 'pattern' as const,
-  pattern: 'solid' as const,
-  fgColor: { argb },
-});
-
-/** Lebar kolom mengikuti file referensi. */
+/** Lebar kolom & tinggi baris tetap (bukan bagian kustomisasi). */
 const COL_TIME_WIDTH = 16.3;
 const COL_CLASS_WIDTH = 14.7;
 
@@ -58,11 +37,20 @@ const ROW_HEADER_HEIGHT = 18;
 const ROW_BODY_HEIGHT = 20.1;
 const ROW_SPACER_HEIGHT = 6.75;
 const ROW_BAND_HEIGHT = 20;
+const ROW_FOOTNOTE_HEIGHT = 14;
 
 const SHEET_WEEKLY = 'Jadwal Mingguan';
 const SHEET_DETAIL = 'Detail Jadwal';
 
 export class ScheduleExportError extends Error {}
+
+/** Warna dari Pengaturan selalu 6 digit hex tanpa '#'; ExcelJS minta format ARGB. */
+const argb = (hex: string) => `FF${hex.replace(/^#/, '').toUpperCase()}`;
+
+/** Pemisah waktu sesuai pengaturan: en dash (08:05-08:40) atau hyphen biasa. */
+function timeSeparatorChar(settings: ExcelSettings): string {
+  return settings.timeSeparator === 'en-dash' ? '\u2013' : '-';
+}
 
 /**
  * Bentuk minimum dari worksheet ExcelJS yang dipakai helper di file ini.
@@ -107,7 +95,8 @@ type WorkbookCtor = new () => ExcelJsWorkbook;
  * Ambil konstruktor Workbook secara defensif dari keduanya.
  */
 async function loadWorkbookCtor(): Promise<WorkbookCtor> {
-  const mod = (await import('exceljs')) as unknown as { default?: unknown } & Record<string, unknown>;
+  const mod = (await import('exceljs')) as unknown as { default?: unknown } &
+    Record<string, unknown>;
   const source = (mod.default ?? mod) as { Workbook?: WorkbookCtor };
   if (typeof source?.Workbook !== 'function') {
     throw new ScheduleExportError('Gagal mengekspor jadwal.');
@@ -115,26 +104,51 @@ async function loadWorkbookCtor(): Promise<WorkbookCtor> {
   return source.Workbook;
 }
 
-/** "08:05–08:40" — en dash, sesuai §16. */
-function timeRange(row: Pick<WeeklyRow, 'start' | 'end'>): string {
-  return `${row.start}–${row.end}`;
+/** Border tipis 4 sisi, atau undefined kalau border dimatikan di Pengaturan. */
+function borderFor(settings: ExcelSettings) {
+  if (!settings.showBorders) return undefined;
+  const side = { style: 'thin' as const, color: { argb: argb(settings.borderColor) } };
+  return { top: side, left: side, bottom: side, right: side };
 }
 
-/** Baris judul 3 tingkat: JADWAL PELAJARAN / nama sekolah / tahun pelajaran. */
-function writeTitleBlock(ws: SheetLike, lastColumn: string, model: ScheduleExportModel) {
+const solid = (argbValue: string) => ({
+  type: 'pattern' as const,
+  pattern: 'solid' as const,
+  fgColor: { argb: argbValue },
+});
+
+/** Rentang waktu, pemisah dari Pengaturan. */
+function timeRange(row: Pick<WeeklyRow, 'start' | 'end'>, settings: ExcelSettings): string {
+  return `${row.start}${timeSeparatorChar(settings)}${row.end}`;
+}
+
+/** Judul 3 tingkat: JADWAL PELAJARAN / nama sekolah / tahun pelajaran. */
+function writeTitleBlock(
+  ws: SheetLike,
+  lastColumn: string,
+  model: ScheduleExportModel,
+  style: ExcelSettings,
+) {
   const rows: Array<[string, number]> = [
-    ['JADWAL PELAJARAN', 20],
-    ['SDIT AS-SYIFA', 16],
-    [`TAHUN PELAJARAN ${model.academicYearName}`, 12],
+    ['JADWAL PELAJARAN', style.titleFontSize],
+    [model.schoolName, Math.max(12, style.titleFontSize - 4)],
+    [`TAHUN PELAJARAN ${model.academicYearName}`, Math.max(10, style.titleFontSize - 8)],
   ];
+  const border = borderFor(style);
 
   rows.forEach(([text, size], i) => {
     const rowNo = i + 1;
     ws.mergeCells(`A${rowNo}:${lastColumn}${rowNo}`);
     const cell = ws.getCell(rowNo, 1);
     cell.value = text;
-    cell.font = { name: FONT, size, bold: true, color: { argb: TITLE_TEXT } };
+    cell.font = {
+      name: style.fontFamily,
+      size,
+      bold: true,
+      color: { argb: argb(style.titleColor) },
+    };
     cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    if (border) cell.border = border;
     ws.getRow(rowNo).height = size + 6;
   });
 
@@ -144,28 +158,51 @@ function writeTitleBlock(ws: SheetLike, lastColumn: string, model: ScheduleExpor
 }
 
 /** Baris header WAKTU + KELAS 1..6, diulang di setiap blok hari. */
-function writeHeaderRow(ws: SheetLike, rowNo: number, model: ScheduleExportModel) {
+function writeHeaderRow(
+  ws: SheetLike,
+  rowNo: number,
+  model: ScheduleExportModel,
+  style: ExcelSettings,
+) {
   const headers = ['WAKTU', ...model.classOptions];
+  const border = borderFor(style);
   headers.forEach((text, i) => {
     const cell = ws.getCell(rowNo, i + 1);
     cell.value = text;
-    cell.font = { name: FONT, size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
-    cell.fill = solid(NAVY);
+    cell.font = {
+      name: style.fontFamily,
+      size: Math.max(9, style.baseFontSize),
+      bold: true,
+      color: { argb: 'FFFFFFFF' },
+    };
+    cell.fill = solid(argb(style.headerColor));
     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    cell.border = THIN_BORDER;
+    if (border) cell.border = border;
   });
   ws.getRow(rowNo).height = ROW_HEADER_HEIGHT;
 }
 
-/** Baris pemisah hari: merge seluruh lebar tabel, navy muda + bold. */
-function writeDayBand(ws: SheetLike, rowNo: number, label: string, lastColumn: string) {
+/** Baris pemisah hari: merge seluruh lebar tabel. */
+function writeDayBand(
+  ws: SheetLike,
+  rowNo: number,
+  label: string,
+  lastColumn: string,
+  style: ExcelSettings,
+) {
   ws.mergeCells(`A${rowNo}:${lastColumn}${rowNo}`);
   const cell = ws.getCell(rowNo, 1);
+  const border = borderFor(style);
   cell.value = label;
-  cell.font = { name: FONT, size: 12, bold: true, color: { argb: TITLE_TEXT } };
-  cell.fill = solid(NAVY_LIGHT);
+  cell.font = {
+    name: style.fontFamily,
+    size: Math.max(9, style.baseFontSize),
+    bold: true,
+    color: { argb: argb(style.titleColor) },
+  };
+  cell.fill = solid(argb(style.bandColor));
   cell.alignment = { horizontal: 'center', vertical: 'middle' };
-  cell.border = THIN_BORDER;
+  if (border) cell.border = border;
   ws.getRow(rowNo).height = ROW_BAND_HEIGHT;
 }
 
@@ -175,46 +212,67 @@ function writeScheduleRow(
   rowNo: number,
   row: WeeklyRow,
   classOptions: string[],
+  style: ExcelSettings,
 ) {
+  const border = borderFor(style);
   const timeCell = ws.getCell(rowNo, 1);
-  timeCell.value = timeRange(row);
-  timeCell.font = { name: FONT, size: 11 };
+  timeCell.value = timeRange(row, style);
+  timeCell.font = { name: style.fontFamily, size: style.baseFontSize };
   timeCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-  timeCell.border = THIN_BORDER;
+  if (border) timeCell.border = border;
 
   classOptions.forEach((classId, i) => {
     const cell = ws.getCell(rowNo, i + 2);
-    // §13: kelas tanpa jadwal pada slot ini → cell kosong, bukan "N/A"/"-".
+    // Kelas tanpa jadwal pada slot ini dibiarkan kosong, bukan "N/A"/"-".
     const value = row.cells[classId];
     if (value) cell.value = value;
-    cell.font = { name: FONT, size: 11 };
+    cell.font = { name: style.fontFamily, size: style.baseFontSize };
     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    cell.border = THIN_BORDER;
+    if (border) cell.border = border;
   });
 
   ws.getRow(rowNo).height = ROW_BODY_HEIGHT;
 }
-function writeFootnote(ws: SheetLike, rowNo: number, lines: string[], lastColumn: string) {
+
+/** Catatan kaki (ada DRAFT yang ikut / yang dikecualikan). */
+function writeFootnote(
+  ws: SheetLike,
+  rowNo: number,
+  lines: string[],
+  lastColumn: string,
+  style: ExcelSettings,
+) {
   lines.forEach((text, i) => {
     const r = rowNo + i;
     ws.mergeCells(`A${r}:${lastColumn}${r}`);
     const cell = ws.getCell(r, 1);
     cell.value = text;
-    cell.font = { name: FONT, size: 9, italic: true, color: { argb: 'FF4B5563' } };
+    cell.font = {
+      name: style.fontFamily,
+      size: 9,
+      italic: true,
+      color: { argb: 'FF4B5563' },
+    };
     cell.alignment = { horizontal: 'left', vertical: 'middle' };
-    ws.getRow(r).height = 14;
+    ws.getRow(r).height = ROW_FOOTNOTE_HEIGHT;
   });
 }
 
-/** Sheet 1 — format jadwal sekolah (§5). */
-function buildWeeklySheet(wb: ExcelJsWorkbook, model: ScheduleExportModel) {
+/** Sheet 1: format jadwal sekolah. */
+function buildWeeklySheet(
+  wb: ExcelJsWorkbook,
+  model: ScheduleExportModel,
+  style: ExcelSettings,
+) {
   const lastColumnLetter =
     model.classOptions.length > 0
-      ? String.fromCharCode(65 + model.classOptions.length) // A=65 → 6 kelas → "G"
+      ? String.fromCharCode(65 + model.classOptions.length) // A=65, 6 kelas -> "G"
       : 'A';
 
   const ws = wb.addWorksheet(SHEET_WEEKLY, {
-    views: [{ state: 'frozen', ySplit: 6 }],
+    views: style.repeatHeader
+      ? [{ state: 'frozen', ySplit: 6 }]
+      : [{ state: 'normal' }],
   });
 
   ws.getColumn(1).width = COL_TIME_WIDTH;
@@ -222,16 +280,16 @@ function buildWeeklySheet(wb: ExcelJsWorkbook, model: ScheduleExportModel) {
     ws.getColumn(i + 2).width = COL_CLASS_WIDTH;
   });
 
-  writeTitleBlock(ws, lastColumnLetter, model);
-  writeHeaderRow(ws, 6, model);
+  writeTitleBlock(ws, lastColumnLetter, model, style);
+  writeHeaderRow(ws, 6, model, style);
 
   let rowNo = 7;
   for (const day of model.weekly) {
-    if (day.rows.length === 0) continue; // hari tanpa jadwal → tidak ada band
-    writeDayBand(ws, rowNo, day.label, lastColumnLetter);
+    if (day.rows.length === 0) continue; // hari tanpa jadwal -> tidak ada band
+    writeDayBand(ws, rowNo, day.label, lastColumnLetter, style);
     rowNo += 1;
     for (const row of day.rows) {
-      writeScheduleRow(ws, rowNo, row, model.classOptions);
+      writeScheduleRow(ws, rowNo, row, model.classOptions, style);
       rowNo += 1;
     }
   }
@@ -243,6 +301,12 @@ function buildWeeklySheet(wb: ExcelJsWorkbook, model: ScheduleExportModel) {
         `Pastikan sudah disetujui sebelum jadwal dipakai.`,
     );
   }
+  if (model.draftExcludedCount > 0) {
+    footnotes.push(
+      `Catatan: ${model.draftExcludedCount} slot berstatus DRAFT dikecualikan ` +
+        `karena pengaturan export.`,
+    );
+  }
   if (model.archivedCount > 0) {
     footnotes.push(
       `Catatan: ${model.archivedCount} slot berstatus ARSIP dikecualikan dari export ini.`,
@@ -250,19 +314,20 @@ function buildWeeklySheet(wb: ExcelJsWorkbook, model: ScheduleExportModel) {
   }
   if (footnotes.length > 0) {
     rowNo += 1;
-    writeFootnote(ws, rowNo, footnotes, lastColumnLetter);
+    writeFootnote(ws, rowNo, footnotes, lastColumnLetter, style);
     rowNo += footnotes.length;
   }
 
   const lastRow = Math.max(rowNo - 1, 6);
   ws.pageSetup = {
     paperSize: 9, // A4
-    orientation: 'landscape',
-    fitToPage: true,
-    fitToWidth: 1,
+    orientation: style.orientation,
+    fitToPage: style.fitToWidth,
+    fitToWidth: style.fitToWidth ? 1 : 0,
     fitToHeight: 0,
     printArea: `A1:${lastColumnLetter}${lastRow}`,
-    printTitlesRow: '1:6', // judul + header mengulang di tiap halaman cetak
+    // Judul + header mengulang di tiap halaman cetak.
+    ...(style.repeatHeader ? { printTitlesRow: '1:6' } : {}),
     margins: {
       left: 0.4,
       right: 0.4,
@@ -276,8 +341,12 @@ function buildWeeklySheet(wb: ExcelJsWorkbook, model: ScheduleExportModel) {
   return ws;
 }
 
-/** Sheet 2 — normalized, untuk pemeriksaan data & filtering (§14). */
-function buildDetailSheet(wb: any, model: ScheduleExportModel) {
+/** Sheet 2: normalized, untuk pemeriksaan data & filtering. */
+function buildDetailSheet(
+  wb: ExcelJsWorkbook,
+  model: ScheduleExportModel,
+  style: ExcelSettings,
+) {
   const headers = [
     'Hari',
     'Waktu Mulai',
@@ -289,6 +358,7 @@ function buildDetailSheet(wb: any, model: ScheduleExportModel) {
     'Tahun Ajaran',
   ];
   const widths = [11, 12, 12, 6, 12, 26, 14, 13];
+  const border = borderFor(style);
 
   const ws = wb.addWorksheet(SHEET_DETAIL, {
     views: [{ state: 'frozen', ySplit: 1 }],
@@ -301,10 +371,15 @@ function buildDetailSheet(wb: any, model: ScheduleExportModel) {
   headers.forEach((text, i) => {
     const cell = ws.getCell(1, i + 1);
     cell.value = text;
-    cell.font = { name: FONT, size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-    cell.fill = solid(NAVY);
+    cell.font = {
+      name: style.fontFamily,
+      size: style.baseFontSize,
+      bold: true,
+      color: { argb: 'FFFFFFFF' },
+    };
+    cell.fill = solid(argb(style.headerColor));
     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    cell.border = THIN_BORDER;
+    if (border) cell.border = border;
   });
   ws.getRow(1).height = ROW_HEADER_HEIGHT;
 
@@ -323,13 +398,13 @@ function buildDetailSheet(wb: any, model: ScheduleExportModel) {
     values.forEach((value, col) => {
       const cell = ws.getCell(rowNo, col + 1);
       if (value !== '') cell.value = value as string | number;
-      cell.font = { name: FONT, size: 11 };
+      cell.font = { name: style.fontFamily, size: style.baseFontSize };
       cell.alignment = {
         horizontal: col === 5 || col === 6 ? 'left' : 'center',
         vertical: 'middle',
         wrapText: true,
       };
-      cell.border = THIN_BORDER;
+      if (border) cell.border = border;
     });
     ws.getRow(rowNo).height = ROW_BODY_HEIGHT;
   });
@@ -339,10 +414,10 @@ function buildDetailSheet(wb: any, model: ScheduleExportModel) {
   ws.pageSetup = {
     paperSize: 9,
     orientation: 'portrait',
-    fitToPage: true,
-    fitToWidth: 1,
+    fitToPage: style.fitToWidth,
+    fitToWidth: style.fitToWidth ? 1 : 0,
     fitToHeight: 0,
-    printTitlesRow: '1:1',
+    ...(style.repeatHeader ? { printTitlesRow: '1:1' } : {}),
     margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
   };
 
@@ -351,9 +426,15 @@ function buildDetailSheet(wb: any, model: ScheduleExportModel) {
 
 /**
  * Bangun workbook dari model. Terpisah dari unduhan supaya bisa diuji
- * (sulisnya benar-benar menghasilkan .xlsx yang valid di disk).
+ * (bisa dipastikan benar-benar menghasilkan .xlsx yang valid di disk).
+ *
+ * `settings` opsional; kalau tidak diisi dipakai DEFAULT_SETTINGS yang identik
+ * dengan hasil Stage 5.2.
  */
-export async function buildScheduleWorkbook(model: ScheduleExportModel) {
+export async function buildScheduleWorkbook(
+  model: ScheduleExportModel,
+  settings: ExcelSettings = DEFAULT_SETTINGS.excel,
+) {
   const Workbook = await loadWorkbookCtor();
   const wb = new Workbook();
   wb.creator = 'SIAJAR';
@@ -361,13 +442,13 @@ export async function buildScheduleWorkbook(model: ScheduleExportModel) {
   wb.created = new Date();
   wb.modified = new Date();
 
-  buildWeeklySheet(wb, model);
-  buildDetailSheet(wb, model);
+  buildWeeklySheet(wb, model, settings);
+  buildDetailSheet(wb, model, settings);
 
   return wb;
 }
 
-/** Nama file sesuai tahun ajaran dari data (§20). */
+/** Nama file sesuai tahun ajaran dari data. */
 export function scheduleExportFileName(model: ScheduleExportModel): string {
   return exportFileName(model.academicYearName);
 }
@@ -375,9 +456,12 @@ export function scheduleExportFileName(model: ScheduleExportModel): string {
 /**
  * Bangun + unduh file .xlsx. Dipanggil dari handler tombol.
  * Error dilempar sebagai `ScheduleExportError` supaya UI bisa menampilkan
- * pesan yang jelas (§25), bukan crash diam-diam.
+ * pesan yang jelas, bukan crash diam-diam.
  */
-export async function downloadScheduleWorkbook(model: ScheduleExportModel): Promise<string> {
+export async function downloadScheduleWorkbook(
+  model: ScheduleExportModel,
+  settings: ExcelSettings = DEFAULT_SETTINGS.excel,
+): Promise<string> {
   const fileName = scheduleExportFileName(model);
 
   if (model.exportedCount === 0) {
@@ -386,7 +470,7 @@ export async function downloadScheduleWorkbook(model: ScheduleExportModel): Prom
 
   let buffer: ArrayBuffer;
   try {
-    const wb = await buildScheduleWorkbook(model);
+    const wb = await buildScheduleWorkbook(model, settings);
     const buf = await wb.xlsx.writeBuffer();
     buffer = buf as ArrayBuffer;
   } catch (err) {

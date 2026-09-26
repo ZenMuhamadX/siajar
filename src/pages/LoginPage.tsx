@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useSchoolName } from '../contexts/SettingsContext';
 import { getGuruDirectory } from '../services/agendaService';
 import { LogIn, Lock, User, AlertCircle, Loader2, Shield, Eye, EyeOff } from 'lucide-react';
 
@@ -7,6 +8,9 @@ type GuruOption = { id: string; nama_guru: string };
 
 export const LoginPage: React.FC = () => {
   const { loginAsTeacher, loginAsAdmin } = useAuth();
+  // Nama sekolah dari Pengaturan. Render pertama tetap memakai nilai bawaan
+  // supaya halaman login tidak menunggu jaringan.
+  const schoolName = useSchoolName();
   const [mode, setMode] = useState<'teacher' | 'admin'>('teacher');
   const [daftarGuru, setDaftarGuru] = useState<GuruOption[]>([]);
   const [selectedGuru, setSelectedGuru] = useState('');
@@ -70,10 +74,10 @@ export const LoginPage: React.FC = () => {
               className="w-16 h-16 mx-auto object-contain drop-shadow-sm"
             />
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-              SDIT AS-SYIFA
+              {schoolName}
             </h1>
             <p className="text-xs text-slate-500 font-medium">
-              Sistem Manajemen Pembelajaran SDIT As-Syifa
+              Sistem Manajemen Pembelajaran {schoolName}
             </p>
           </div>
 
@@ -215,8 +219,8 @@ export const LoginPage: React.FC = () => {
           </form>
 
           <div className="pt-2 text-center border-t border-slate-100">
-            <p className="text-[13px] text-slate-600">
-              Akses khusus Guru & Pengembang SDIT AS-SYIFA
+            <p className="text-[11px] text-slate-400">
+              Akses khusus Guru & Pengembang {schoolName}
             </p>
           </div>
         </div>
