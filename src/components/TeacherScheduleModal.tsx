@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   type ScheduleItem,
   type AcademicYear,
@@ -73,9 +74,14 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
       return a.start_time.localeCompare(b.start_time);
     });
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+  // Portal ke `document.body` — lihat catatan di `index.css` soal `main` yang
+  // punya `transform` dari `animation: fade-in-up`.
+  return createPortal(
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 no-print">
+      <div
+        data-modal-card
+        className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden border border-slate-200"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
           <div>
@@ -201,6 +207,7 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };

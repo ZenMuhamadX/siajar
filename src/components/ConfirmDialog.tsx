@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, Trash2, X, Loader2 } from 'lucide-react';
 
 interface ConfirmDialogProps {
@@ -28,9 +29,16 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
   const isDanger = variant === 'danger';
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150 no-print">
-      <div className="bg-white rounded-2xl max-w-sm w-full p-5 sm:p-6 shadow-xl border border-slate-200 space-y-4">
+  // Portal ke `document.body`: tanpa ini `fixed inset-0` ter-anchor ke
+  // containing block terdekat yang punya `transform` (dalam app ini `<main>`,
+  // karena `animation: fade-in-up`), sehingga overlay ikut setinggi isi
+  // halaman dan kartunya terpusat jauh di bawah layar. Lihat `index.css`.
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs no-print">
+      <div
+        data-modal-card
+        className="bg-white rounded-2xl max-w-sm w-full p-5 sm:p-6 shadow-xl border border-slate-200 space-y-4"
+      >
         {/* Header with Icon */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
@@ -79,6 +87,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };

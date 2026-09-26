@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Loader2, BookOpen, Camera, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { getAgendaById } from '../../services/agendaService';
 import { getEvidenceSignedUrl } from '../../services/evidenceService';
@@ -56,7 +57,10 @@ export const AgendaDetailDrawer: React.FC<AgendaDetailDrawerProps> = ({
 
   if (!agendaId) return null;
 
-  return (
+  // Portal ke `document.body`. Tanpa ini `top-3 bottom-3` terukur dari kotak
+  // `<main>` (yang punya `transform` dari `animation: fade-in-up`), bukan dari
+  // viewport — panelnya lalu terlihat "di tengah" area konten. Lihat `index.css`.
+  return createPortal(
     <>
       <div
         className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[2px] no-print"
@@ -65,7 +69,8 @@ export const AgendaDetailDrawer: React.FC<AgendaDetailDrawerProps> = ({
       <aside
         role="dialog"
         aria-label="Detail agenda"
-        className="fixed top-3 right-3 bottom-3 z-50 w-[calc(100%-1.5rem)] sm:w-[520px] max-h-[85vh] bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col overflow-hidden no-print animate-in slide-in-from-right duration-200"
+        data-drawer-panel
+        className="fixed top-3 right-3 bottom-3 z-50 w-[calc(100%-1.5rem)] sm:w-[520px] max-h-[85vh] bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col overflow-hidden no-print"
       >
         {/* `key` membuat state lahir baru setiap agenda dibuka, jadi tidak perlu
             reset manual di dalam effect. */}
@@ -78,7 +83,8 @@ export const AgendaDetailDrawer: React.FC<AgendaDetailDrawerProps> = ({
           onAdminDeleteEvidence={onAdminDeleteEvidence}
         />
       </aside>
-    </>
+    </>,
+    document.body,
   );
 };
 

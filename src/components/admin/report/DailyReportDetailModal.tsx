@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { X, Clock, User, BookOpen, Camera, ExternalLink, AlertCircle } from 'lucide-react';
 import type { DailyReportItem } from '../../../services/reportService';
 
@@ -96,9 +97,14 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
   const absensi = agenda?.absensi || [];
   const evidence = agenda?.evidence;
 
-  return (
+  // Portal ke `document.body` — lihat catatan di `index.css` soal `main` yang
+  // punya `transform` dari `animation: fade-in-up`.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-2xs overflow-y-auto no-print">
-      <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-auto">
+      <div
+        data-modal-card
+        className="bg-white rounded-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto"
+      >
         {/* Modal Header */}
         <div className="shrink-0 px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
           <div>
@@ -347,6 +353,7 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };

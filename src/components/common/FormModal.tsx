@@ -1,18 +1,25 @@
 import React, { useEffect, useId } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * Shell modal untuk form.
  *
  * Yang membuatnya benar-benar scroll-safe:
- *   - **backdrop yang memegang scroll** (`overflow-y-auto` + `min-h-full`), bukan
- *     halaman di belakangnya. Dulu kartu dipusatkan dengan `items-center`; karena
- *     isinya lebih tinggi dari layar, bagian atasnya keluar dari area pandang →
- *     pengguna harus scroll, dan scroll-nya justru menggerakkan tabel jadwal di
- *     belakang.
+ *   - **di-portal ke `document.body`**. Ini wajib, bukan opsional: `position:
+ *     fixed` dianchor ke *containing block* terdekat yang punya `transform`,
+ *     `filter`, `backdrop-filter`, `will-change`, atau `contain`. Kalau ada
+ *     leluhur seperti itu, `fixed inset-0` tidak lagi berarti "seluruh layar" —
+ *     overlay ikut jadi setinggi kotak leluhur itu. Di app ini `<main>` punya
+ *     `animation: fade-in-up` (lihat `index.css`), jadi tanpa portal modal akan
+ *     setinggi isi halaman: kartu terpusat jauh di bawah layar dan yang terlihat
+ *     hanya backdrop-nya. Portal menutup kelas bug ini untuk selamanya.
+ *   - **backdrop yang memegang scroll** (`overflow-y-auto` + `min-h-full`).
+ *   - **`items-start` + `my-auto` pada kartu**, bukan `items-center`. Auto margin
+ *     menyerap ruang positif (kartu terpusat) dan jadi 0 saat ruang negatif
+ *     (kartu menempel atas) — jadi kepala modal selalu terjangkau. Dengan
+ *     `items-center`, bagian atas meluber ke arah yang tidak bisa di-scroll.
  *   - **`min-h-0` + `flex-1` pada `<form>`** supaya `max-h` benar-benar berlaku.
- *     Tanpa itu, flex child menolak menyusut sehingga kartu tumbuh melewati
- *     viewport.
- *   - **kepala & kaki `shrink-0`** sehingga selalu terlihat; hanya badan yang scroll.
+ *   - **kepala & kaki `shrink-0`** sehingga selalu terlihat; hanya badan scroll.
  *   - **`overscroll-contain`** supaya scroll di dalam form tidak diteruskan ke
  *     halaman belakang.
  *   - **body scroll lock** selama modal terbuka.
@@ -84,18 +91,19 @@ export const FormModal: React.FC<FormModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4"
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4 no-print"
       onMouseDown={() => !busy && onClose()}
     >
-      <div className="flex min-h-full items-center justify-center">
+      <div className="flex min-h-full items-start justify-center">
         <div
           role="dialog"
           aria-modal="true"
           aria-label={title}
+          data-modal-card
           onMouseDown={(e) => e.stopPropagation()}
-          className={`relative w-full ${SIZES[size]} my-auto max-h-[90vh] flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-xl animate-in fade-in zoom-in-95 duration-150`}
+          className={`relative w-full ${SIZES[size]} my-auto max-h-[90vh] flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-xl`}
         >
           {/* Kepala */}
           <div
@@ -133,6 +141,7 @@ export const FormModal: React.FC<FormModalProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };

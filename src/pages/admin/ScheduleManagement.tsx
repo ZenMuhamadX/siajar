@@ -710,6 +710,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
         }
         onSubmit={handleSaveSchedule}
         busy={isSaving}
+        size="lg"
         footer={(formId) => (
           <>
             <div className="flex items-center gap-2">

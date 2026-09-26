@@ -62,20 +62,70 @@
   }
 }
 
-/* Apply smooth subtle entrance to main content area & dashboard cards */
+/* Apply smooth subtle entrance to main content area & dashboard cards
+ *
+ * PENTING: `backwards`, bukan `both`.
+ * `both` membuat keyframe 100% (yang berisi `transform: translateY(0) scale(1)`)
+ * tetap menempel setelah animasi selesai. `transform` yang bukan `none`
+ * menjadikan <main> sebagai containing block untuk semua `position: fixed`
+ * di dalamnya — artinya setiap modal & drawer/backdrop yang `fixed inset-0`
+ * akan teranchor ke kotak <main>, bukan ke viewport. Akibatnya modal ikut
+ * setinggi isi halaman (kartu terpusat jauh di bawah layar, hanya backdrop
+ * yang terlihat) dan sidebar/header tetap tajam di atas overlay.
+ * `backwards` hanya mengisi fase sebelum animasi berjalan; setelah selesai,
+ * elemen kembali ke gaya alaminya (tanpa transform).
+ * Overlay juga sudah di-portal ke `document.body` sebagai jaring pengaman,
+ * tapi aturan inilah sumber masalahnya. */
 main {
-  animation: fade-in-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: fade-in-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 /* Login card entrance */
 main + footer,
 .min-h-screen > .max-w-md {
-  animation: scale-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: scale-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 /* Toast items slide in */
 .fixed.bottom-4 > div {
-  animation: slide-in-right 0.3s ease-out both;
+  animation: slide-in-right 0.3s ease-out backwards;
+}
+
+/* ── Modal & Drawer ──
+ *
+ * `animate-in fade-in zoom-in-95` berasal dari plugin `tailwindcss-animate`
+ * yang TIDAK dipakai di proyek ini (Tailwind v4 polos), jadi kelas-kelas itu
+ * tidak menghasilkan CSS sama sekali. Animasi sebenarnya didefinisikan di sini.
+ * Sama seperti `main` di atas: `backwards`, jangan `both`, supaya `transform`
+ * tidak menempel setelah animasi selesai. */
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+[data-modal-card] {
+  animation: modal-in 0.15s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+@keyframes drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+[data-drawer-panel] {
+  animation: drawer-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 /* Smooth transitions on interactive cards/sections */

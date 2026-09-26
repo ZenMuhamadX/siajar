@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { RefreshCw, Check, X, AlertTriangle, SwitchCamera, Loader2 } from 'lucide-react';
 
 interface CameraCaptureModalProps {
@@ -195,8 +196,10 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col justify-between select-none overflow-hidden">
+  // Portal ke `document.body` — lihat catatan di `index.css` soal `main` yang
+  // punya `transform` dari `animation: fade-in-up`.
+  return createPortal(
+    <div className="fixed inset-0 z-50 bg-black flex flex-col justify-between select-none overflow-hidden no-print">
       {/* Top Floating Bar: Close & Switch Camera */}
       <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between p-4 bg-gradient-to-b from-black/70 via-black/30 to-transparent">
         <button
@@ -308,6 +311,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Calendar, Download, AlertCircle, User, Clock, Trash2 } from 'lucide-react';
 
 interface PhotoLightboxModalProps {
@@ -55,13 +56,16 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
     }
   };
 
-  return (
+  // Portal ke `document.body` — lihat catatan di `index.css` soal `main` yang
+  // punya `transform` dari `animation: fade-in-up`.
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-xs no-print"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl max-w-2xl w-full max-h-[94vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        data-modal-card
+        className="bg-white rounded-2xl max-w-2xl w-full max-h-[94vh] flex flex-col shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Modal */}
@@ -144,6 +148,7 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
           </span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
