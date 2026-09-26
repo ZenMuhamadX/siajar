@@ -24,15 +24,11 @@ import { getDaftarGuru, getDaftarMapel } from '../../services/agendaService';
 import { PageHeader } from '../../components/admin/PageHeader';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import {
-  CalendarDays,
   Plus,
   CheckCircle2,
   Archive,
   Edit2,
   Trash2,
-  Users,
-  Building2,
-  List,
   AlertTriangle,
   RefreshCw,
   Clock,
@@ -49,8 +45,6 @@ interface ScheduleManagementProps {
   onNavigateTab?: (tab: string) => void;
 }
 
-type ViewMode = 'day' | 'teacher' | 'class' | 'list';
-
 /** Label Indonesia untuk status (konsisten dengan StatusBadge). */
 const STATUS_LABEL: Record<string, string> = {
   ACTIVE: 'Aktif',
@@ -58,18 +52,6 @@ const STATUS_LABEL: Record<string, string> = {
   ARCHIVED: 'Diarsipkan',
 };
 const statusLabel = (s: string) => STATUS_LABEL[s] ?? s;
-
-/** Tab mode tampilan: "Daftar" jadi default karena paling cepat dipindai & di-sort. */
-const VIEW_TABS: {
-  mode: ViewMode;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-}[] = [
-  { mode: 'list', label: 'Daftar', icon: List },
-  { mode: 'day', label: 'Per Hari', icon: CalendarDays },
-  { mode: 'teacher', label: 'Per Guru', icon: Users },
-  { mode: 'class', label: 'Per Kelas', icon: Building2 },
-];
 
 export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
   showToast,
@@ -83,8 +65,8 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
   const [periodTemplates, setPeriodTemplates] = useState<PeriodTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Default mode: Daftar (satu tabel flat, paling cepat dipindai & di-sort)
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  // Tampilan tunggal: satu tabel daftar (flat) + filter. Tidak ada mode
+  //elompokan Per Hari / Per Guru / Per Kelas — semua itu cukup dijawab filter.
   const [filterDay, setFilterDay] = useState<string>('ALL');
   const [filterTeacher, setFilterTeacher] = useState<string>('ALL');
   const [filterClass, setFilterClass] = useState<string>('ALL');
@@ -549,39 +531,6 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
     COL_ACTIONS,
   ];
 
-  // Mode "Per Hari": Hari jadi judul grup, disembunyikan dari kolom
-  const dayColumns: Column<ScheduleItem>[] = [
-    COL_TIME,
-    COL_PERIOD,
-    COL_CLASS,
-    COL_SUBJECT,
-    COL_TEACHER,
-    COL_STATUS,
-    COL_ACTIONS,
-  ];
-
-  // Mode "Per Guru": Guru jadi judul grup
-  const teacherColumns: Column<ScheduleItem>[] = [
-    COL_DAY,
-    COL_TIME,
-    COL_PERIOD,
-    COL_CLASS,
-    COL_SUBJECT,
-    COL_STATUS,
-    COL_ACTIONS,
-  ];
-
-  // Mode "Per Kelas": Kelas jadi judul grup
-  const classColumns: Column<ScheduleItem>[] = [
-    COL_DAY,
-    COL_TIME,
-    COL_PERIOD,
-    COL_SUBJECT,
-    COL_TEACHER,
-    COL_STATUS,
-    COL_ACTIONS,
-  ];
-
   const sharedTableProps = {
     isLoading,
     isFiltered,
@@ -593,33 +542,6 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
       ? 'Coba ubah kata kunci atau filter, lalu reset bila perlu.'
       : 'Klik "Tambah Jadwal" untuk membuat slot jadwal mengajar.',
   };
-
-  // Grup untuk tampilan berkelompok (mode Per Hari / Per Guru / Per Kelas)
-  const dayGroups = SCHEDULE_DAYS.filter((d) => filterDay === 'ALL' || d.key === filterDay).map(
-    (d) => ({
-      key: d.key,
-      label: d.label,
-      rows: filteredSchedules.filter((s) => s.day === d.key),
-    })
-  );
-
-  const teacherGroups = teachers
-    .filter((t) => filterTeacher === 'ALL' || t.nama_guru === filterTeacher)
-    .map((t) => ({
-      key: t.id,
-      label: t.nama_guru,
-      initial: t.nama_guru.charAt(0).toUpperCase(),
-      rows: filteredSchedules.filter((s) => s.teacher_name === t.nama_guru),
-    }))
-    .filter((g) => g.rows.length > 0);
-
-  const classGroups = DAFTAR_KELAS.filter((c) => filterClass === 'ALL' || c === filterClass)
-    .map((c) => ({
-      key: c,
-      label: c,
-      rows: filteredSchedules.filter((s) => s.class_id === c),
-    }))
-    .filter((g) => g.rows.length > 0);
 
   return (
     <div className="space-y-5">
@@ -665,57 +587,6 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
 
       {/* Modern Compact Toolbar & Filters */}
       <div className="space-y-3">
-        {/* View Mode Tabs */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center bg-slate-100 p-1 rounded-lg text-xs gap-1">
-            {VIEW_TABS.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = viewMode === tab.mode;
-              return (
-                <button
-                  key={tab.mode}
-                  onClick={() => setViewMode(tab.mode)}
-                  aria-pressed={isActive}
-                  className={`px-3 py-1.5 rounded-md font-semibold transition flex items-center gap-1.5 ${
-                    isActive
-                      ? 'bg-white text-slate-900 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* TA Selector */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white rounded-lg text-xs font-medium text-slate-600 border border-slate-200">
-              <span className="text-slate-400">TA:</span>
-              <select
-                value={selectedAYId}
-                onChange={(e) => handleAYChange(e.target.value)}
-                className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer"
-              >
-                {academicYears.map((ay) => (
-                  <option key={ay.id} value={ay.id}>
-                    {ay.name} {ay.status === 'ACTIVE' ? '(Aktif)' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <button
-              onClick={() => loadData()}
-              className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-slate-200 transition"
-              title="Refresh Data"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-        </div>
-
         {/* Standardized FilterBar */}
         <FilterBar
           searchValue={searchQuery}
@@ -725,6 +596,21 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
           onResetFilters={handleResetFilters}
           filters={
             <>
+              {/* Tahun ajaran = cakupan data (bukan filter baris), tetap di baris filter */}
+              <select
+                value={selectedAYId}
+                onChange={(e) => handleAYChange(e.target.value)}
+                title="Tahun ajaran"
+                className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 text-xs font-bold focus:outline-none"
+              >
+                {academicYears.map((ay) => (
+                  <option key={ay.id} value={ay.id}>
+                    TA {ay.name}
+                    {ay.status === 'ACTIVE' ? ' (Aktif)' : ''}
+                  </option>
+                ))}
+              </select>
+
               <select
                 value={filterDay}
                 onChange={(e) => setFilterDay(e.target.value)}
@@ -776,125 +662,36 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
               </select>
             </>
           }
+          actions={
+            <button
+              type="button"
+              onClick={() => loadData()}
+              className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-slate-200 transition"
+              title="Refresh Data"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+          }
         />
       </div>
 
-      {/* Mode 1: PER HARI (grouped table) */}
-      {viewMode === 'day' && (
-        <div className="space-y-5">
-          {filteredSchedules.length === 0 ? (
-            <DataTable
-              columns={dayColumns}
-              data={[]}
-              keyExtractor={(item) => item.id}
-              {...sharedTableProps}
-            />
-          ) : (
-            dayGroups.map((group) => (
-              <DataTable
-                key={group.key}
-                title={group.label}
-                subtitle={
-                  group.rows.length > 0 ? `${group.rows.length} slot jadwal` : 'Belum ada jadwal'
-                }
-                titleIcon={<span className="w-2.5 h-2.5 rounded-full bg-indigo-600 shrink-0" />}
-                columns={dayColumns}
-                data={group.rows}
-                keyExtractor={(item) => item.id}
-                isLoading={isLoading}
-                isFiltered={isFiltered}
-                onResetFilter={handleResetFilters}
-                emptyTitle={`Belum ada jadwal hari ${group.label}`}
-                emptyDescription={
-                  isFiltered
-                    ? 'Tidak ada jadwal hari ini yang sesuai filter.'
-                    : 'Buat slot jadwal untuk hari ini lewat tombol "Tambah Jadwal".'
-                }
-              />
-            ))
-          )}
-        </div>
-      )}
-
-      {/* Mode 2: PER GURU (grouped table) */}
-      {viewMode === 'teacher' && (
-        <div className="space-y-4">
-          {teacherGroups.length === 0 ? (
-            <DataTable
-              columns={teacherColumns}
-              data={[]}
-              keyExtractor={(item) => item.id}
-              {...sharedTableProps}
-            />
-          ) : (
-            teacherGroups.map((group) => (
-              <DataTable
-                key={group.key}
-                title={group.label}
-                subtitle={`${group.rows.length} slot jadwal`}
-                titleIcon={
-                  <span className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0">
-                    {group.initial}
-                  </span>
-                }
-                columns={teacherColumns}
-                data={group.rows}
-                keyExtractor={(item) => item.id}
-                isLoading={isLoading}
-              />
-            ))
-          )}
-        </div>
-      )}
-
-      {/* Mode 3: PER KELAS (grouped table) */}
-      {viewMode === 'class' && (
-        <div className="space-y-4">
-          {classGroups.length === 0 ? (
-            <DataTable
-              columns={classColumns}
-              data={[]}
-              keyExtractor={(item) => item.id}
-              {...sharedTableProps}
-            />
-          ) : (
-            classGroups.map((group) => (
-              <DataTable
-                key={group.key}
-                title={group.label}
-                subtitle={`${group.rows.length} slot pembelajaran`}
-                titleIcon={
-                  <span className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                    <Building2 className="w-3.5 h-3.5" />
-                  </span>
-                }
-                columns={classColumns}
-                data={group.rows}
-                keyExtractor={(item) => item.id}
-                isLoading={isLoading}
-              />
-            ))
-          )}
-        </div>
-      )}
-
-      {/* Mode 4: DAFTAR (REUSABLE DATATABLE) */}
-      {viewMode === 'list' && (
-        <DataTable
-          columns={listColumns}
-          data={filteredSchedules}
-          keyExtractor={(item) => item.id}
-          {...sharedTableProps}
-          headerRightContent={
-            <span className="text-[11px] font-semibold text-slate-500">
-              {filteredSchedules.length}
-              {isFiltered ? ` dari ${schedules.length}` : ''} slot jadwal
-            </span>
-          }
-          enablePagination={true}
-          defaultPageSize={25}
-        />
-      )}
+      {/* Tampilan tunggal: satu tabel daftar (flat) + paginasi.
+          formerly ada mode Per Hari / Per Guru / Per Kelas — sekarang cukup
+          dijawab oleh filter hari/kelas/guru/status di FilterBar di atas. */}
+      <DataTable
+        columns={listColumns}
+        data={filteredSchedules}
+        keyExtractor={(item) => item.id}
+        {...sharedTableProps}
+        headerRightContent={
+          <span className="text-[11px] font-semibold text-slate-500">
+            {filteredSchedules.length}
+            {isFiltered ? ` dari ${schedules.length}` : ''} slot jadwal
+          </span>
+        }
+        enablePagination
+        defaultPageSize={25}
+      />
 
 
       {/* Create / Edit Schedule Modal */}
