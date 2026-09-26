@@ -34,10 +34,35 @@
 
 import { createClient, type User } from 'npm:@supabase/supabase-js@2';
 
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
+/**
+ * Deno.env.get() mengembalikan '' untuk variabel yang ADA tapi kosong — mis.
+ * `AUTH_DOMAIN:` atau `ADMIN_EMAIL:` tanpa nilai di docker-compose. Operator
+ * `??` tidak menangkap string kosong, sehingga email akun jadi kosong dan
+ * GoTrue menolak dengan pesan membingungkan:
+ *   "Cannot create a user without either an email or phone"
+ * Karena itu nilai kosong diperlakukan sama seperti tidak diisi.
+ */
+function envOr(name: string, fallback: string): string {
+  const value = Deno.env.get(name);
+  return value && value.trim() ? value.trim() : fallback;
+}
+
+const SUPABASE_URL = (Deno.env.get('SUPABASE_URL') ?? '').replace(/\/+$/, '');
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-const AUTH_DOMAIN = Deno.env.get('AUTH_DOMAIN') ?? 'siajar.local';
-const ADMIN_EMAIL = (Deno.env.get('ADMIN_EMAIL') ?? `admin@${AUTH_DOMAIN}`).toLowerCase();
+const AUTH_DOMAIN = envOr('AUTH_DOMAIN', 'siajar.local').replace(/^@+/, '');
+const ADMIN_EMAIL = envOr('ADMIN_EMAIL', `admin@${AUTH_DOMAIN}`).toLowerCase();
+
+/** Format email yang wajar — dipakai untuk memberi galat yang jelas ke admin. */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function assertEmail(email: string, label: string): string | null {
+  if (EMAIL_RE.test(email)) return null;
+  return (
+    `${label} tidak valid: "${email}". Periksa AUTH_DOMAIN dan ADMIN_EMAIL pada ` +
+    'environment service `functions` di docker-compose — pastikan keduanya terisi ' +
+    'nilai, bukan string kosong.'
+  );
+}
 
 const SCHEMA = 'agenda';
 const MIN_CODE_LENGTH = 6;
@@ -140,6 +165,9 @@ async function handleBootstrapAdmin(body: Record<string, unknown>): Promise<Resp
   }
 
   const meta = { role: 'admin', guru_name: 'Administrator' };
+  const emailError = assertEmail(ADMIN_EMAIL, 'Email admin');
+  if (emailError) return json({ error: emailError }, 500);
+
   const existing = users.find((u) => u.email?.toLowerCase() === ADMIN_EMAIL);
 
   if (existing) {
@@ -210,6 +238,9 @@ async function upsertTeacherAccount(
 
   const email = emailForGuru(guru.id);
   const meta = { role: 'guru', guru_id: guru.id, guru_name: guru.nama_guru };
+
+  const emailError = assertEmail(email, 'Email akun guru');
+  if (emailError) return json({ error: emailError }, 500);
 
   const users = await listAllUsers();
   const existing = users.find((u) => u.email?.toLowerCase() === email);

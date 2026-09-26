@@ -143,7 +143,7 @@ EOF
 
 Tanpa tanda kutip itu, `` `...` `` dan `${...}` akan diekspansi shell dan file jadi rusak.
 
-**Verifikasi setelah menyalin** — jumlah baris harus **329**:
+**Verifikasi setelah menyalin** — jumlah baris harus **360**:
 
 ```bash
 wc -l volumes/functions/manage-users/index.ts
@@ -207,6 +207,25 @@ const AUTH_DOMAIN = Deno.env.get('AUTH_DOMAIN') ?? 'as-syifa.sch.id';
 Lalu salin ulang file ke `volumes/functions/` dan restart container. Cukup satu tempat, tanpa mengedit docker-compose.
 
 > **Penting:** nilai ini harus **sama persis** dengan `VITE_AUTH_DOMAIN` di `.env` aplikasi, karena email akun guru diturunkan dari nilai ini di kedua sisi. Perhatikan juga: akun yang **sudah terlanjur dibuat** memakai domain tertentu, dan email itu tidak bisa diubah tanpa membuat ulang akunnya. Jadi samakan dengan domain yang sudah dipakai, bukan dengan nilai default. Default di kode (`siajar.local`) hanya cocok bila `VITE_AUTH_DOMAIN` juga dibiarkan default.
+
+**Kalau muncul galat `Cannot create a user without either an email or phone`**
+
+Artinya `AUTH_DOMAIN` atau `ADMIN_EMAIL` **ada di docker-compose tapi nilainya kosong**:
+
+```yaml
+    environment:
+      AUTH_DOMAIN:        # <-- kosong, ini penyebabnya
+      ADMIN_EMAIL:        # <-- kosong
+```
+
+Variabel yang ada tapi kosong akan dianggap terisi string kosong, sehingga email akun jadi kosong dan GoTrue menolaknya. Isi nilainya, atau hapus barisnya sama sekali supaya default di kode dipakai:
+
+```yaml
+      AUTH_DOMAIN: as-syifa.sch.id
+      ADMIN_EMAIL: admin@as-syifa.sch.id
+```
+
+Setelah itu `docker compose up -d functions`.
 
 Catatan: pada self-hosted, service `functions` default memakai `VERIFY_JWT: "false"`. Itu tidak masalah — fungsi ini memverifikasi token pemanggil sendiri lewat GoTrue sebelum mengizinkan aksi apa pun.
 
