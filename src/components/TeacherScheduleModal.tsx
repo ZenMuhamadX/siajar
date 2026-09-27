@@ -126,7 +126,7 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
           baris penuh terbagi rata tanpa perlu digeser horizontal — sebelumnya
           enam chip meluber dan menyisakan potongan yang harus di-scroll.
           Grid (bukan flex) yang menjamin lebarnya sama rata. */}
-      <div className="shrink-0 px-2 py-2 sm:px-5 sm:py-2.5 bg-slate-100/70 border-b border-slate-200">
+      <div className="shrink-0 px-2 py-2.5 sm:px-5 sm:py-2.5 bg-slate-100/70 border-b border-slate-200">
         <div
           role="group"
           aria-label="Pilih hari"
@@ -138,7 +138,7 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
               type="button"
               onClick={() => setSelectedDay(d.key)}
               aria-pressed={selectedDay === d.key}
-              className={`px-1 py-2 min-h-9 rounded-md text-2xs sm:text-xs font-bold transition whitespace-nowrap ${
+              className={`px-1 py-2.5 min-h-10 rounded-md text-2xs sm:text-xs font-bold transition whitespace-nowrap ${
                 selectedDay === d.key
                   ? 'bg-primary-600 text-white shadow-xs'
                   : 'bg-white text-slate-600 hover:bg-slate-200'
@@ -168,25 +168,35 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
           </div>
         ) : (
           <ScrollArea label="Tabel jadwal mengajar">
-            {/* Tabel dipadatkan untuk 360px.
+            {/* Tabel untuk layar sempit.
                 Dua kolom dihilangkan di HP:
                 - "Hari" — daftarnya kini selalu satu hari, jadi seluruh kolom
                   hanya akan berisi kata yang sama berulang-ulang.
                 - "JP" — pindah ke bawah jam sebagai baris kecil, sehingga
                   informasinya tetap ada tanpa memakan satu kolom penuh.
-                Mulai `sm` semuanya kembali seperti semula. */}
+                Mulai `sm` semuanya kembali seperti semula.
+
+                Lebar kolom tetap (`table-fixed`) supaya tidak ada kejutan saat
+                nama mapel panjang, TETAPI dilebihkan dari kebutuhan minimum.
+                Versi pertama memakai `px-2 py-2` + kolom jam 5.75rem dan
+                terasa berdesakan. Angka sekarang diukur, bukan ditebak:
+                "07:00–07:45" pada 14px monospace = 88px, plus padding 12px
+                kiri-kanan = 112px pas-pasan. Kolom jam diambil 7.75rem (124px)
+                supaya masih ada 12px ruang bernapas. Sisa untuk Mapel tetap
+                126px di 320px dan 154px di 360px — cukup untuk kata terpanjang
+                ("Matematika" ≈ 63px) tanpa perlu digeser. */}
             <table className="w-full text-xs text-left table-fixed sm:table-auto">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th
                     scope="col"
-                    className="hidden sm:table-cell px-3 py-2.5 font-bold text-slate-600 uppercase tracking-wider text-2xs whitespace-nowrap"
+                    className="hidden sm:table-cell px-3 py-3 font-bold text-slate-600 uppercase tracking-wider text-2xs whitespace-nowrap"
                   >
                     Hari
                   </th>
                   <th
                     scope="col"
-                    className="w-[5.75rem] sm:w-auto px-2 sm:px-4 py-2.5 font-bold text-slate-600 uppercase tracking-wider text-2xs sm:text-xs whitespace-nowrap"
+                    className="w-[7.75rem] sm:w-auto px-3 sm:px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-2xs sm:text-xs whitespace-nowrap"
                   >
                     Jam
                   </th>
@@ -198,13 +208,13 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
                   </th>
                   <th
                     scope="col"
-                    className="w-[3.25rem] sm:w-auto px-1.5 sm:px-4 py-2.5 font-bold text-slate-600 uppercase tracking-wider text-2xs sm:text-xs text-center whitespace-nowrap"
+                    className="w-[3.5rem] sm:w-auto px-2 sm:px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-2xs sm:text-xs text-center whitespace-nowrap"
                   >
                     Kelas
                   </th>
                   <th
                     scope="col"
-                    className="px-2 sm:px-4 py-2.5 font-bold text-slate-600 uppercase tracking-wider text-2xs sm:text-xs"
+                    className="px-3 sm:px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-2xs sm:text-xs"
                   >
                     Mapel
                   </th>
@@ -216,11 +226,11 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
                     <td className="hidden sm:table-cell px-3 py-3 whitespace-nowrap font-bold text-primary-900">
                       {DAY_TRANSLATION_MAP[item.day] || item.day}
                     </td>
-                    <td className="px-2 sm:px-4 py-2 sm:py-3 whitespace-nowrap text-slate-700">
+                    <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-slate-700">
                       <span className="font-mono tabular-nums">
                         {item.start_time.slice(0, 5)}–{item.end_time.slice(0, 5)}
                       </span>
-                      <span className="sm:hidden block font-sans font-bold text-primary-700 mt-0.5">
+                      <span className="sm:hidden block font-sans font-bold text-primary-700 mt-1">
                         JP {item.period_number}
                       </span>
                     </td>
@@ -229,12 +239,12 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
                         JP {item.period_number}
                       </span>
                     </td>
-                    <td className="px-1.5 sm:px-4 py-2 sm:py-3 text-center whitespace-nowrap">
+                    <td className="px-2 sm:px-4 py-3 text-center whitespace-nowrap">
                       <span className="inline-block font-bold text-slate-900 bg-slate-100 px-1.5 sm:px-2 py-0.5 rounded text-xs">
                         {item.class_id}
                       </span>
                     </td>
-                    <td className="px-2 sm:px-4 py-2 sm:py-3 font-medium text-slate-800 break-words">
+                    <td className="px-3 sm:px-4 py-3 font-medium text-slate-800 break-words">
                       {item.subject_name}
                     </td>
                   </tr>
