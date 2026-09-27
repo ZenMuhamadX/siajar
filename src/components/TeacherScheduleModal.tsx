@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useId } from 'react';
 import {
   type ScheduleItem,
+  type ScheduleDay,
   type AcademicYear,
   SCHEDULE_DAYS,
   DAY_TRANSLATION_MAP,
@@ -16,6 +17,19 @@ interface TeacherScheduleModalProps {
   teacherName: string;
 }
 
+/**
+ * Hari yang dipilih saat modal dibuka.
+ *
+ * Sejak tombol "Semua Hari" dihapus, daftar selalu menampilkan SATU hari.
+ * Menebak hari ini lebih berguna daripada selalu membuka Senin: guru membuka
+ * modal ini justru untuk tahu "saya mengajar apa sekarang/selanjutnya".
+ * Akhir pekan tidak punya jadwal, jadi jatuh ke Senin.
+ */
+function defaultSelectedDay(): ScheduleDay {
+  const jsDay = new Date().getDay(); // 0 = Minggu … 6 = Sabtu
+  return jsDay >= 1 && jsDay <= 5 ? SCHEDULE_DAYS[jsDay - 1].key : 'MONDAY';
+}
+
 export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
   isOpen,
   onClose,
@@ -25,7 +39,7 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
   const [activeAY, setActiveAY] = useState<AcademicYear | null>(null);
   const [mySchedules, setMySchedules] = useState<ScheduleItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedDay, setSelectedDay] = useState<string>('ALL');
+  const [selectedDay, setSelectedDay] = useState<ScheduleDay>(defaultSelectedDay);
 
   useEffect(() => {
     if (!isOpen || !teacherName) return;
@@ -57,22 +71,16 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
     fetchTeacherSchedule();
   }, [isOpen, teacherName]);
 
-  const DAY_ORDER: Record<string, number> = {
-    MONDAY: 1,
-    TUESDAY: 2,
-    WEDNESDAY: 3,
-    THURSDAY: 4,
-    FRIDAY: 5,
-  };
-
+  // Satu hari per tampilan, jadi urutannya cukup jam pelajaran lalu jam mulai
+  // — tidak perlu lagi urut per hari.
   const filtered = mySchedules
-    .filter((s) => selectedDay === 'ALL' || s.day === selectedDay)
+    .filter((s) => s.day === selectedDay)
     .sort((a, b) => {
-      const dayDiff = (DAY_ORDER[a.day] || 99) - (DAY_ORDER[b.day] || 99);
-      if (dayDiff !== 0) return dayDiff;
       if (a.period_number !== b.period_number) return a.period_number - b.period_number;
       return a.start_time.localeCompare(b.start_time);
     });
+
+  const selectedDayLabel = DAY_TRANSLATION_MAP[selectedDay];
 
   // Sebelumnya modal ini tidak punya `role="dialog"`, tidak menangani ESC, dan
   // fokus bisa keluar ke halaman di belakangnya. Semua itu kini dari `ModalShell`.
@@ -83,19 +91,21 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
       size="xl"
       ariaLabelledBy={titleId}
       backdropClassName="bg-black/50 backdrop-blur-xs"
-      maxHeightClassName="max-h-[85vh]"
+      /* Di HP modal ini nyaris memenuhi layar — tabelnya memang butuh ruang.
+         85vh menyisakan 127px kosong di layar 844px yang tidak dipakai apa pun. */
+      maxHeightClassName="max-h-[92vh] sm:max-h-[85vh]"
       cardClassName="rounded-xl shadow-2xl"
     >
       {/* Header */}
-      <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
-        <div>
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-primary-600" aria-hidden="true" />
-            <h3 id={titleId} className="font-bold text-slate-800 text-sm sm:text-base">
+      <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-2.5 sm:px-5 sm:py-4 border-b border-slate-200 bg-slate-50">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <Calendar className="w-4 h-4 text-primary-600 shrink-0" aria-hidden="true" />
+            <h3 id={titleId} className="font-bold text-slate-800 text-sm sm:text-base truncate">
               Jadwal Mengajar Saya
             </h3>
           </div>
-          <p className="text-xs text-slate-600 mt-0.5">
+          <p className="text-xs text-slate-600 mt-0.5 truncate">
             {teacherName} {activeAY ? `\u2022 TA ${activeAY.name}` : ''}
           </p>
         </div>
@@ -104,41 +114,40 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
           onClick={onClose}
           aria-label="Tutup jadwal mengajar"
           title="Tutup"
-          className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded-lg transition"
+          className="p-2 min-w-10 min-h-10 inline-flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded-lg transition shrink-0"
         >
           <X className="w-4 h-4" aria-hidden="true" />
         </button>
       </div>
 
-      {/* Day Filter */}
-      <div className="shrink-0 px-5 py-2.5 bg-slate-100/70 border-b border-slate-200 flex items-center gap-1.5 overflow-x-auto text-xs">
-        <button
-          type="button"
-          onClick={() => setSelectedDay('ALL')}
-          aria-pressed={selectedDay === 'ALL'}
-          className={`px-3 py-1.5 rounded-md font-semibold transition ${
-            selectedDay === 'ALL'
-              ? 'bg-primary-600 text-white shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-200'
-          }`}
+      {/* Pemilih hari — LIMA hari, bukan enam.
+          "Semua Hari" dihapus: sejak daftar menampilkan satu hari, tombol itu
+          hanya menggandakan pekerjaan memilih hari. Dengan lima tombol, satu
+          baris penuh terbagi rata tanpa perlu digeser horizontal — sebelumnya
+          enam chip meluber dan menyisakan potongan yang harus di-scroll.
+          Grid (bukan flex) yang menjamin lebarnya sama rata. */}
+      <div className="shrink-0 px-2 py-2 sm:px-5 sm:py-2.5 bg-slate-100/70 border-b border-slate-200">
+        <div
+          role="group"
+          aria-label="Pilih hari"
+          className="grid grid-cols-5 gap-1"
         >
-          Semua Hari
-        </button>
-        {SCHEDULE_DAYS.map((d) => (
-          <button
-            key={d.key}
-            type="button"
-            onClick={() => setSelectedDay(d.key)}
-            aria-pressed={selectedDay === d.key}
-            className={`px-3 py-1.5 rounded-md font-semibold transition whitespace-nowrap ${
-              selectedDay === d.key
-                ? 'bg-primary-600 text-white shadow-xs'
-                : 'bg-white text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            {d.label}
-          </button>
-        ))}
+          {SCHEDULE_DAYS.map((d) => (
+            <button
+              key={d.key}
+              type="button"
+              onClick={() => setSelectedDay(d.key)}
+              aria-pressed={selectedDay === d.key}
+              className={`px-1 py-2 min-h-9 rounded-md text-2xs sm:text-xs font-bold transition whitespace-nowrap ${
+                selectedDay === d.key
+                  ? 'bg-primary-600 text-white shadow-xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {d.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Content Table */}
@@ -149,54 +158,85 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
             <p className="text-xs text-slate-600">Memuat jadwal mengajar...</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="py-12 text-center text-slate-600 italic space-y-1">
+          <div className="py-12 px-4 text-center text-slate-600 italic space-y-1">
             <p className="text-sm font-semibold text-slate-600">
-              Belum ada jadwal mengajar aktif untuk Anda.
+              Tidak ada jadwal mengajar pada hari {selectedDayLabel}.
             </p>
-            <p className="text-xs">Hubungi Administrator jika jadwal belum diatur.</p>
+            <p className="text-xs">
+              Pilih hari lain di atas, atau hubungi Administrator bila jadwal belum diatur.
+            </p>
           </div>
         ) : (
           <ScrollArea label="Tabel jadwal mengajar">
-            <table className="w-full text-xs text-left">
+            {/* Tabel dipadatkan untuk 360px.
+                Dua kolom dihilangkan di HP:
+                - "Hari" — daftarnya kini selalu satu hari, jadi seluruh kolom
+                  hanya akan berisi kata yang sama berulang-ulang.
+                - "JP" — pindah ke bawah jam sebagai baris kecil, sehingga
+                  informasinya tetap ada tanpa memakan satu kolom penuh.
+                Mulai `sm` semuanya kembali seperti semula. */}
+            <table className="w-full text-xs text-left table-fixed sm:table-auto">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th scope="col" className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-xs whitespace-nowrap">
+                  <th
+                    scope="col"
+                    className="hidden sm:table-cell px-3 py-2.5 font-bold text-slate-600 uppercase tracking-wider text-2xs whitespace-nowrap"
+                  >
                     Hari
                   </th>
-                  <th scope="col" className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-xs text-center whitespace-nowrap">
-                    Waktu
+                  <th
+                    scope="col"
+                    className="w-[5.75rem] sm:w-auto px-2 sm:px-4 py-2.5 font-bold text-slate-600 uppercase tracking-wider text-2xs sm:text-xs whitespace-nowrap"
+                  >
+                    Jam
                   </th>
-                  <th scope="col" className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-xs text-center whitespace-nowrap">
+                  <th
+                    scope="col"
+                    className="hidden sm:table-cell px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-xs text-center whitespace-nowrap"
+                  >
                     JP
                   </th>
-                  <th scope="col" className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-xs text-center whitespace-nowrap">
+                  <th
+                    scope="col"
+                    className="w-[3.25rem] sm:w-auto px-1.5 sm:px-4 py-2.5 font-bold text-slate-600 uppercase tracking-wider text-2xs sm:text-xs text-center whitespace-nowrap"
+                  >
                     Kelas
                   </th>
-                  <th scope="col" className="px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-xs">
-                    Mata Pelajaran
+                  <th
+                    scope="col"
+                    className="px-2 sm:px-4 py-2.5 font-bold text-slate-600 uppercase tracking-wider text-2xs sm:text-xs"
+                  >
+                    Mapel
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/70 transition">
-                    <td className="px-4 py-3 whitespace-nowrap font-bold text-primary-900">
+                    <td className="hidden sm:table-cell px-3 py-3 whitespace-nowrap font-bold text-primary-900">
                       {DAY_TRANSLATION_MAP[item.day] || item.day}
                     </td>
-                    <td className="px-4 py-3 text-center whitespace-nowrap font-mono text-slate-700">
-                      {item.start_time.slice(0, 5)} – {item.end_time.slice(0, 5)}
+                    <td className="px-2 sm:px-4 py-2 sm:py-3 whitespace-nowrap text-slate-700">
+                      <span className="font-mono tabular-nums">
+                        {item.start_time.slice(0, 5)}–{item.end_time.slice(0, 5)}
+                      </span>
+                      <span className="sm:hidden block font-sans font-bold text-primary-700 mt-0.5">
+                        JP {item.period_number}
+                      </span>
                     </td>
-                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                    <td className="hidden sm:table-cell px-4 py-3 text-center whitespace-nowrap">
                       <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-primary-100 text-primary-700">
                         JP {item.period_number}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-center whitespace-nowrap">
-                      <span className="font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded text-xs">
+                    <td className="px-1.5 sm:px-4 py-2 sm:py-3 text-center whitespace-nowrap">
+                      <span className="inline-block font-bold text-slate-900 bg-slate-100 px-1.5 sm:px-2 py-0.5 rounded text-xs">
                         {item.class_id}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-medium text-slate-800">{item.subject_name}</td>
+                    <td className="px-2 sm:px-4 py-2 sm:py-3 font-medium text-slate-800 break-words">
+                      {item.subject_name}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -206,14 +246,15 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
       </div>
 
       {/* Footer */}
-      <div className="shrink-0 px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+      <div className="shrink-0 px-3 py-2.5 sm:px-5 sm:py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
         <span className="text-xs text-slate-600">
-          Total <strong className="text-slate-800">{filtered.length}</strong> slot mengajar
+          <strong className="text-slate-800">{filtered.length}</strong> JP &bull;{' '}
+          <strong className="text-slate-800">{selectedDayLabel}</strong>
         </span>
         <button
           type="button"
           onClick={onClose}
-          className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs rounded-lg transition"
+          className="px-4 py-2 min-h-10 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs rounded-lg transition"
         >
           Tutup
         </button>
