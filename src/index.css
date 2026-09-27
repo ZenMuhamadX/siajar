@@ -75,8 +75,19 @@
    * Sekarang keduanya membaca satu nilai: apa pun yang harus duduk DI ATAS
    * navigasi memakai `bottom-[var(--bottom-nav-h)]`, dan konten yang bisa
    * tergulir di belakangnya memberi ruang sebesar nilai yang sama.
-   * Nilai 4.75rem (76px) = pt-1.5 + tinggi item (min 44px) + safe-area iOS. */
-  --bottom-nav-h: 4.75rem;
+   *
+   * Nilai 4.75rem (76px) semula diambil dari pt-1.5 + item 44px + safe-area.
+   * Dikecilkan menjadi 3.75rem karena di HP bar ini memakan ruang yang justru
+   * paling dibutuhkan saat mengisi agenda. Sasaran sentuh tetap 44px
+   * (`min-h-11` per tombol) — yang dipangkas hanya bantalan dan ukuran label,
+   * bukan area tekannya.
+   *
+   * Angkanya BUKAN tebakan: diukur di Chromium headless (360/390/430px) dan
+   * bar-nya benar-benar 61px — pt-1 (4px) + item 44px + `safe-bottom`
+   * `max(0.75rem, env(…))` (12px). Sempat ditulis 3.5rem (56px) dan itu
+   * UNDERSTATE 5px. 3.75rem (60px) pas untuk perangkat tanpa poni; di
+   * perangkat berponi `safe-bottom` menambah inset di LUAR angka ini. */
+  --bottom-nav-h: 3.75rem;
 }
 
 @layer base {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useOutletContext } from 'react-router';
 import { localDateString } from '../utils/date';
 import { useAuth } from '../contexts/AuthContext';
 import { useAgendaDateParam, useAgendaSlotParam } from '../routes/useAgendaQuery';
@@ -31,7 +32,20 @@ import {
   BookOpen,
   Coffee,
   Users,
+  CalendarDays,
 } from 'lucide-react';
+
+/**
+ * Konteks yang dibagikan `TeacherShell` lewat `<Outlet context={…}>`.
+ * Dipakai halaman ini untuk membuka modal "Jadwal Saya" — tombolnya dulu ada
+ * di navigasi bawah HP dan kini dilebur ke header halaman agenda.
+ * Dibuat opsional supaya halaman tetap bisa dirender di luar shell (mis. uji).
+ */
+type TeacherShellContext = { onOpenSchedule?: () => void };
+
+function useTeacherShellContext(): TeacherShellContext {
+  return useOutletContext<TeacherShellContext | null>() ?? {};
+}
 
 interface InputAgendaProps {
   editData?: FullAgenda | null;
@@ -47,6 +61,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
   showToast,
 }) => {
   const { activeTeacherName } = useAuth();
+  const { onOpenSchedule } = useTeacherShellContext();
   const todayStr = localDateString();
 
   // Tanggal aktif & form isian kini diturunkan dari URL (`?date=` / `?slot=`)
@@ -279,6 +294,27 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
     }
   };
 
+  /**
+   * Versi pendek untuk HP: "Min, 27 Sep 2026".
+   *
+   * `formatDateIndo` menghasilkan "Minggu, 27 September 2026" — 25 karakter
+   * yang di layar 360px memaksa barisnya membungkus atau mendorong elemen lain.
+   * Nama hari dan bulan tetap dikenali, hanya disingkat.
+   */
+  const formatDateShort = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr + 'T00:00:00');
+      return d.toLocaleDateString('id-ID', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
   const isViewingToday = selectedDate === todayStr;
 
   // Open slot for filling or editing (own schedule) — dibuka lewat URL
@@ -300,28 +336,27 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
   };
 
   /**
-   * Setelah berhasil menyimpan, langsung buka slot TERLEWAT berikutnya bila ada.
+   * Setelah berhasil menyimpan, kembali ke beranda.
    *
-   * Alasan: guru paling sering mengisi beberapa agenda sekaligus untuk
-   * mengejar ketertinggalan. Sebelumnya setiap penyimpanan mengembalikan ke
-   * daftar jadwal, lalu guru harus mencari sendiri slot berikutnya — delapan
-   * jam mengajar berarti delapan kali bolak-balik.
+   * Versi sebelumnya sengaja melompat ke slot TERLEWAT berikutnya dengan alasan
+   * guru sering mengejar ketertinggalan. Dalam praktik itu justru menyalahi
+   * harapan: guru menekan "Simpan" untuk MENGAKHIRI pekerjaannya, tetapi
+   * malah didorong ke formulir berikutnya tanpa diminta — dan yang paling
+   * sering terjadi, ia hanya ingin melihat daftar jadwalnya sudah tercentang.
+   * Keputusan ada di tangan guru: dari beranda ia bisa memilih slot mana pun.
    *
-   * Hanya slot berstatus OVERDUE (sudah lewat, belum diisi) yang dibuka
-   * otomatis: slot UPCOMING belum boleh diisi, jadi melompat ke sana justru
-   * membingungkan. Bila tidak ada, kembali ke daftar seperti biasa.
+   * Timeline tetap disegarkan sebelum keluar supaya centang pada kartu sudah
+   * benar saat daftar muncul kembali (tidak ada kedipan status lama).
    */
   const handleSuccessSave = async () => {
-    // Identitas slot yang baru disimpan harus diambil SEBELUM state/URL diubah.
-    const savedScheduleId = formSlot?.schedule.id ?? editData?.header.schedule_id ?? null;
-
     setSubstituteSlot(null);
     setActiveSubstitution(null);
     setIsSubstituteMode(false);
     onSuccess(); // buang ?edit= bila ada
+    closeSlot();
 
     if (!activeTeacherName) {
-      closeSlot();
+      fetchOtherSlots();
       return;
     }
 
@@ -329,26 +364,8 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
       const fresh = await getTeacherDailyTimeline(activeTeacherName, selectedDate, new Date());
       setTimelineData(fresh);
       setLoadedDate(selectedDate);
-
-      const slots = fresh?.slots ?? [];
-      const savedIndex = savedScheduleId
-        ? slots.findIndex((s) => s.schedule.id === savedScheduleId)
-        : -1;
-      const nextOverdue =
-        savedIndex >= 0 ? slots.slice(savedIndex + 1).find((s) => s.status === 'OVERDUE') : undefined;
-
-      if (nextOverdue) {
-        showToast(
-          'info',
-          `Lanjut ke ${nextOverdue.schedule.subject_name} ${nextOverdue.schedule.class_id} — jam terlewat berikutnya.`
-        );
-        openSlot(nextOverdue.schedule.id, selectedDate);
-      } else {
-        closeSlot();
-      }
     } catch (err) {
       console.error('Gagal memuat timeline setelah menyimpan:', err);
-      closeSlot();
     }
 
     fetchOtherSlots();
@@ -532,42 +549,63 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
 
       {/* Main Container Card */}
       <div className="bg-white border border-slate-200 sm:border-slate-300 rounded-2xl shadow-xs overflow-hidden">
-        {/* TOP BAR: Navigation & Date Picker */}
-        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
-                Isi Agenda Mengajar
+        {/* TOP BAR: Navigation & Date Picker.
+            Dipadatkan untuk HP: tiga baris rapat (judul+aksi, navigasi
+            tanggal, tanggal+progres) dengan padding `p-3` alih-alih `p-4`.
+            Baris "Guru: …" disembunyikan di HP karena nama guru sudah tampil
+            di header atas — mengulangnya hanya memakan satu baris penuh. */}
+        <div className="p-3 sm:p-5 border-b border-slate-200 bg-slate-50/70">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate">
+                Isi Agenda
               </h1>
-              <p className="text-xs text-slate-600 mt-0.5">
+              <p className="hidden sm:block text-xs text-slate-600 mt-0.5">
                 Guru: <strong className="text-slate-700">{activeTeacherName || 'Guru'}</strong>
               </p>
             </div>
 
-            {/* Date Navigation Bar.
-                Tombol panah sebelumnya hanya `p-1.5` (≈28px) — di bawah ambang
-                sentuh 44px, padahal ini kendali yang paling sering dipakai guru
-                untuk pindah hari. Sekarang 44px, dan tanggal terpilih dibaca
-                sebagai satu kesatuan dengan `aria-label`. */}
-            <div className="flex items-center gap-1 self-start sm:self-auto bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+            {/* "Jadwal Saya" pindah ke sini setelah tombolnya dilebur dari
+                navigasi bawah. Hanya di HP (`md:hidden`) — di desktop tombol
+                yang sama sudah ada di header atas, jadi tidak diulang. */}
+            {onOpenSchedule && (
+              <button
+                type="button"
+                onClick={onOpenSchedule}
+                title="Lihat jadwal mengajar saya"
+                className="md:hidden shrink-0 inline-flex items-center gap-1.5 px-2.5 min-h-10 bg-white border border-slate-200 rounded-xl text-xs font-bold text-primary-700 hover:bg-primary-50 transition shadow-2xs"
+              >
+                <CalendarDays className="w-4 h-4 text-primary-600 shrink-0" aria-hidden="true" />
+                <span>Jadwal Saya</span>
+              </button>
+            )}
+          </div>
+
+          {/* Date Navigation Bar.
+              Tombol panah sebelumnya hanya `p-1.5` (≈28px) — di bawah ambang
+              sentuh 44px, padahal ini kendali yang paling sering dipakai guru
+              untuk pindah hari. Tetap 44px; yang dipangkas hanya bantalan di
+              sekelilingnya, bukan area tekannya. */}
+          <div className="mt-2 flex items-center gap-2">
+            <div className="flex items-center gap-0.5 flex-1 min-w-0 bg-white p-0.5 rounded-xl border border-slate-200 shadow-2xs">
               <button
                 aria-label="Hari sebelumnya"
                 type="button"
                 onClick={handlePrevDay}
-                className="p-2.5 min-w-11 min-h-11 inline-flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition"
+                className="p-2 min-w-11 min-h-11 inline-flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition shrink-0"
                 title="Hari Sebelumnya"
               >
                 <ChevronLeft className="w-4 h-4" aria-hidden="true" />
               </button>
 
-              <div className="flex items-center gap-1.5 px-1">
+              <div className="flex items-center gap-1.5 px-1 min-w-0 flex-1 justify-center">
                 <Calendar className="w-4 h-4 text-emerald-700 shrink-0" aria-hidden="true" />
                 <input
                   type="date"
                   value={selectedDate}
                   onChange={(e) => handleSetDate(e.target.value)}
                   aria-label="Pilih tanggal agenda"
-                  className="text-xs font-bold text-slate-800 bg-transparent border-none cursor-pointer min-h-11"
+                  className="text-xs font-bold text-slate-800 bg-transparent border-none cursor-pointer min-h-11 min-w-0"
                 />
               </div>
 
@@ -575,40 +613,42 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                 aria-label="Hari berikutnya"
                 type="button"
                 onClick={handleNextDay}
-                className="p-2.5 min-w-11 min-h-11 inline-flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition"
+                className="p-2 min-w-11 min-h-11 inline-flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition shrink-0"
                 title="Hari Berikutnya"
               >
                 <ChevronRight className="w-4 h-4" aria-hidden="true" />
               </button>
-
-              {!isViewingToday && (
-                <button
-                  type="button"
-                  onClick={handleSetToday}
-                  className="ml-0.5 px-3 min-h-11 text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition"
-                >
-                  Hari Ini
-                </button>
-              )}
             </div>
+
+            {!isViewingToday && (
+              <button
+                type="button"
+                onClick={handleSetToday}
+                className="shrink-0 px-3 min-h-11 text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-xl hover:bg-emerald-100 transition"
+              >
+                Hari Ini
+              </button>
+            )}
           </div>
 
           {/* Subheader: tanggal terpilih + progres pengisian.
               Progres sebelumnya hanya teks kecil abu-abu, padahal inilah
               informasi yang paling dicari guru saat membuka halaman ini.
-              Sekarang jadi angka besar + bar yang bisa dibaca sekilas. */}
-          <div className="mt-3 pt-3 border-t border-slate-200/60 space-y-2.5">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <span className="text-base font-bold text-slate-900">
-                {formatDateIndo(selectedDate)}
+              Di HP keduanya duduk di SATU baris (tanggal disingkat) supaya
+              tidak ada baris yang terbuang. */}
+          <div className="mt-2 pt-2 border-t border-slate-200/60 space-y-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                <span className="sm:hidden">{formatDateShort(selectedDate)}</span>
+                <span className="hidden sm:inline">{formatDateIndo(selectedDate)}</span>
               </span>
 
               {totalSlotsCount > 0 && (
-                <span className="text-xs text-slate-600">
-                  <strong className="text-base font-bold text-emerald-700">
+                <span className="text-xs text-slate-600 shrink-0 tabular-nums">
+                  <strong className="text-sm sm:text-base font-bold text-emerald-700">
                     {completedSlotsCount}
-                  </strong>{' '}
-                  dari {totalSlotsCount} slot selesai
+                  </strong>
+                  /{totalSlotsCount} selesai
                 </span>
               )}
             </div>
@@ -620,7 +660,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                 aria-valuemax={totalSlotsCount}
                 aria-valuenow={completedSlotsCount}
                 aria-label={`Progres pengisian agenda: ${completedSlotsCount} dari ${totalSlotsCount} slot selesai`}
-                className="h-2.5 w-full bg-slate-200 rounded-full overflow-hidden"
+                className="h-2 w-full bg-slate-200 rounded-full overflow-hidden"
               >
                 <div
                   className="h-full bg-emerald-500 rounded-full transition-[width] duration-300"
@@ -632,7 +672,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
         </div>
 
         {/* BODY CONTENT: Timeline & Hero */}
-        <div className="p-4 sm:p-6 space-y-6">
+        <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
           {/* Loading State */}
           {isLoading ? (
             <div

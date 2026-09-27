@@ -268,10 +268,17 @@ function TeacherShell() {
         onOpenSchedule={() => setIsTeacherScheduleOpen(true)}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 lg:p-6 pb-24 md:pb-6">
+      {/* Ruang bawah: `--bottom-nav-h` turun ke 3.75rem (60px) dan bar-nya
+          terukur 61px. `pb-22` (88px) memberi 27px sisa di perangkat biasa,
+          dan masih menutup perangkat berponi (bar 4+44+34 = 82px) dengan 6px
+          sisa. Sebelumnya `pb-24` (96px) dihitung untuk bar 76px. */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 lg:p-6 pb-22 md:pb-6">
         <ErrorBoundary key={location.pathname}>
           <Suspense fallback={<PageFallback />}>
-            <Outlet />
+            {/* `onOpenSchedule` dibagikan lewat outlet context supaya halaman
+                agenda bisa menyediakan tombol "Jadwal Saya" sendiri — tombol
+                itu dulu ada di navigasi bawah dan kini dilebur ke halaman. */}
+            <Outlet context={{ onOpenSchedule: () => setIsTeacherScheduleOpen(true) }} />
           </Suspense>
         </ErrorBoundary>
       </main>

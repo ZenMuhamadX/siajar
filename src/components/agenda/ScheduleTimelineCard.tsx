@@ -3,6 +3,7 @@ import type { TimelineSlot } from '../../services/scheduleDetectionService';
 import type { Substitution } from '../../types';
 import {
   CheckCircle2,
+  ChevronRight,
   Lock,
   Play,
   AlertCircle,
@@ -55,7 +56,7 @@ export const ScheduleTimelineCard: React.FC<ScheduleTimelineCardProps> = ({
   const isActionable = !isUpcoming;
 
   const info = (
-    <div className="space-y-1.5">
+    <div className="space-y-1">
       {/* Jam lebih dulu: pertanyaan pertama guru adalah "jam berapa saya mengajar?" */}
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span className="text-base font-bold text-slate-900 tabular-nums leading-none">
@@ -124,7 +125,7 @@ export const ScheduleTimelineCard: React.FC<ScheduleTimelineCardProps> = ({
 
   return (
     <div
-      className={`relative rounded-xl border p-3.5 transition-all ${
+      className={`relative rounded-xl border p-3 sm:p-3.5 transition-all ${
         isInProgress
           ? 'bg-white border-slate-300 border-l-4 border-l-emerald-500 shadow-xs'
           : isCompleted
@@ -134,7 +135,7 @@ export const ScheduleTimelineCard: React.FC<ScheduleTimelineCardProps> = ({
           : 'bg-slate-50/60 border-slate-200 opacity-75'
       }`}
     >
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         {isActionable ? (
           <button
             type="button"
@@ -150,12 +151,25 @@ export const ScheduleTimelineCard: React.FC<ScheduleTimelineCardProps> = ({
           <div className="flex-1 min-w-0">{info}</div>
         )}
 
-        <div className="sm:self-center shrink-0">
+        {/* Penanda "bisa dibuka" khusus HP.
+            Kartunya sendiri sudah bisa diketuk, jadi tombol berlabel selebar
+            kartu hanya mengulang status yang sudah tertulis di dalamnya
+            ("Sudah Diisi" + "Lihat / Edit", "Belum Diisi" + "Isi Terlewat").
+            Satu tanda panah cukup, dan menghemat ±48px per kartu — dengan
+            delapan jam mengajar itu nyaris satu layar penuh.
+            Slot UPCOMING tidak dapat tanda ini karena memang tidak bisa dibuka;
+            info di dalamnya sudah memuat jam dan lencana "Belum Dimulai". */}
+        {isActionable && (
+          <ChevronRight className="sm:hidden w-5 h-5 text-slate-400 shrink-0" aria-hidden="true" />
+        )}
+
+        {/* Tombol berlabel: hanya dari `sm` ke atas, tempat lebar tidak langka. */}
+        <div className="hidden sm:block shrink-0">
           {isOverdue && (
             <button
               type="button"
               onClick={() => onSelectSlot(slot)}
-              className="w-full sm:w-auto px-3.5 py-2.5 min-h-11 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition"
+              className="px-3.5 py-2.5 min-h-11 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition"
             >
               <Edit3 className="w-4 h-4" aria-hidden="true" />
               Isi Terlewat
@@ -166,7 +180,7 @@ export const ScheduleTimelineCard: React.FC<ScheduleTimelineCardProps> = ({
             <button
               type="button"
               onClick={() => onSelectSlot(slot)}
-              className="w-full sm:w-auto px-3 py-2.5 min-h-11 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition"
+              className="px-3 py-2.5 min-h-11 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition"
             >
               <Eye className="w-4 h-4 text-slate-600" aria-hidden="true" />
               Lihat / Edit
