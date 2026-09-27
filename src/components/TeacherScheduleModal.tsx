@@ -177,14 +177,18 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
                 Mulai `sm` semuanya kembali seperti semula.
 
                 Lebar kolom tetap (`table-fixed`) supaya tidak ada kejutan saat
-                nama mapel panjang, TETAPI dilebihkan dari kebutuhan minimum.
-                Versi pertama memakai `px-2 py-2` + kolom jam 5.75rem dan
-                terasa berdesakan. Angka sekarang diukur, bukan ditebak:
-                "07:00–07:45" pada 14px monospace = 88px, plus padding 12px
-                kiri-kanan = 112px pas-pasan. Kolom jam diambil 7.75rem (124px)
-                supaya masih ada 12px ruang bernapas. Sisa untuk Mapel tetap
-                126px di 320px dan 154px di 360px — cukup untuk kata terpanjang
-                ("Matematika" ≈ 63px) tanpa perlu digeser. */}
+                nama mapel panjang. Angka di bawah ini SEMUANYA hasil ukur,
+                bukan tebakan — dua kali revisi sebelumnya salah karena ditebak:
+
+                - Jam: "07:00–07:45" pada 14px monospace = 84.7px; + padding
+                  12px kiri-kanan = 108.7px. Diambil 7.75rem (124px) → sisa 15px.
+                - Kelas: `class_id` sebenarnya berbunyi "KELAS 3" (bukan "6A" —
+                  itu contoh karangan yang membuat revisi sebelumnya lolos uji
+                  padahal luber). Badge-nya 65.6px termasuk padding badge; +
+                  padding sel 16px = 81.6px. Diambil 5.75rem (92px) → sisa 10px.
+                  Dengan 3.5rem, badge meluber 13.6px ke kolom Mapel — persis
+                  yang membuat "KELAS 3" menempel ke "UMMI".
+                - Mapel: menerima sisanya (118px di 360px). */}
             <table className="w-full text-xs text-left table-fixed sm:table-auto">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
@@ -208,7 +212,7 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
                   </th>
                   <th
                     scope="col"
-                    className="w-[3.5rem] sm:w-auto px-2 sm:px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-2xs sm:text-xs text-center whitespace-nowrap"
+                    className="w-[5.75rem] sm:w-auto px-2 sm:px-4 py-3 font-bold text-slate-600 uppercase tracking-wider text-2xs sm:text-xs text-center whitespace-nowrap"
                   >
                     Kelas
                   </th>
