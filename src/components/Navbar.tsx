@@ -10,6 +10,7 @@ import {
 import { NavLink, useLocation } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useSchoolName } from '../contexts/SettingsContext';
+import { FloatingSuggestionButton } from './FloatingSuggestionButton';
 
 interface NavbarProps {
   onOpenKotakSaran: () => void;
@@ -18,7 +19,7 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenKotakSaran, onOpenSchedule }) => {
   const { activeTeacherName, isAdmin, signOut } = useAuth();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const schoolName = useSchoolName();
 
   // View aktif diturunkan dari URL (/ vs /riwayat), bukan state terpisah,
@@ -26,6 +27,19 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenKotakSaran, onOpenSchedule
   const currentView: 'agenda' | 'riwayat' = pathname.startsWith('/riwayat')
     ? 'riwayat'
     : 'agenda';
+
+  /**
+   * Formulir agenda sedang terbuka (`?slot=` atau `?edit=`).
+   *
+   * Dipakai untuk MENYEMBUNYIKAN tombol saran mengambang: saat guru mengisi
+   * agenda, satu-satunya hal yang boleh ada di layar adalah isian itu. Tombol
+   * mengambang memang tidak menempel di tengah, tetapi posisinya bebas —
+   * tanpa aturan ini ia bisa berakhir tepat di atas kolom atau tombol simpan.
+   */
+  const agendaParams = new URLSearchParams(search);
+  const isAgendaFormOpen =
+    !pathname.startsWith('/riwayat') &&
+    (agendaParams.has('slot') || agendaParams.has('edit'));
 
   return (
     <>
@@ -197,16 +211,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenKotakSaran, onOpenSchedule
           />
           <span className="text-2xs leading-none">Riwayat</span>
         </NavLink>
-
-        <button
-          type="button"
-          onClick={onOpenKotakSaran}
-          className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition min-h-11"
-        >
-          <MessageSquarePlus className="w-5 h-5" aria-hidden="true" />
-          <span className="text-2xs leading-none">Saran</span>
-        </button>
       </nav>
+
+      {/* Tombol saran mengambang. Sebelumnya tab keempat di bar bawah —
+          tab statis memakan lebar sepanjang waktu padahal kotak saran dipakai
+          sesekali. Kini bulat, bisa digeser, dan posisinya diingat.
+          Disembunyikan saat formulir agenda terbuka supaya tidak pernah
+          menghalangi pengisian. */}
+      {!isAgendaFormOpen && <FloatingSuggestionButton onClick={onOpenKotakSaran} />}
     </>
   );
 };
