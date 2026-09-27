@@ -280,6 +280,64 @@ button {
   transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
+/* ── Gerak halus tambahan ────────────────────────────────────────────────
+ * Semua di bawah ini HANYA menganimasikan `opacity` dan `transform`. Keduanya
+ * ditangani compositor — tidak memicu perhitungan ulang tata letak maupun
+ * penggambaran ulang, jadi tidak membebani perangkat kelas bawah yang dipakai
+ * guru. Tidak ada animasi berulang; semuanya berhenti sendiri.
+ */
+
+/* Tautan navigasi.
+ * `button:active` di atas tidak menjangkau <a>, padahal seluruh navigasi —
+ * bar bawah maupun menu atas — adalah <a>. Akibatnya mengetuk tab tidak
+ * memberi reaksi apa pun sampai halaman berganti: ini penyumbang terbesar
+ * kesan "kaku". */
+.tap {
+  transition:
+    transform 0.12s ease,
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.tap:active {
+  transform: scale(0.97);
+}
+
+/* Kartu yang seluruh permukaannya bisa ditekan.
+ * `button:active` bawaan mengecilkan ISINYA, bukan kartunya — teks menjauh
+ * dari garis tepi yang diam, dan itu terlihat goyah. `:has()` memindahkan
+ * efeknya ke kartu. Bila peramban tidak mendukung `:has()`, efeknya sekadar
+ * hilang; tidak ada yang rusak. */
+.card-press {
+  transition:
+    transform 0.14s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.2s ease,
+    border-color 0.15s ease;
+}
+.card-press:has(.card-hit:active) {
+  transform: scale(0.99);
+}
+button.card-hit:active:not(:disabled) {
+  transform: none;
+}
+
+/* Munculnya daftar: satu per satu, sangat singkat.
+ * Jeda dibatasi 6 langkah (lihat pemakaian `--stagger`) supaya daftar panjang
+ * tidak membuat guru menunggu — totalnya di bawah setengah detik. */
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.stagger-in {
+  animation: card-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
 /* Pointer cursor on all clickable elements */
 button,
 a,

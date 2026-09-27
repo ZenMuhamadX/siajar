@@ -78,7 +78,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenKotakSaran, onOpenSchedule
               <NavLink
                 to="/"
                 end
-                className={`px-3 py-2 min-h-10 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border ${
+                className={`tap px-3 py-2 min-h-10 rounded-lg text-xs font-semibold flex items-center gap-1.5 border ${
                   currentView === 'agenda'
                     ? 'bg-primary-50 text-primary-700 border-primary-200 font-bold'
                     : 'text-slate-600 border-transparent hover:bg-slate-100'
@@ -90,7 +90,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenKotakSaran, onOpenSchedule
 
               <NavLink
                 to="/riwayat"
-                className={`px-3 py-2 min-h-10 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border ${
+                className={`tap px-3 py-2 min-h-10 rounded-lg text-xs font-semibold flex items-center gap-1.5 border ${
                   currentView === 'riwayat'
                     ? 'bg-primary-50 text-primary-700 border-primary-200 font-bold'
                     : 'text-slate-600 border-transparent hover:bg-slate-100'
@@ -181,7 +181,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenKotakSaran, onOpenSchedule
           to="/"
           end
           className={({ isActive }) =>
-            `flex-1 flex flex-col items-center justify-center gap-0.5 py-1 rounded-lg transition min-h-11 ${
+            `tap flex-1 flex flex-col items-center justify-center gap-0.5 py-1 rounded-lg min-h-11 ${
               isActive
                 ? 'text-primary-700 font-bold bg-primary-50/70'
                 : 'text-slate-600 hover:text-slate-900'
@@ -198,7 +198,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenKotakSaran, onOpenSchedule
         <NavLink
           to="/riwayat"
           className={({ isActive }) =>
-            `flex-1 flex flex-col items-center justify-center gap-0.5 py-1 rounded-lg transition min-h-11 ${
+            `tap flex-1 flex flex-col items-center justify-center gap-0.5 py-1 rounded-lg min-h-11 ${
               isActive
                 ? 'text-primary-700 font-bold bg-primary-50/70'
                 : 'text-slate-600 hover:text-slate-900'

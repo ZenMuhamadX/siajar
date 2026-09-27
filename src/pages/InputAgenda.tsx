@@ -774,10 +774,11 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                 </div>
 
                 <div className="space-y-2.5">
-                  {timelineData.slots.map((slot) => (
+                  {timelineData.slots.map((slot, index) => (
                     <ScheduleTimelineCard
                       key={slot.schedule.id}
                       slot={slot}
+                      index={index}
                       onSelectSlot={handleOpenSlot}
                       substitution={substitutionsMap[slot.schedule.id] || null}
                     />

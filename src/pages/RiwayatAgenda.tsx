@@ -385,13 +385,14 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
                 </span>
               </h3>
 
-              {items.map((agenda) => {
+              {items.map((agenda, index) => {
                 const id = agenda.header.id;
                 const isToday = agenda.header.tanggal === todayStr;
                 return (
                   <RiwayatCard
                     key={id}
                     agenda={agenda}
+                    index={index}
                     isOpen={expanded.has(id)}
                     isToday={isToday}
                     canEdit={isToday || isAdmin}
@@ -460,6 +461,8 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
 
 interface RiwayatCardProps {
   agenda: FullAgenda;
+  /** Urutan di dalam bulannya — hanya untuk menjeda animasi masuk. */
+  index?: number;
   isOpen: boolean;
   isToday: boolean;
   canEdit: boolean;
@@ -484,6 +487,7 @@ interface RiwayatCardProps {
  */
 const RiwayatCard: React.FC<RiwayatCardProps> = ({
   agenda,
+  index = 0,
   isOpen,
   isToday,
   canEdit,
@@ -501,7 +505,10 @@ const RiwayatCard: React.FC<RiwayatCardProps> = ({
   const bodyId = `riwayat-body-${header.id}`;
 
   return (
-    <article className="bg-white border border-slate-300 rounded-xl shadow-xs overflow-hidden">
+    <article
+      style={{ animationDelay: `${60 + Math.min(index, 6) * 30}ms` }}
+      className="card-press stagger-in bg-white border border-slate-300 rounded-xl shadow-xs overflow-hidden"
+    >
       {/* Kepala kartu: ringkasan yang selalu tampak + aksi */}
       <div className="p-3.5 sm:p-4 flex items-start justify-between gap-3">
         <button
@@ -509,7 +516,7 @@ const RiwayatCard: React.FC<RiwayatCardProps> = ({
           onClick={onToggle}
           aria-expanded={isOpen}
           aria-controls={bodyId}
-          className="flex-1 min-w-0 text-left rounded-lg focus-visible:outline-none"
+          className="card-hit flex-1 min-w-0 text-left rounded-lg focus-visible:outline-none"
         >
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
             <span className="font-bold text-xs px-2 py-0.5 bg-slate-800 text-white rounded">

@@ -17,6 +17,11 @@ interface ScheduleTimelineCardProps {
   slot: TimelineSlot;
   onSelectSlot: (slot: TimelineSlot) => void;
   substitution?: Substitution | null;
+  /**
+   * Urutan kartu di daftar — hanya untuk menjeda animasi masuknya.
+   * Dibatasi 6 langkah supaya daftar delapan jam tidak membuat guru menunggu.
+   */
+  index?: number;
 }
 
 /**
@@ -39,6 +44,7 @@ export const ScheduleTimelineCard: React.FC<ScheduleTimelineCardProps> = ({
   slot,
   onSelectSlot,
   substitution,
+  index = 0,
 }) => {
   const { schedule, status, existingAgenda } = slot;
   const startTime = schedule.start_time.slice(0, 5);
@@ -125,7 +131,8 @@ export const ScheduleTimelineCard: React.FC<ScheduleTimelineCardProps> = ({
 
   return (
     <div
-      className={`relative rounded-xl border p-3 sm:p-3.5 transition-all ${
+      style={{ animationDelay: `${60 + Math.min(index, 6) * 30}ms` }}
+      className={`card-press stagger-in relative rounded-xl border p-3 sm:p-3.5 ${
         isInProgress
           ? 'bg-white border-slate-300 border-l-4 border-l-emerald-500 shadow-xs'
           : isCompleted
@@ -143,7 +150,7 @@ export const ScheduleTimelineCard: React.FC<ScheduleTimelineCardProps> = ({
             aria-label={`${isCompleted ? 'Lihat atau edit' : 'Isi'} agenda ${
               schedule.subject_name
             } kelas ${schedule.class_id} pukul ${startTime}`}
-            className="flex-1 min-w-0 text-left rounded-lg transition hover:opacity-90 focus-visible:outline-none"
+            className="card-hit flex-1 min-w-0 text-left rounded-lg transition hover:opacity-90 focus-visible:outline-none"
           >
             {info}
           </button>
