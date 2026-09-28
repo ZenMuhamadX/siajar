@@ -309,6 +309,12 @@ export async function getRekapAgenda(filters?: {
   nama_guru?: string;
   /** Batasi jumlah baris (untuk "terbaru" / dashboard) — opsional. */
   limit?: number;
+  /**
+   * Lewati `offset` baris pertama. Dipakai halaman riwayat untuk meminta
+   * halaman berikutnya ("muat lebih banyak"). Hanya berpengaruh bila `limit`
+   * juga diberikan.
+   */
+  offset?: number;
 }): Promise<FullAgenda[]> {
   // Guru "Administrator" bukan guru sungguhan — jangan disaring sebagai nama.
   const teacherName =
@@ -343,7 +349,11 @@ export async function getRekapAgenda(filters?: {
     query = query.lte('tanggal', filters.endDate);
   }
   if (filters?.limit && filters.limit > 0) {
-    query = query.limit(filters.limit);
+    // `.range`, bukan `.limit`: tanpa `offset` keduanya sama saja
+    // (`range(0, limit-1)`), tetapi `.range` memungkinkan permintaan halaman
+    // berikutnya — sedangkan `.limit` selalu mengembalikan baris yang sama.
+    const from = Math.max(0, filters.offset ?? 0);
+    query = query.range(from, from + filters.limit - 1);
   }
 
   const { data, error } = await query;

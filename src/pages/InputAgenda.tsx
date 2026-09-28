@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useOutletContext } from 'react-router';
-import { localDateString } from '../utils/date';
+import { localDateString, formatDateLong, formatDateCompact } from '../utils/date';
 import { useAuth } from '../contexts/AuthContext';
 import { useAgendaDateParam, useAgendaSlotParam } from '../routes/useAgendaQuery';
 import type { FullAgenda, Substitution } from '../types';
@@ -279,42 +279,6 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
     handleSetDate(todayStr);
   };
 
-  // Format date display (e.g. "Senin, 14 September 2026")
-  const formatDateIndo = (dateStr: string) => {
-    try {
-      const d = new Date(dateStr + 'T00:00:00');
-      return d.toLocaleDateString('id-ID', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      });
-    } catch {
-      return dateStr;
-    }
-  };
-
-  /**
-   * Versi pendek untuk HP: "Min, 27 Sep 2026".
-   *
-   * `formatDateIndo` menghasilkan "Minggu, 27 September 2026" — 25 karakter
-   * yang di layar 360px memaksa barisnya membungkus atau mendorong elemen lain.
-   * Nama hari dan bulan tetap dikenali, hanya disingkat.
-   */
-  const formatDateShort = (dateStr: string) => {
-    try {
-      const d = new Date(dateStr + 'T00:00:00');
-      return d.toLocaleDateString('id-ID', {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      });
-    } catch {
-      return dateStr;
-    }
-  };
-
   const isViewingToday = selectedDate === todayStr;
 
   // Open slot for filling or editing (own schedule) — dibuka lewat URL
@@ -476,6 +440,9 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
   const completedSlotsCount =
     timelineData?.slots.filter((s) => s.status === 'COMPLETED').length || 0;
   const totalSlotsCount = timelineData?.slots.length || 0;
+  /** Slot yang jamnya sudah lewat tetapi belum diisi — inilah "tertinggal". */
+  const overdueSlotsCount =
+    timelineData?.slots.filter((s) => s.status === 'OVERDUE').length || 0;
 
   // Own slots that are currently IN_PROGRESS (guru login sedang mengajar)
   const ownActiveSlots = timelineData?.slots.filter((s) => s.status === 'IN_PROGRESS') || [];
@@ -531,7 +498,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
   const hasBadalCandidates = availableOtherSlots.length > 0;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4 pb-20 md:pb-6">
+    <div className="max-w-4xl mx-auto space-y-4 pb-20 lg:pb-6">
       {/* Substitution Confirm Modal */}
       {substitutionTarget && (
         <SubstitutionConfirmModal
@@ -566,14 +533,14 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
             </div>
 
             {/* "Jadwal Saya" pindah ke sini setelah tombolnya dilebur dari
-                navigasi bawah. Hanya di HP (`md:hidden`) — di desktop tombol
-                yang sama sudah ada di header atas, jadi tidak diulang. */}
+                navigasi bawah. Hanya di HP/tablet (`lg:hidden`) — mulai `lg`
+                tombol yang sama sudah ada di header atas, jadi tidak diulang. */}
             {onOpenSchedule && (
               <button
                 type="button"
                 onClick={onOpenSchedule}
                 title="Lihat jadwal mengajar saya"
-                className="md:hidden shrink-0 inline-flex items-center gap-1.5 px-2.5 min-h-10 bg-white border border-slate-200 rounded-xl text-xs font-bold text-primary-700 hover:bg-primary-50 transition shadow-2xs"
+                className="lg:hidden shrink-0 inline-flex items-center gap-1.5 px-2.5 min-h-10 bg-white border border-slate-200 rounded-xl text-xs font-bold text-primary-700 hover:bg-primary-50 transition shadow-2xs"
               >
                 <CalendarDays className="w-4 h-4 text-primary-600 shrink-0" aria-hidden="true" />
                 <span>Jadwal Saya</span>
@@ -631,16 +598,22 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
             )}
           </div>
 
-          {/* Subheader: tanggal terpilih + progres pengisian.
+          {/* Subheader: tanggal terpilih + bilah ringkas + progres.
               Progres sebelumnya hanya teks kecil abu-abu, padahal inilah
               informasi yang paling dicari guru saat membuka halaman ini.
-              Di HP keduanya duduk di SATU baris (tanggal disingkat) supaya
-              tidak ada baris yang terbuang. */}
+              Di HP tanggalnya disingkat supaya tidak ada baris yang terbuang.
+
+              Tiga angka di bawah menjawab pertanyaan yang paling sering muncul
+              begitu guru membuka halaman ini — "hari ini saya mengajar berapa
+              jam, sudah berapa yang terisi, dan ada yang tertinggal tidak?" —
+              tanpa perlu menggulir daftar jadwal satu per satu. Angka
+              "Tertinggal" memakai amber hanya ketika memang ada, supaya saat
+              semua aman bilah ini tidak berteriak. */}
           <div className="mt-2 pt-2 border-t border-slate-200/60 space-y-2">
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-sm sm:text-base font-bold text-slate-900 truncate">
-                <span className="sm:hidden">{formatDateShort(selectedDate)}</span>
-                <span className="hidden sm:inline">{formatDateIndo(selectedDate)}</span>
+                <span className="sm:hidden">{formatDateCompact(selectedDate)}</span>
+                <span className="hidden sm:inline">{formatDateLong(selectedDate)}</span>
               </span>
 
               {totalSlotsCount > 0 && (
@@ -654,19 +627,60 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
             </div>
 
             {totalSlotsCount > 0 && (
-              <div
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={totalSlotsCount}
-                aria-valuenow={completedSlotsCount}
-                aria-label={`Progres pengisian agenda: ${completedSlotsCount} dari ${totalSlotsCount} slot selesai`}
-                className="h-2 w-full bg-slate-200 rounded-full overflow-hidden"
-              >
+              <>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <div className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center">
+                    <span className="block text-2xs text-slate-600">JP hari ini</span>
+                    <span className="block text-sm font-bold text-slate-900 tabular-nums">
+                      {totalSlotsCount}
+                    </span>
+                  </div>
+
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-center">
+                    <span className="block text-2xs text-emerald-800">Sudah diisi</span>
+                    <span className="block text-sm font-bold text-emerald-800 tabular-nums">
+                      {completedSlotsCount}
+                    </span>
+                  </div>
+
+                  <div
+                    className={`rounded-lg border px-2 py-1.5 text-center ${
+                      overdueSlotsCount > 0
+                        ? 'border-amber-200 bg-amber-50'
+                        : 'border-slate-200 bg-white'
+                    }`}
+                  >
+                    <span
+                      className={`block text-2xs ${
+                        overdueSlotsCount > 0 ? 'text-amber-800' : 'text-slate-600'
+                      }`}
+                    >
+                      Tertinggal
+                    </span>
+                    <span
+                      className={`block text-sm font-bold tabular-nums ${
+                        overdueSlotsCount > 0 ? 'text-amber-800' : 'text-slate-900'
+                      }`}
+                    >
+                      {overdueSlotsCount}
+                    </span>
+                  </div>
+                </div>
+
                 <div
-                  className="h-full bg-emerald-500 rounded-full transition-[width] duration-300"
-                  style={{ width: `${(completedSlotsCount / totalSlotsCount) * 100}%` }}
-                />
-              </div>
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={totalSlotsCount}
+                  aria-valuenow={completedSlotsCount}
+                  aria-label={`Progres pengisian agenda: ${completedSlotsCount} dari ${totalSlotsCount} slot selesai`}
+                  className="h-2 w-full bg-slate-200 rounded-full overflow-hidden"
+                >
+                  <div
+                    className="h-full bg-emerald-500 rounded-full transition-[width] duration-300"
+                    style={{ width: `${(completedSlotsCount / totalSlotsCount) * 100}%` }}
+                  />
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -742,7 +756,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                 Tidak Ada Jadwal Mengajar
               </h3>
               <p className="text-xs text-slate-600 max-w-sm mx-auto">
-                Anda tidak memiliki jadwal mengajar pada tanggal {formatDateIndo(selectedDate)}.
+                Anda tidak memiliki jadwal mengajar pada tanggal {formatDateLong(selectedDate)}.
               </p>
             </div>
           ) : (

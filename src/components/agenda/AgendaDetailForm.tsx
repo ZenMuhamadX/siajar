@@ -6,6 +6,7 @@ import { uploadAgendaEvidence, getEvidenceDisplayUrl } from '../../services/evid
 import { PhotoLightboxModal } from '../PhotoLightboxModal';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { useSchoolName } from '../../contexts/SettingsContext';
+import { formatDateTimeShort, formatTimeShort } from '../../utils/date';
 import {
   ArrowLeft,
   Save,
@@ -79,11 +80,20 @@ const readDraft = (key: string): DraftPayload | null => {
   }
 };
 
-const writeDraft = (key: string, payload: DraftPayload) => {
+/**
+ * Tulis draf, dan laporkan apakah benar-benar tersimpan.
+ *
+ * Nilai kembaliannya penting: pemanggil memakainya untuk memberi tahu guru
+ * "isian tersimpan otomatis". Mengabarkan tersimpan padahal `localStorage`
+ * menolak (mode privat, kuota penuh) justru merusak tepat di fitur yang
+ * gunanya menenangkan — guru mengira aman lalu menutup aplikasi.
+ */
+const writeDraft = (key: string, payload: DraftPayload): boolean => {
   try {
     localStorage.setItem(key, JSON.stringify(payload));
+    return true;
   } catch {
-    /* mode privat / kuota penuh — draf dilewati, bukan kegagalan */
+    return false;
   }
 };
 
@@ -92,21 +102,6 @@ const removeDraft = (key: string) => {
     localStorage.removeItem(key);
   } catch {
     /* diabaikan */
-  }
-};
-
-const formatDateTimeIndo = (iso?: string) => {
-  if (!iso) return '-';
-  try {
-    return new Date(iso).toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return '-';
   }
 };
 
@@ -177,6 +172,8 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   const draftKey = `${DRAFT_PREFIX}${agendaIdentity}`;
   const [draftReady, setDraftReady] = useState(false);
   const [draftRestoredAt, setDraftRestoredAt] = useState<number | null>(null);
+  /** Kapan draf terakhir benar-benar tersimpan — `null` bila belum/tidak bisa. */
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
 
   // Rujukan bagian, dipakai untuk mengarahkan guru ke isian yang kurang.
   const photoSectionRef = useRef<HTMLDivElement>(null);
@@ -293,15 +290,18 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
         absensiList.length > 0;
       if (!hasContent) {
         removeDraft(draftKey);
+        setDraftSavedAt(null);
         return;
       }
-      writeDraft(draftKey, {
+      const savedAt = Date.now();
+      const ok = writeDraft(draftKey, {
         materi,
         tugasPr,
         absensiList,
         uraianKejadian,
-        savedAt: Date.now(),
+        savedAt,
       });
+      setDraftSavedAt(ok ? savedAt : null);
     }, 500);
     return () => window.clearTimeout(timer);
   }, [materi, tugasPr, absensiList, uraianKejadian, draftReady, draftKey]);
@@ -309,6 +309,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   const discardDraft = () => {
     removeDraft(draftKey);
     setDraftRestoredAt(null);
+    setDraftSavedAt(null);
     const base = existingAgenda
       ? {
           materi: existingAgenda.kbm?.[0]?.materi || '',
@@ -629,8 +630,8 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   return (
     /* Tidak ada lagi elemen tetap di halaman ini: bilah simpan ikut menggulir
        di ujung formulir. Ruang bawah hanya perlu melewati navigasi bawah HP
-       (76px), dan `<main>` di TeacherShell sudah menyumbang `pb-24` (96px) —
-       jadi tidak perlu tambahan padding di sini. */
+       (61px terukur), dan `<main>` di TeacherShell sudah menyumbang `pb-22`
+       (88px) — jadi tidak perlu tambahan padding di sini. */
     <div className="max-w-3xl mx-auto space-y-4">
       {/* Top Header Card */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -654,8 +655,13 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
           </div>
         </div>
 
-        <div className="inline-flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-900 border border-emerald-200 rounded-xl text-xs font-bold self-start sm:self-auto">
-          <Clock className="w-4 h-4 text-emerald-700 shrink-0" aria-hidden="true" />
+        {/* Chip waktu memakai slate, bukan emerald: ini keterangan jadwal,
+            bukan status "selesai". Memakai emerald di sini akan membuat warna
+            yang seharusnya berarti "sudah diisi" muncul di tempat yang tidak
+            ada hubungannya dengan kelengkapan — dan itu melemahkan maknanya
+            di lencana langkah yang memang benar-benar menandai selesai. */}
+        <div className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 text-slate-800 border border-slate-200 rounded-xl text-xs font-bold self-start sm:self-auto">
+          <Clock className="w-4 h-4 text-slate-600 shrink-0" aria-hidden="true" />
           <span className="tabular-nums">
             {startTime}–{endTime} · Jam ke-{periodNumber}
           </span>
@@ -665,9 +671,14 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
       {/* Form Container */}
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         {/* READ-ONLY SCHEDULE HEADER */}
+        {/* READ-ONLY SCHEDULE HEADER.
+            Permukaannya sengaja netral (slate), bukan emerald: ini kartu
+            konteks — kelas, mapel, guru — bukan penanda keberhasilan. Amber
+            tetap dipakai untuk mode badal karena badal memang butuh perhatian
+            khusus (catatan guru pelaksana berubah). */}
         <div
           className={`p-4 rounded-2xl border ${
-            isSubstitute ? 'bg-amber-50/70 border-amber-200' : 'bg-emerald-50/70 border-emerald-200'
+            isSubstitute ? 'bg-amber-50/70 border-amber-200' : 'bg-slate-50 border-slate-200'
           }`}
         >
           {isSubstitute && (
@@ -682,7 +693,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div
               className={`p-3 bg-white border rounded-xl shadow-2xs ${
-                isSubstitute ? 'border-amber-100' : 'border-emerald-100'
+                isSubstitute ? 'border-amber-100' : 'border-slate-200'
               }`}
             >
               <span className="text-2xs font-bold text-slate-600 uppercase tracking-wider block">
@@ -692,7 +703,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
             </div>
             <div
               className={`p-3 bg-white border rounded-xl shadow-2xs ${
-                isSubstitute ? 'border-amber-100' : 'border-emerald-100'
+                isSubstitute ? 'border-amber-100' : 'border-slate-200'
               }`}
             >
               <span className="text-2xs font-bold text-slate-600 uppercase tracking-wider block">
@@ -702,7 +713,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
             </div>
             <div
               className={`p-3 bg-white border rounded-xl shadow-2xs ${
-                isSubstitute ? 'border-amber-100' : 'border-emerald-100'
+                isSubstitute ? 'border-amber-100' : 'border-slate-200'
               }`}
             >
               {isSubstitute ? (
@@ -737,11 +748,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
               <RotateCcw className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" aria-hidden="true" />
               <p className="text-xs text-blue-900 leading-relaxed">
                 <strong>Isian sebelumnya dipulihkan</strong> (tersimpan otomatis{' '}
-                {new Date(draftRestoredAt).toLocaleTimeString('id-ID', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-                ). Periksa kembali sebelum menyimpan.
+                {formatTimeShort(draftRestoredAt)}). Periksa kembali sebelum menyimpan.
               </p>
             </div>
             <button
@@ -784,7 +791,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                   <div className="text-xs text-emerald-900">
                     <p className="font-bold">Foto sudah tersimpan</p>
                     <p className="text-emerald-800 mt-0.5">
-                      Diambil {formatDateTimeIndo(existingEvidence.captured_at)}
+                      Diambil {formatDateTimeShort(existingEvidence.captured_at)}
                     </p>
                   </div>
                 </div>
@@ -932,7 +939,14 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
           title="Kehadiran Siswa"
           hint="Semua siswa dianggap hadir. Catat hanya yang tidak masuk."
           icon={<UserCheck className="w-4 h-4" aria-hidden="true" />}
-          done={isStepDone.kehadiran && absensiList.length > 0}
+          /* `done` HARUS memakai predikat yang sama dengan daftar periksa
+             syarat simpan (`isAbsensiComplete`). Sebelumnya di sini ditambah
+             syarat `absensiList.length > 0`, sehingga saat guru tidak mencatat
+             satu pun siswa tidak hadir — keadaan yang justru sah — langkah ini
+             tampak belum selesai padahal daftar periksa di bawah sudah
+             menyatakannya lengkap. Dua pernyataan yang bertentangan tentang hal
+             yang sama membuat guru ragu apakah datanya sudah benar. */
+          done={isStepDone.kehadiran}
           highlighted={highlighted === 'absensi'}
           sectionRef={absensiSectionRef}
         >
@@ -1149,6 +1163,31 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
             onFix={focusStep}
           />
 
+          {/* Umpan balik draf.
+              Isian ini sudah lama disimpan otomatis, tetapi guru tidak pernah
+              diberi tahu — sehingga kekhawatiran "tulisan saya hilang kalau
+              aplikasi ditutup" tetap ada meski fiturnya bekerja. Ditulis
+              sebagai keterangan biasa, bukan lencana, supaya tidak bersaing
+              dengan daftar periksa di atasnya yang memang menuntut tindakan.
+              Sengaja TANPA `aria-live`: teksnya berubah tiap kali guru berhenti
+              mengetik, dan mengumumkannya terus-menerus justru mengganggu
+              pengguna pembaca layar. */}
+          {draftSavedAt && (
+            <p className="text-xs text-slate-600 flex items-start gap-1.5">
+              <CheckCircle2
+                className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5"
+                aria-hidden="true"
+              />
+              <span>
+                Isian tersimpan otomatis di perangkat ini pukul{' '}
+                <strong className="text-slate-800 tabular-nums">
+                  {formatTimeShort(draftSavedAt)}
+                </strong>
+                .
+              </span>
+            </p>
+          )}
+
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
             <button
               type="button"
@@ -1292,14 +1331,19 @@ const SaveChecklist: React.FC<{
   absensi: boolean;
   onFix: (step: 'foto' | 'materi' | 'absensi') => void;
 }> = ({ materi, foto, absensi, onFix }) => {
+  /* Urutannya sengaja mengikuti urutan langkah di formulir (Foto → Materi →
+     Kehadiran). Sebelumnya daftar ini berurutan Materi → Foto → Kehadiran,
+     sehingga guru yang menekan tombol perbaikan "Materi" di sini melihat
+     halaman melompat ke bawah melewati bagian Foto. Urutan yang sama membuat
+     daftar ini bisa dibaca sebagai peta halaman. */
   const items = [
+    { key: 'foto' as const, label: 'Foto', ok: foto, hint: 'belum ada' },
     {
       key: 'materi' as const,
       label: 'Materi',
       ok: materi,
       hint: `minimal ${MIN_MATERI_LENGTH} karakter`,
     },
-    { key: 'foto' as const, label: 'Foto', ok: foto, hint: 'belum ada' },
     { key: 'absensi' as const, label: 'Kehadiran', ok: absensi, hint: 'belum lengkap' },
   ];
 

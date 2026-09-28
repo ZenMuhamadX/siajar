@@ -20,3 +20,144 @@ export function addDays(dateStr: string, days: number): string {
   date.setDate(date.getDate() + days);
   return localDateString(date);
 }
+
+/* ── Format tampilan (bahasa Indonesia) ─────────────────────────────────────
+ * Sebelumnya keempat format ini disalin ulang di beberapa berkas dengan nama
+ * yang sama tetapi opsi berbeda-beda, sehingga satu perbaikan harus dilakukan
+ * berkali-kali dan hasilnya mudah menyimpang antar halaman. Sekarang hanya ada
+ * satu definisi per format; halaman memilih fungsi yang sesuai, bukan menulis
+ * ulang opsinya.
+ *
+ * Semua fungsi menerima tanggal `YYYY-MM-DD` (untuk yang berakhiran `Date`) atau
+ * string ISO lengkap (untuk yang berakhiran `DateTime`), dan mengembalikan
+ * masukannya apa adanya bila gagal diurai — supaya layar tidak pernah kosong.
+ */
+
+/** "Senin, 14 September 2026" — untuk judul dan konteks yang dibaca tenang. */
+export function formatDateLong(dateStr: string): string {
+  try {
+    return new Date(`${dateStr}T00:00:00`).toLocaleDateString('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+/**
+ * "Sen, 14 Sep 2026" — versi pendek untuk layar sempit.
+ *
+ * `formatDateLong` menghasilkan 25 karakter yang di layar 360px memaksa
+ * barisnya membungkus; nama hari dan bulan tetap dikenali, hanya disingkat.
+ */
+export function formatDateCompact(dateStr: string): string {
+  try {
+    return new Date(`${dateStr}T00:00:00`).toLocaleDateString('id-ID', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+/** "14 Sep 2026, 09.30" — untuk jejak waktu unggah/ambil bukti foto. */
+export function formatDateTimeShort(iso?: string): string {
+  if (!iso) return '-';
+  try {
+    return new Date(iso).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return '-';
+  }
+}
+
+/** "September 2026" — untuk judul kelompok bulanan. */
+export function formatMonthYear(key: string): string {
+  try {
+    const [y, m] = key.split('-').map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString('id-ID', {
+      month: 'long',
+      year: 'numeric',
+    });
+  } catch {
+    return key;
+  }
+}
+
+/**
+ * "Senin, 14" — hari dan tanggal saja, tanpa bulan dan tahun.
+ *
+ * Dipakai di dalam kelompok bulanan, tempat judul kelompoknya sudah menyatakan
+ * bulan dan tahun. Mengulanginya di setiap baris berarti menuliskan
+ * "September 2026" dua puluh kali per layar tanpa menambah informasi apa pun —
+ * dan justru mengubur bagian yang berbeda antar-baris, yaitu tanggalnya.
+ */
+export function formatDayDate(dateStr: string): string {
+  try {
+    return new Date(`${dateStr}T00:00:00`).toLocaleDateString('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+/**
+ * Rentang tanggal satu bulan (`YYYY-MM` → `{ start, end }`), dipakai untuk
+ * menyaring di sisi server. Batas akhir dihitung dari hari terakhir bulan itu
+ * (`new Date(y, m, 0)`), jadi Februari dan tahun kabisat ikut benar.
+ */
+export function monthRange(key: string): { start: string; end: string } {
+  const [y, m] = key.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  const mm = String(m).padStart(2, '0');
+  return { start: `${y}-${mm}-01`, end: `${y}-${mm}-${String(lastDay).padStart(2, '0')}` };
+}
+
+/**
+ * `count` kunci bulan terakhir, terbaru lebih dulu (`['2026-09', '2026-08', …]`).
+ *
+ * Dipakai pengisi daftar bulan. Sejak daftar riwayat diambil per halaman, bulan
+ * yang punya data tidak lagi bisa diketahui seluruhnya dari data yang termuat —
+ * jadi daftarnya dibangun dari rentang yang pasti masuk akal, bukan dari isi
+ * yang kebetulan sudah terunduh.
+ */
+export function recentMonthKeys(count: number, from: Date = new Date()): string[] {
+  const keys: string[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const d = new Date(from.getFullYear(), from.getMonth() - i, 1);
+    keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  return keys;
+}
+
+/**
+ * "09.30" — jam saja, tanpa tanggal.
+ *
+ * Untuk cap waktu yang maknanya "kapan barusan", bukan "tanggal berapa":
+ * draf yang baru tersimpan otomatis, atau waktu sebuah draf dipulihkan.
+ * Tanggalnya justru mengganggu di konteks itu — yang ingin diketahui guru
+ * adalah apakah isiannya baru saja aman, bukan tanggalnya.
+ */
+export function formatTimeShort(value: number | string | Date): string {
+  try {
+    return new Date(value).toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return '-';
+  }
+}

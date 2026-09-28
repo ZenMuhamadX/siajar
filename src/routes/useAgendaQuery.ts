@@ -9,6 +9,23 @@ export const isValidDateParam = (value: string | null | undefined): value is str
   typeof value === 'string' && DATE_RE.test(value);
 
 /**
+ * Apakah formulir isi agenda sedang terbuka (`?slot=` atau `?edit=`).
+ *
+ * Fungsi murni, bukan hook, karena dipakai di dua tempat yang tidak boleh
+ * saling menyimpang: `Navbar` menyembunyikan bar navigasi bawah dan tombol
+ * saran mengambang, sementara `TeacherShell` menyesuaikan ruang bawah `<main>`.
+ * Kalau keduanya menghitung sendiri-sendiri, cepat atau lambat keduanya
+ * berbeda pendapat dan muncul celah kosong — atau konten tertutup bar.
+ *
+ * Halaman Riwayat tidak pernah punya formulir agenda, jadi selalu `false`.
+ */
+export function isAgendaFormOpen(pathname: string, search: string): boolean {
+  if (pathname.startsWith('/riwayat')) return false;
+  const params = new URLSearchParams(search);
+  return params.has('slot') || params.has('edit');
+}
+
+/**
  * `?date=YYYY-MM-DD` — tanggal aktif timeline agenda (sisi guru & admin).
  *
  * Sebelumnya tanggal disimpan sebagai state lokal, jadi refresh selalu kembali

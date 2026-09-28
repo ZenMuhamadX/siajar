@@ -47,11 +47,30 @@
    *
    * Pembagian makna yang berlaku setelah ini:
    *   primary (indigo) — aksi utama, navigasi aktif, cincin fokus
-   *   emerald          — sukses / selesai / sedang berlangsung (status)
+   *   emerald          — sukses / selesai (mis. "Sudah Diisi")
+   *   blue             — sedang berlangsung (status live) / informasi
    *   amber            — peringatan, badal, terlewat
    *   rose             — bahaya / gagal
-   *   blue             — informasi
    *   slate            — netral, tombol sekunder
+   *
+   * Catatan penting: emerald dan blue TIDAK boleh dipakai bergantian untuk
+   * status yang sama. "Sudah Diisi" (selesai) memakai emerald sedangkan
+   * "Berlangsung" (sedang berjalan) memakai blue, justru supaya keduanya bisa
+   * dibedakan sekali pandang — keduanya menuntut tindakan yang berbeda.
+   *
+   * Emerald bukan warna hiasan. Jangan memakainya sebagai latar kartu
+   * informasi, chip waktu, atau bingkai netral — pernah terjadi di form agenda
+   * dan akibatnya warna "selesai" muncul di tempat yang tidak ada hubungannya
+   * dengan kelengkapan. Untuk permukaan informasi, pakai slate; untuk aksi,
+   * pakai primary.
+   *
+   * Cakupan blue ada dua ranah yang berbeda dan keduanya sah:
+   *   - status jadwal — "sedang berlangsung" (mis. lencana slot, kartu hero)
+   *   - status kehadiran — "Sakit" (konvensi sekolah: sakit biru, izin amber,
+   *     alpa rose). Ketiganya selalu tampil berdampingan sehingga tidak
+   *     tertukar dengan makna jadwal.
+   * Selain itu blue juga dipakai untuk pesan informasi umum (toast info,
+   * pemberitahuan draf dipulihkan).
    */
   --color-primary-50: #eef2ff;
   --color-primary-100: #e0e7ff;
@@ -146,6 +165,59 @@
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
 
+/* ── Tabel KBM pada kartu riwayat ───────────────────────────────────────────
+ * Tabel ini punya lima kolom (Jam, Guru, Mapel, Materi, Tugas/PR). Di layar
+ * sempit bentuk tabel memaksa guru menggeser ke samping untuk membaca kolom
+ * Materi — padahal materi justru isi yang paling ingin dibaca ulang, dan
+ * geseran itu mudah tidak disadari sehingga kolom kanan tidak pernah terbaca.
+ *
+ * Di bawah `sm` setiap baris berubah menjadi blok bertumpuk: nama kolom pindah
+ * dari `<thead>` ke masing-masing sel lewat `data-label`, lalu dimunculkan
+ * sebagai `::before`. Mulai `sm` tabelnya kembali seperti semula.
+ *
+ * Penting: ini murni CSS, bukan dua pohon JSX. Halaman riwayat sengaja hanya
+ * punya SATU versi markup supaya setiap perbaikan tidak perlu dilakukan dua
+ * kali dan guru tidak melihat istilah yang berbeda saat berpindah perangkat.
+ */
+@media (max-width: 639px) {
+  .kbm-table thead {
+    display: none;
+  }
+
+  .kbm-table,
+  .kbm-table tbody,
+  .kbm-table tr,
+  .kbm-table td {
+    display: block;
+    width: auto;
+  }
+
+  .kbm-table tr {
+    padding: 0.625rem 0.75rem;
+  }
+
+  .kbm-table td {
+    border-right: 0;
+    padding: 0;
+  }
+
+  .kbm-table td + td {
+    margin-top: 0.375rem;
+  }
+
+  .kbm-table td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1rem;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.125rem;
+  }
+}
+
 /* ── Subtle Animations ── */
 
 /* Page content fade-in */
@@ -202,9 +274,17 @@ main {
   animation: fade-in-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
-/* Login card entrance */
+/* Kartu masuk (login & setup) — animasi masuk.
+ *
+ * `[data-entry-card]` adalah penanda khusus. Sebelumnya selector-nya hanya
+ * `.min-h-screen > .max-w-md`, sehingga animasi ini diam-diam bergantung pada
+ * dua kelas tata letak: begitu tinggi kontainer diubah (mis. `min-h-screen`
+ * → `h-dvh` agar halaman tidak bisa digulir di HP), animasinya hilang tanpa
+ * peringatan apa pun. Selector lama dipertahankan hanya untuk `SetupPage`
+ * yang belum dipindahkan ke penanda ini. */
 main + footer,
-.min-h-screen > .max-w-md {
+.min-h-screen > .max-w-md,
+[data-entry-card] {
   animation: scale-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 

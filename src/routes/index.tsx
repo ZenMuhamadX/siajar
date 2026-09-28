@@ -24,6 +24,7 @@ import { ADMIN_TAB_IDS, adminPath, type AdminTab } from './adminRoutes';
 import type { ReportView } from './useReportQueryParam';
 import { AuthLoading, RequireAdmin, RequireAuth } from './guards';
 import { useEditAgendaParam } from './useEditAgenda';
+import { isAgendaFormOpen } from './useAgendaQuery';
 
 /* -------------------------------------------------------------------------- */
 /* Lazy imports — tiap halaman jadi chunk sendiri (sebelumnya 1 bundle ~729 kB) */
@@ -261,6 +262,9 @@ function TeacherShell() {
   const [isKotakSaranOpen, setIsKotakSaranOpen] = useState(false);
   const [isTeacherScheduleOpen, setIsTeacherScheduleOpen] = useState(false);
 
+  /** Formulir agenda terbuka → bar bawah disembunyikan, ruangnya dikembalikan. */
+  const agendaFormOpen = isAgendaFormOpen(location.pathname, location.search);
+
   return (
     <div className="min-h-screen bg-slate-100/70 text-slate-800 flex flex-col font-sans">
       <Navbar
@@ -268,11 +272,19 @@ function TeacherShell() {
         onOpenSchedule={() => setIsTeacherScheduleOpen(true)}
       />
 
-      {/* Ruang bawah: `--bottom-nav-h` turun ke 3.75rem (60px) dan bar-nya
-          terukur 61px. `pb-22` (88px) memberi 27px sisa di perangkat biasa,
-          dan masih menutup perangkat berponi (bar 4+44+34 = 82px) dengan 6px
-          sisa. Sebelumnya `pb-24` (96px) dihitung untuk bar 76px. */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 lg:p-6 pb-22 md:pb-6">
+      {/* Ruang bawah: bar navigasi bawah (HP & tablet, tampil sampai `lg`)
+          setinggi 61px terukur, jadi `pb-22` (88px) memberi 27px sisa di
+          perangkat biasa dan masih menutup perangkat berponi.
+
+          Saat formulir agenda terbuka, bar itu disembunyikan (lihat `Navbar`),
+          jadi ruangnya dikembalikan — di layar itulah ruang vertikal paling
+          mahal, dan tidak ada gunanya menahan 88px untuk navigasi yang tidak
+          boleh ditinggalkan di tengah pengisian. */}
+      <main
+        className={`flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 lg:p-6 ${
+          agendaFormOpen ? 'pb-6' : 'pb-22 lg:pb-6'
+        }`}
+      >
         <ErrorBoundary key={location.pathname}>
           <Suspense fallback={<PageFallback />}>
             {/* `onOpenSchedule` dibagikan lewat outlet context supaya halaman
@@ -284,8 +296,10 @@ function TeacherShell() {
       </main>
 
       {/* Digabung: ukuran & kontras teks dari branch ini, nama sekolah dari dev
-          (SettingsContext) supaya nama lembaga tidak lagi hardcoded. */}
-      <footer className="border-t border-slate-200 bg-white py-3 text-center text-xs text-slate-600 no-print mt-auto hidden md:block">
+          (SettingsContext) supaya nama lembaga tidak lagi hardcoded.
+          `lg:block`, bukan `md:block`: bar bawah masih tampil sampai `lg`, dan
+          footer yang muncul di 768–1024px akan tertutup bar itu. */}
+      <footer className="border-t border-slate-200 bg-white py-3 text-center text-xs text-slate-600 no-print mt-auto hidden lg:block">
         {schoolName} &bull; Agenda Pembelajaran &copy; {new Date().getFullYear()}
       </footer>
 

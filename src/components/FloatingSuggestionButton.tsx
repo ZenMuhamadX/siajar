@@ -182,7 +182,7 @@ export const FloatingSuggestionButton: React.FC<FloatingSuggestionButtonProps> =
       aria-label="Buka kotak saran — dapat digeser"
       title="Kotak Saran (bisa digeser)"
       style={{ left: pos.x, top: pos.y, touchAction: 'none' }}
-      className={`md:hidden fixed z-40 w-14 h-14 rounded-full inline-flex items-center justify-center shadow-lg border no-print transition-colors ${
+      className={`lg:hidden fixed z-40 w-14 h-14 rounded-full inline-flex items-center justify-center shadow-lg border no-print transition-colors ${
         isDragging
           ? 'bg-primary-700 border-primary-700 text-white cursor-grabbing'
           : 'bg-white border-slate-300 text-primary-700 hover:bg-primary-50 cursor-grab'
