@@ -66,6 +66,19 @@ export function formatDateCompact(dateStr: string): string {
   }
 }
 
+/** "14 Sep 2026" — tanggal ringkas tanpa nama hari, untuk kolom tabel padat. */
+export function formatDateShort(dateStr: string): string {
+  try {
+    return new Date(`${dateStr}T00:00:00`).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
 /** "14 Sep 2026, 09.30" — untuk jejak waktu unggah/ambil bukti foto. */
 export function formatDateTimeShort(iso?: string): string {
   if (!iso) return '-';

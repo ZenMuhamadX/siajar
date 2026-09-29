@@ -5,7 +5,7 @@ import type { AcademicYear, ScheduleItem } from '../types/schedule';
 import { getAcademicYears, getSchedules } from './scheduleService';
 import { getRekapAgenda } from './agendaService';
 import { getSubstitutionsForDate, getSubstitutionHistory } from './substitutionService';
-import { getEvidenceDisplayUrl } from './evidenceService';
+import { getEvidenceSignedUrls } from './evidenceService';
 import { getScheduleDayFromDate } from './scheduleDetectionService';
 import {
   buildSlotRows,
@@ -45,6 +45,15 @@ export type ReportItemStatus = ReportStatus;
 export { REPORT_STATUS_PRINT_LABEL, REPORT_STATUS_LABEL, REPORT_STATUS_BADGE, isFilledStatus };
 export type { SlotRow };
 
+/**
+ * Satu baris rekap harian untuk KONSUMSI DASHBOARD.
+ *
+ * Foto (K-13): `evidenceUrl` HANYA boleh dipakai komponen dashboard/modal
+ * detail + lightbox. Field ini TIDAK boleh masuk ke model cetak — model cetak
+ * hanya memakai `hasDocumentation` (boolean). Lihat
+ * `services/report/printReportModel.ts` (`assertNoImages` menegakkan aturan ini
+ * secara runtime).
+ */
 export interface DailyReportItem {
   id: string; // schedule_id atau agenda_id
   scheduleId?: string | null;
@@ -62,12 +71,26 @@ export interface DailyReportItem {
   actualTeacherId?: string | null;
   isBadal: boolean;
   status: ReportStatus;
+  /** Status keberadaan dokumentasi — dipakai cetak (bukan gambarnya). */
   hasDocumentation: boolean;
+  /** HANYA untuk dashboard: signed URL foto untuk lightbox. */
   evidenceUrl?: string | null;
   agenda?: FullAgenda | null;
   substitution?: Substitution | null;
   isUnscheduledAgenda?: boolean;
 }
+
+/**
+ * Bentuk baris yang boleh masuk dokumen CETAK/EXPORT (K-13).
+ *
+ * Perbedaan penting dari `DailyReportItem`: tidak ada `evidenceUrl`, `agenda`,
+ * atau `substitution` — hanya boolean `hasDocumentation`. Ini menjadikan
+ * "foto tidak pernah tercetak" sebagai kontrak tipe, bukan kebetulan.
+ */
+export type PrintReportItem = Omit<
+  DailyReportItem,
+  'evidenceUrl' | 'agenda' | 'substitution'
+>;
 
 export interface TeacherSummaryStats {
   teacherName: string;
@@ -139,19 +162,38 @@ async function resolveAcademicYear(
   );
 }
 
-/** Lengkapi agenda dengan signed URL foto (paralel, hanya yang punya foto). */
+/**
+ * Lengkapi agenda dengan signed URL foto untuk DASHBOARD admin (K-09, K-13).
+ *
+ * PENTING — pemisahan jalur:
+ *   - Fungsi ini HANYA dipakai untuk tampilan dashboard (tabel + modal detail
+ *     yang membuka lightbox foto). Foto tidak pernah masuk dokumen cetak.
+ *   - Memakai `getEvidenceSignedUrls` (batch) alih-alih satu permintaan per
+ *     berkas, sehingga memuat satu halaman penuh tidak lagi memicu N+1 request.
+ *
+ * Model cetak (`services/report/printReportModel.ts`) sengaja tidak menerima
+ * field ini — hanya boolean `hasDocumentation`.
+ */
 async function attachSignedUrls(agendas: FullAgenda[]): Promise<FullAgenda[]> {
-  return Promise.all(
-    agendas.map(async (agenda) => {
-      const path = agenda.evidence?.storage_path;
-      if (!path) return agenda;
-      const signedUrl = await getEvidenceDisplayUrl(path);
-      return {
-        ...agenda,
-        evidence: { ...agenda.evidence!, signedUrl: signedUrl || undefined },
-      };
-    })
-  );
+  const paths = agendas
+    .map((a) => a.evidence?.storage_path)
+    .filter((p): p is string => Boolean(p));
+
+  if (paths.length === 0) return agendas;
+
+  // Satu permintaan untuk semua foto, bukan satu per foto.
+  const urlMap = await getEvidenceSignedUrls(paths);
+
+  return agendas.map((agenda) => {
+    const path = agenda.evidence?.storage_path;
+    if (!path || !agenda.evidence) return agenda;
+    const signedUrl = urlMap.get(path);
+    if (!signedUrl) return agenda;
+    return {
+      ...agenda,
+      evidence: { ...agenda.evidence, signedUrl },
+    };
+  });
 }
 
 /** Daftar tanggal berurutan (YYYY-MM-DD) dari start sampai end, inklusif. */
@@ -273,6 +315,44 @@ export function getMondayToSundayRange(d: Date): { monday: string; sunday: strin
   return { monday: localDateString(monday), sunday: localDateString(sunday), days };
 }
 
+// ---------------------------------------------------------------------------
+// CACHE RINGAN (K-10) + BATAS UNDUHAN (K-08)
+// ---------------------------------------------------------------------------
+
+/**
+ * Plafon jumlah agenda yang diunduh untuk satu rentang laporan (K-08).
+ *
+ * Sebelumnya rekap mingguan/bulanan menarik SELURUH agenda dalam rentang tanpa
+ * batas — satu bulan bisa ribuan baris dan membuat halaman tersendat/timeout.
+ * Nilai ini menahan unduhan pada batas wajar; bila terlampaui, hasil ditandai
+ * `truncated` supaya UI bisa memperingatkan alih-alih diam-diam memotong.
+ */
+export const REPORT_AGENDA_FETCH_LIMIT = 5000;
+
+/** Masa hidup cache hasil laporan (K-10), dalam milidetik. */
+const REPORT_CACHE_TTL_MS = 60 * 1000;
+
+interface CacheEntry<T> {
+  value: T;
+  expiresAt: number;
+}
+
+const weeklyCache = new Map<string, CacheEntry<WeeklyReportResult>>();
+
+/** Buang seluruh cache laporan — dipanggil saat data berubah (mis. setelah koreksi). */
+export function invalidateReportCache(): void {
+  weeklyCache.clear();
+}
+
+function weeklyCacheKey(o: {
+  startDate: string;
+  endDate: string;
+  academicYearId?: string;
+  teacherFilter?: string;
+}): string {
+  return `${o.startDate}|${o.endDate}|${o.academicYearId ?? ''}|${o.teacherFilter ?? 'SEMUA'}`;
+}
+
 export async function getWeeklyReport(options: {
   startDate: string; // YYYY-MM-DD (Senin)
   endDate: string; // YYYY-MM-DD (Minggu)
@@ -280,6 +360,13 @@ export async function getWeeklyReport(options: {
   teacherFilter?: string;
 }): Promise<WeeklyReportResult> {
   const { startDate, endDate, academicYearId, teacherFilter } = options;
+
+  // K-10: navigasi bolak-balik antar periode tidak lagi mengunduh ulang.
+  const key = weeklyCacheKey(options);
+  const cached = weeklyCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
 
   const selectedAY = await resolveAcademicYear(academicYearId, startDate);
 
@@ -327,11 +414,22 @@ export async function getWeeklyReport(options: {
     return stat;
   };
 
-  // Jadwal aktif (seluruh hari) + agenda & badal dalam rentang
+  // Jadwal aktif (seluruh hari) + agenda & badal dalam rentang.
+  //
+  // K-08/K-13: agenda dibatasi (bukan tarik-semua) DAN tidak lagi melewati
+  // `attachSignedUrls`. Rekap mingguan/bulanan adalah jalur AGREGASI yang juga
+  // menyuplai dokumen cetak; foto tidak dibutuhkan di sini — yang dipakai hanya
+  // boolean `hasDocumentation`, yang sudah tersedia dari `storage_path` tanpa
+  // perlu signed URL. Ini menghapus N+1 sekaligus memastikan URL foto tidak
+  // pernah menyentuh jalur cetak/export.
   const aySchedules: ScheduleItem[] = selectedAY
     ? await getSchedules({ academicYearId: selectedAY.id, status: 'ACTIVE' })
     : [];
-  const agendas = await attachSignedUrls(await getRekapAgenda({ startDate, endDate }));
+  const agendas = await getRekapAgenda({
+    startDate,
+    endDate,
+    limit: REPORT_AGENDA_FETCH_LIMIT,
+  });
   const substitutions = await getSubstitutionHistory({ startDate, endDate });
 
   // Aturan hitung: view-model yang sama dengan Rekap Harian
@@ -412,7 +510,7 @@ export async function getWeeklyReport(options: {
 
   summaries.sort((a, b) => a.teacherName.localeCompare(b.teacherName));
 
-  return {
+  const result: WeeklyReportResult = {
     startDate,
     endDate,
     academicYear: selectedAY,
@@ -428,6 +526,11 @@ export async function getWeeklyReport(options: {
       overallRealizationRate: totSched > 0 ? Number(((totReal / totSched) * 100).toFixed(1)) : 0,
     },
   };
+
+  // K-10: simpan untuk navigasi bolak-balik periode dalam waktu singkat.
+  weeklyCache.set(key, { value: result, expiresAt: Date.now() + REPORT_CACHE_TTL_MS });
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------

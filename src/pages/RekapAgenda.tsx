@@ -1,21 +1,30 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { localDateString } from '../utils/date';
+import { localDateString, formatDateShort, formatDateLong } from '../utils/date';
 import { DAFTAR_KELAS, type Guru } from '../types';
 import type { AcademicYear } from '../types/schedule';
 import { deleteAgenda, getDaftarGuru } from '../services/agendaService';
 import { getAcademicYears } from '../services/scheduleService';
 import { deleteAgendaEvidence } from '../services/evidenceService';
+import { invalidateReportCache } from '../services/reportService';
 import {
   queryJournalRows,
   queryJournalAbsenceStats,
+  queryAllJournalRowsForPrint,
+  JOURNAL_PRINT_MAX_ROWS,
   type JournalRow,
 } from '../services/report/reportQuery';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { AgendaDetailDrawer } from '../components/report/AgendaDetailDrawer';
 import { ReportPrintLayout } from '../components/admin/report/ReportPrintLayout';
+import { createPrintModel, cellText } from '../services/report/printReportModel';
+import {
+  downloadJournalPdf,
+  JournalPdfExportError,
+} from '../services/export/journalPdfExport';
+import { mapFriendlyError } from '../utils/friendlyError';
 import { useAuth } from '../contexts/AuthContext';
 import { useSchoolName } from '../contexts/SettingsContext';
-import { DataTable, FilterBar, type Column } from '../components/common';
+import { DataTable, FilterBar, ErrorState, type Column } from '../components/common';
 import { PageHeader } from '../components/admin/PageHeader';
 import {
   Printer,
@@ -36,11 +45,11 @@ interface RekapAgendaProps {
   onEditAgenda?: (agendaId: string) => void;
 }
 
-type PeriodeType = '7_hari' | '30_hari' | 'bulan_ini' | 'tahun_ajaran' | 'custom';
+type PeriodeType = 'hari_ini' | '7_hari' | 'bulan_ini' | 'tahun_ajaran' | 'custom';
 
 const PERIODE_OPTIONS: { value: PeriodeType; label: string }[] = [
+  { value: 'hari_ini', label: 'Hari Ini' },
   { value: '7_hari', label: '7 Hari' },
-  { value: '30_hari', label: '30 Hari' },
   { value: 'bulan_ini', label: 'Bulan Ini' },
   { value: 'tahun_ajaran', label: 'Tahun Ajaran' },
   { value: 'custom', label: 'Kustom' },
@@ -65,8 +74,10 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
   const schoolName = useSchoolName();
 
   // ---- Filter state ----
-  // Default 30 hari terakhir (dulu "bulan kalender", yang di awal bulan kosong).
-  const [periodeType, setPeriodeType] = useState<PeriodeType>('30_hari');
+  // Default "Hari Ini" — halaman ini dipakai sebagai papan pemantauan harian,
+  // jadi membuka Log Jurnal langsung menampilkan agenda hari berjalan, bukan
+  // rentang luas yang harus dipersempit dulu.
+  const [periodeType, setPeriodeType] = useState<PeriodeType>('hari_ini');
   const [selectedGuru, setSelectedGuru] = useState<string>('SEMUA');
   const [selectedKelas, setSelectedKelas] = useState<string>('SEMUA');
   const [customStartDate, setCustomStartDate] = useState<string>('');
@@ -82,6 +93,11 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  // K-05: saat mengekspor PDF, seluruh hasil filter diunduh (bukan hanya halaman
+  // aktif). State ini menandai prosesnya agar tombol bisa menampilkan status.
+  const [isPreparingPrint, setIsPreparingPrint] = useState(false);
+  // K-11: kegagalan muat jadi state agar ekspor dapat diblokir.
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // ---- Dialog & drawer state ----
   const [detailAgendaId, setDetailAgendaId] = useState<string | null>(null);
@@ -117,10 +133,12 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
     };
 
     switch (periodeType) {
+      case 'hari_ini':
+        // Satu hari: awal dan akhir sama. Dipakai untuk pemeriksaan per hari
+        // (mis. "agenda hari ini sudah lengkap belum?").
+        return { startDate: todayStr, endDate: todayStr };
       case '7_hari':
         return { startDate: shift(6), endDate: todayStr };
-      case '30_hari':
-        return { startDate: shift(29), endDate: todayStr };
       case 'bulan_ini': {
         const year = today.getFullYear();
         const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -137,6 +155,8 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
       }
       case 'custom':
       default:
+        // Bila salah satu tanggal belum dipilih, mundur 29 hari (≈ sebulan)
+        // supaya preset ini tetap punya rentang yang berguna, bukan kosong.
         return {
           startDate: customStartDate || shift(29),
           endDate: customEndDate || todayStr,
@@ -157,6 +177,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
 
   const fetchRows = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const res = await queryJournalRows({ ...queryParams, page, pageSize });
       setRows(res.rows);
@@ -165,8 +186,11 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
         showToast('info', 'Hasil pencarian terlalu banyak — persempit kata kunci untuk hasil lengkap.');
       }
     } catch (err) {
+      // K-12: pesan ramah, detail teknis cukup di konsol.
       console.error(err);
-      showToast('error', 'Gagal memuat rekap agenda.');
+      const message = mapFriendlyError(err, { subject: 'log jurnal agenda' });
+      setLoadError(message);
+      showToast('error', message);
     } finally {
       setIsLoading(false);
     }
@@ -192,14 +216,14 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
   // Catatan: setiap perubahan filter/preset sudah memanggil `setPage(1)` di
   // handler-nya masing-masing, jadi tidak perlu efek untuk mereset halaman.
 
-  const handlePrint = () => window.print();
-
   // ---- Hapus agenda (selalu lewat dialog konfirmasi) ----
   const confirmDeleteAgenda = async () => {
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
       await deleteAgenda(deleteTarget.id);
+      // K-10: hasil rekap yang di-cache tidak boleh menampilkan agenda terhapus.
+      invalidateReportCache();
       showToast('success', 'Agenda berhasil dihapus.');
       setDeleteTarget(null);
       fetchRows();
@@ -223,6 +247,8 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
       showToast('success', 'Foto dokumentasi dihapus. Status agenda kembali ke belum ada foto.');
       setEvidenceDeleteTarget(null);
       setDetailAgendaId(null);
+      // K-10: kosongkan cache rekap agar status dokumentasi ikut tersegarkan.
+      invalidateReportCache();
       fetchRows();
     } catch (err: any) {
       showToast('error', 'Gagal menghapus foto dokumentasi: ' + (err?.message || ''));
@@ -231,45 +257,22 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
     }
   };
 
-  const formatDateIndo = (dateStr: string) => {
-    try {
-      return new Date(dateStr + 'T00:00:00').toLocaleDateString('id-ID', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      });
-    } catch {
-      return dateStr;
-    }
-  };
-
-  const formatSimpleDate = (dateStr: string) => {
-    try {
-      return new Date(dateStr + 'T00:00:00').toLocaleDateString('id-ID', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      });
-    } catch {
-      return dateStr;
-    }
-  };
-
-  const getPeriodeLabel = () => {
+  // Label periode dipakai layar DAN dokumen cetak; memoized agar `useCallback`
+  // model cetak & `useMemo` kolom tidak dibuat ulang setiap render.
+  const periodeLabel = useMemo(() => {
     if (periodeType === 'custom' && (customStartDate || customEndDate)) {
-      return `Periode: ${formatSimpleDate(customStartDate || dateRange.startDate)} s.d. ${formatSimpleDate(
+      return `Periode: ${formatDateShort(customStartDate || dateRange.startDate)} s.d. ${formatDateShort(
         customEndDate || dateRange.endDate
       )}`;
     }
     const preset = PERIODE_OPTIONS.find((o) => o.value === periodeType)?.label;
-    return `${preset || 'Periode'}: ${formatSimpleDate(dateRange.startDate)} s.d. ${formatSimpleDate(
+    return `${preset || 'Periode'}: ${formatDateShort(dateRange.startDate)} s.d. ${formatDateShort(
       dateRange.endDate
     )}`;
-  };
+  }, [periodeType, customStartDate, customEndDate, dateRange.startDate, dateRange.endDate]);
 
   const isFiltered =
-    periodeType !== '30_hari' ||
+    periodeType !== 'hari_ini' ||
     selectedGuru !== 'SEMUA' ||
     selectedKelas !== 'SEMUA' ||
     Boolean(customStartDate) ||
@@ -277,7 +280,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
     Boolean(searchQuery.trim());
 
   const handleResetFilters = () => {
-    setPeriodeType('30_hari');
+    setPeriodeType('hari_ini');
     setSelectedGuru('SEMUA');
     setSelectedKelas('SEMUA');
     setCustomStartDate('');
@@ -288,6 +291,135 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
 
   const kelasLabel = selectedKelas === 'SEMUA' ? 'Semua Kelas' : selectedKelas;
   const guruLabel = selectedGuru === 'SEMUA' ? 'Semua Guru' : selectedGuru;
+
+  /**
+   * Bangun model cetak dari baris jurnal (K-13, K-14, K-17).
+   *
+   * Dua keputusan bentuk dokumen, sesuai arahan pemilik produk:
+   *   1. **Satu baris KBM = satu baris dokumen.** Satu agenda bisa memuat
+   *      beberapa sesi mengajar (mis. SBDP jam 3 DAN jam 4). Digabung jadi satu
+   *      baris, materi sesi kedua tidak punya tempat menempel. Dipecah, setiap
+   *      mapel berdiri sendiri dengan JP dan materinya masing-masing — inilah
+   *      bentuk yang layak untuk laporan.
+   *   2. **Tanpa kolom absensi & foto.** Dokumen cetak hanya memuat informasi
+   *      tekstual yang diminta; status kehadiran siswa dan bukti foto adalah
+   *      kebutuhan dashboard, bukan dokumen arsip.
+   *
+   * Kolom "Materi" sengaja TIDAK diletakkan paling kanan sebagai kolom sempit,
+   * melainkan tetap memperoleh sisa lebar tabel (lihat `COLUMN_WIDTHS` di
+   * penulis PDF) sehingga teksnya membungkus penuh, tidak pernah terpotong.
+   */
+  const buildJournalPrintModel = useCallback(
+    (printRows: JournalRow[]) =>
+      createPrintModel({
+        orientation: 'landscape',
+        title: 'Laporan Rekapitulasi Agenda & KBM Kelas',
+        subtitle: `Kelas: ${kelasLabel} • Guru: ${guruLabel}`,
+        periodInfo: periodeLabel,
+        columns: [
+          { key: 'no', header: 'No', align: 'center', width: 'w-8' },
+          { key: 'tanggal', header: 'Tanggal', align: 'center', width: 'w-24' },
+          { key: 'kelas', header: 'Kelas', align: 'center', width: 'w-16' },
+          { key: 'guru', header: 'Nama Guru', align: 'left', width: 'w-44' },
+          { key: 'mapel', header: 'Mata Pelajaran', align: 'left', width: 'w-32' },
+          { key: 'jp', header: 'JP Ke-', align: 'center', width: 'w-12' },
+          { key: 'materi', header: 'Materi', align: 'left' },
+        ],
+        rows: printRows
+          .flatMap((r) => {
+            // Agenda tanpa baris KBM tetap ditampilkan sebagai satu baris kosong
+            // supaya agenda yang belum diisi tidak "hilang" dari dokumen.
+            const kbmList = r.kbm.length > 0 ? r.kbm : [null];
+            return kbmList.map((k) => ({
+              tanggal: cellText(formatDateShort(r.tanggal)),
+              kelas: cellText(r.kelas),
+              guru: `${cellText(
+                k?.nama_guru || r.actualTeacherName || r.kbm?.[0]?.nama_guru,
+              )}${k?.is_badal ? ' (Badal)' : ''}`,
+              mapel: cellText(k?.mapel),
+              jp: cellText(k?.jam_ke),
+              materi: cellText(k?.materi),
+            }));
+          })
+          // Nomor urut diberikan SETELAH pemecahan, agar dokumen bernomor 1..N
+          // berurutan — bukan mengulang nomor agenda yang sama untuk tiap KBM.
+          .map((row, i) => ({ no: cellText(i + 1), ...row })),
+        emptyMessage: 'Tidak ada agenda pada periode dan filter yang dipilih.',
+      }),
+    [kelasLabel, guruLabel, periodeLabel],
+  );
+
+  /**
+   * Model cetak halaman aktif. PDF yang diunduh dibangun ulang dari SELURUH
+   * baris hasil filter (lihat `handleDownloadPdf`); model ini menyuplai bentuk
+   * dokumen untuk pratinjau di layar sekaligus rujukan orientasi.
+   */
+  const printModel = useMemo(
+    () => buildJournalPrintModel(rows),
+    [buildJournalPrintModel, rows],
+  );
+
+  /**
+   * Unduh PDF Log Jurnal (K-05, K-14, K-17).
+   *
+   * Alur lengkapnya:
+   *   1. tarik SELURUH baris hasil filter (dibatasi `JOURNAL_PRINT_MAX_ROWS`) —
+   *      bukan hanya halaman aktif, sehingga tidak ada data yang hilang diam-diam;
+   *   2. bangun model cetak dari baris lengkap itu;
+   *   3. serahkan model ke penulis PDF (`downloadJournalPdf`), yang menyusun
+   *      dokumen dari NOL — tanpa membaca DOM, sehingga tabel layar, paginasi,
+   *      filter, dan kolom AKSI tidak mungkin ikut tercetak;
+   *   4. bila hasil melebihi plafon, beri tahu pengguna bahwa dokumen dibatasi.
+   *
+   * Tidak ada `window.print()` di jalur ini sama sekali; unduhan PDF ditangani
+   * pdfmake (pola yang sama dengan export jadwal .xlsx).
+   */
+  const handleDownloadPdf = useCallback(async () => {
+    if (isPreparingPrint) return;
+    setIsPreparingPrint(true);
+    try {
+      const { rows: allRows, total, truncated } = await queryAllJournalRowsForPrint(queryParams);
+      if (allRows.length === 0) {
+        showToast('info', 'Tidak ada data untuk diekspor pada periode ini.');
+        return;
+      }
+
+      const fullModel = buildJournalPrintModel(allRows);
+      const fileName = await downloadJournalPdf(fullModel, {
+        schoolName,
+        // Tanggal dokumen: hari ini, memakai formatter terpusat (WIB-safe).
+        dateLabel: formatDateLong(localDateString()),
+      });
+
+      if (truncated) {
+        showToast(
+          'info',
+          `Hasil filter melebihi ${JOURNAL_PRINT_MAX_ROWS} baris. Dokumen dibatasi ${JOURNAL_PRINT_MAX_ROWS} baris pertama — persempit filter untuk dokumen lengkap.`,
+        );
+      } else if (total > rows.length) {
+        showToast('success', `PDF dibuat: ${fileName} (${allRows.length} sesi mengajar).`);
+      } else {
+        showToast('success', `PDF dibuat: ${fileName}`);
+      }
+    } catch (err) {
+      console.error('Gagal menyiapkan dokumen PDF:', err);
+      // Error domain pdf sudah punya pesan Indonesia; sisanya dipetakan.
+      const message =
+        err instanceof JournalPdfExportError
+          ? err.message
+          : mapFriendlyError(err, { subject: 'dokumen PDF' });
+      showToast('error', message);
+    } finally {
+      setIsPreparingPrint(false);
+    }
+  }, [
+    isPreparingPrint,
+    queryParams,
+    rows.length,
+    showToast,
+    schoolName,
+    buildJournalPrintModel,
+  ]);
 
   const columns: Column<JournalRow>[] = useMemo(
     () => [
@@ -308,8 +440,8 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
         align: 'left',
         width: '130px',
         accessor: (r) => (
-          <span className="block font-medium text-slate-700 whitespace-nowrap" title={formatDateIndo(r.tanggal)}>
-            {formatSimpleDate(r.tanggal)}
+          <span className="block font-medium text-slate-700 whitespace-nowrap" title={formatDateLong(r.tanggal)}>
+            {formatDateShort(r.tanggal)}
           </span>
         ),
       },
@@ -578,7 +710,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
             {periodeType !== 'custom' && (
               <span className="flex items-center gap-1.5 text-xs text-slate-600 whitespace-nowrap">
                 <Calendar className="w-3.5 h-3.5" />
-                {formatSimpleDate(dateRange.startDate)} – {formatSimpleDate(dateRange.endDate)}
+                {formatDateShort(dateRange.startDate)} – {formatDateShort(dateRange.endDate)}
               </span>
             )}
           </>
@@ -600,12 +732,17 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
 
              <button
               type="button"
-              onClick={handlePrint}
-              disabled={rows.length === 0}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg text-xs transition disabled:opacity-50"
+              onClick={handleDownloadPdf}
+              disabled={rows.length === 0 || isLoading || Boolean(loadError) || isPreparingPrint}
+              title={
+                loadError
+                  ? 'Tidak dapat mengekspor: data gagal dimuat'
+                  : 'Mengunduh PDF seluruh hasil filter, bukan hanya halaman ini'
+              }
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg text-xs transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Cetak PDF / Print</span>
+              <Printer className={`w-3.5 h-3.5 ${isPreparingPrint ? 'animate-pulse' : ''}`} />
+              <span>{isPreparingPrint ? 'Menyiapkan…' : 'Unduh PDF'}</span>
             </button>
           </>
         }
@@ -632,10 +769,17 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
         ))}
       </div>
 
+      {/* K-11: state error eksplisit; mencetak otomatis terblokir. */}
+      {loadError && (
+        <div className="no-print bg-white rounded-xl border border-rose-200 shadow-2xs">
+          <ErrorState title="Gagal memuat log jurnal" message={loadError} onRetry={fetchRows} />
+        </div>
+      )}
+
       {/* DOKUMEN REKAP & CETAK RESMI */}
       <DataTable
         title="Rekap Agenda Pembelajaran & KBM"
-        subtitle={`${getPeriodeLabel()} • ${
+        subtitle={`${periodeLabel} • ${
           totalRows > 0 ? `${totalRows} sesi agenda ditemukan` : 'Belum ada agenda pada periode ini'
         }`}
         titleIcon={<FileCheck className="w-4 h-4 text-slate-700 shrink-0" />}
@@ -664,73 +808,65 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
         }}
       />
 
-      {/* LAYOUT CETAK — satu kop resmi; isi tabel memakai kolom ringkas yang sama
-          dengan layar agar tidak ada isi layar yang bocor ke kertas. */}
-      {rows.length > 0 && (
-        <ReportPrintLayout
-          title="Laporan Rekapitulasi Agenda & KBM Kelas"
-          periodInfo={getPeriodeLabel()}
-          subtitle={`Kelas: ${kelasLabel} • Guru: ${guruLabel}`}
-          signature={
-            <div className="grid grid-cols-2 text-center">
-              <div>
-                <p>Mengetahui,</p>
-                <p className="font-bold">Kepala Sekolah {schoolName}</p>
-                <div className="h-16" />
-                <p className="font-bold underline">( ........................................ )</p>
-              </div>
-              <div>
-                <p>Pengawas / Guru Piket,</p>
-                <p className="font-bold">{schoolName}</p>
-                <div className="h-16" />
-                <p className="font-bold underline">( ........................................ )</p>
-              </div>
+      {/* LAYOUT CETAK — satu kop resmi. Dirender dari `printModel`, bukan dari
+          state UI mentah (K-14). Orientasi landscape (K-15), header berulang +
+          baris utuh (K-02/K-03), kolom foto hanya status teks (K-13). */}
+      <ReportPrintLayout
+        title={printModel.title}
+        periodInfo={printModel.periodInfo}
+        subtitle={printModel.subtitle}
+        hasRows={printModel.rows.length > 0}
+        emptyMessage={printModel.emptyMessage}
+        signature={
+          <div className="grid grid-cols-2 text-center">
+            <div>
+              <p>Mengetahui,</p>
+              <p className="font-bold">Kepala Sekolah {schoolName}</p>
+              <div className="h-16" />
+              <p className="font-bold underline">( ........................................ )</p>
             </div>
-          }
-        >
-          <table className="w-full text-left text-xs border-collapse border border-slate-900">
-            <thead className="bg-slate-100 border-b border-slate-900 font-bold uppercase">
-              <tr>
-                <th className="p-1.5 border-r border-slate-900 text-center w-8">No</th>
-                <th className="p-1.5 border-r border-slate-900 text-center w-24">Tanggal</th>
-                <th className="p-1.5 border-r border-slate-900 text-center w-20">Kelas</th>
-                <th className="p-1.5 border-r border-slate-900">Guru</th>
-                <th className="p-1.5 border-r border-slate-900">Mata Pelajaran</th>
-                <th className="p-1.5 border-r border-slate-900 text-center w-16">Jam</th>
-                <th className="p-1.5 border-r border-slate-900 text-center w-24">Tidak Hadir</th>
-                <th className="p-1.5 text-center w-20">Foto</th>
+            <div>
+              <p>Pengawas / Guru Piket,</p>
+              <p className="font-bold">{schoolName}</p>
+              <div className="h-16" />
+              <p className="font-bold underline">( ........................................ )</p>
+            </div>
+          </div>
+        }
+      >
+        <table className="print-table w-full text-left text-xs border-collapse border border-slate-900">
+          <thead className="bg-slate-100 border-b border-slate-900 font-bold uppercase">
+            <tr>
+              {printModel.columns.map((col, ci) => (
+                <th
+                  key={col.key}
+                  className={`p-1.5 ${col.width ?? ''} ${
+                    ci < printModel.columns.length - 1 ? 'border-r border-slate-900' : ''
+                  } ${col.align === 'left' ? 'text-left' : 'text-center'}`}
+                >
+                  {col.header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-400">
+            {printModel.rows.map((row, i) => (
+              <tr key={i}>
+                {printModel.columns.map((col, ci) => (
+                  <td
+                    key={col.key}
+                    className={`p-1.5 ${
+                      ci < printModel.columns.length - 1 ? 'border-r border-slate-900' : ''
+                    } ${col.align === 'left' ? '' : 'text-center'}`}
+                  >
+                    {row[col.key]}
+                  </td>
+                ))}
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-400">
-              {rows.map((r, i) => {
-                const s = r.absensi.filter((x) => x.status === 'S').length;
-                const iz = r.absensi.filter((x) => x.status === 'I').length;
-                const al = r.absensi.filter((x) => x.status === 'A').length;
-                const mapel = Array.from(new Set(r.kbm.map((k) => k.mapel).filter(Boolean)));
-                return (
-                  <tr key={r.id}>
-                    <td className="p-1.5 border-r border-slate-900 text-center">{i + 1}</td>
-                    <td className="p-1.5 border-r border-slate-900 text-center">{formatSimpleDate(r.tanggal)}</td>
-                    <td className="p-1.5 border-r border-slate-900 text-center font-bold">{r.kelas}</td>
-                    <td className="p-1.5 border-r border-slate-900">
-                      {r.actualTeacherName || r.kbm?.[0]?.nama_guru || '-'}
-                      {r.kbm.some((k) => k.is_badal) ? ' (Badal)' : ''}
-                    </td>
-                    <td className="p-1.5 border-r border-slate-900">{mapel.join(', ') || '-'}</td>
-                    <td className="p-1.5 border-r border-slate-900 text-center">
-                      {r.kbm.map((k) => k.jam_ke).filter(Boolean).join(', ') || '-'}
-                    </td>
-                    <td className="p-1.5 border-r border-slate-900 text-center">
-                      {r.absensi.length === 0 ? 'Lengkap' : `S ${s} · I ${iz} · A ${al}`}
-                    </td>
-                    <td className="p-1.5 text-center">{r.evidence?.storage_path ? 'Ada' : '-'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </ReportPrintLayout>
-      )}
+            ))}
+          </tbody>
+        </table>
+      </ReportPrintLayout>
 
       {/* Drawer detail: isi agenda lengkap (KBM, absensi, kejadian, foto) */}
       <AgendaDetailDrawer
