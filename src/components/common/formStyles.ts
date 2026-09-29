@@ -10,10 +10,24 @@
  * memakai skala `primary`, mengikuti komponen yang sudah ada seperti `FilterBar`.
  */
 export const formStyles = {
-  /** Label field. */
-  label: 'block text-xs font-semibold text-slate-600 mb-1.5',
-  /** Teks bantuan di bawah field. */
-  hint: 'text-xs text-slate-600 mt-1',
+  /**
+   * Label field.
+   *
+   * Lebih gelap (`slate-700`, bukan `slate-600`) supaya terpisah dari
+   * petunjuk. Sebelumnya label dan petunjuk sama ukurannya DAN sama warnanya —
+   * hanya bobot huruf yang berbeda — sehingga keduanya terbaca sebagai dua
+   * baris setara dan tidak jelas mana nama field, mana penjelasnya.
+   */
+  label: 'block text-xs font-semibold text-slate-700 mb-1.5',
+  /**
+   * Teks bantuan di bawah field.
+   *
+   * Lebih pudar (`slate-500`) dan jaraknya dilonggarkan dari 4px ke 6px.
+   * Ukurannya sengaja tetap `text-xs` (14px): mengecilkannya akan memperbaiki
+   * hierarki tetapi mengorbankan keterbacaan — dan skala tipografi aplikasi
+   * justru sudah dinaikkan untuk alasan itu.
+   */
+  hint: 'text-xs text-slate-500 mt-1.5',
   /** Pesan error. */
   error: 'text-xs text-rose-600 mt-1',
   /** Input teks/angka/date/time. */

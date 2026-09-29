@@ -91,18 +91,40 @@ export const LoginPage: React.FC = () => {
     }
   };
 
+  /**
+   * Tinggi dikunci ke viewport dan luberannya disembunyikan, supaya di HP
+   * halaman ini tidak bisa digulir.
+   *
+   * Sebelumnya `min-h-screen` — yaitu `100vh`. Di peramban HP, `100vh`
+   * mencakup bagian yang tertutup bilah alamat yang menyusut saat digulir,
+   * jadi elemennya selalu sedikit LEBIH TINGGI daripada yang benar-benar
+   * terlihat, dan halaman ikut tergulir sedikit tanpa isi yang perlu digulir.
+   *
+   * `dvh` (dynamic viewport height) mengikuti tinggi yang benar-benar
+   * terlihat, sehingga tidak ada kelebihan itu. Bila peramban tidak
+   * mengenalnya, tinggi tidak terpasang dan halaman kembali bergulir seperti
+   * sebelumnya — jadi tidak ada yang rusak, hanya kembali ke perilaku lama.
+   *
+   * Pembungkus di dalamnya sengaja tetap `overflow-y-auto`: dalam keadaan
+   * biasa isinya muat sehingga tidak ada yang bergulir sama sekali, tetapi
+   * saat papan ketik terbuka ruang menyusut drastis — tanpa itu, kolom dan
+   * tombol "Masuk" bisa terpotong tanpa cara menjangkaunya.
+   */
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
+    <div className="h-dvh overflow-hidden bg-slate-50 flex items-center justify-center p-3 sm:p-4">
+      <div className="w-full max-w-md max-h-full overflow-y-auto overscroll-contain">
         {/* Brand Card */}
-        <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-6">
+        <div
+          data-entry-card
+          className="bg-white rounded-3xl p-5 sm:p-8 border border-slate-200 shadow-sm space-y-4 sm:space-y-6"
+        >
           <div className="text-center space-y-2">
             <img
               src="/logo.png"
               alt="Logo Lembaga"
-              className="w-16 h-16 mx-auto object-contain drop-shadow-sm"
+              className="w-12 h-12 sm:w-16 sm:h-16 mx-auto object-contain drop-shadow-sm"
             />
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
               {schoolName}
             </h1>
             <p className="text-xs text-slate-600 font-medium">
@@ -179,7 +201,7 @@ export const LoginPage: React.FC = () => {
             </Link>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
             {mode === 'teacher' ? (
               <div>
                 <label
@@ -195,7 +217,7 @@ export const LoginPage: React.FC = () => {
                     disabled={isLoadingGuru || daftarGuru.length === 0}
                     value={selectedGuru}
                     onChange={(e) => setSelectedGuru(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition font-medium"
+                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-600 focus:bg-white transition font-medium"
                   >
                     {daftarGuru.length === 0 ? (
                       <option value="">{isLoadingGuru ? 'Memuat guru...' : 'Belum ada data guru'}</option>
@@ -232,7 +254,7 @@ export const LoginPage: React.FC = () => {
                   placeholder="Kode pribadi dari admin"
                   value={kode}
                   onChange={(e) => setKode(e.target.value)}
-                  className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition"
+                  className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-600 focus:bg-white transition"
                 />
                 <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" aria-hidden="true" />
                 <button

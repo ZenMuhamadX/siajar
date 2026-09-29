@@ -83,6 +83,12 @@ export const ScheduleTimelineCard: React.FC<ScheduleTimelineCardProps> = ({
    * bersaing dengan nama mata pelajaran padahal status hanyalah keterangan.
    * Warna latar lembut + teks medium sudah cukup, dan maknanya tidak
    * bergantung pada warna saja — teksnya berbunyi jelas.
+   *
+   * "Berlangsung" memakai BIRU, dan itu disengaja: emerald sudah berarti
+   * "Sudah Diisi", jadi memakai emerald untuk keduanya akan membuat guru tidak
+   * bisa membedakan "sedang mengajar" dari "sudah selesai" hanya dengan sekali
+   * pandang. Biru adalah warna "sedang berlangsung" di seluruh aplikasi —
+   * sama dengan `ActiveScheduleHero` dan `StatusBadge`.
    */
   const statusBadge = isInProgress ? (
     <span className="shrink-0 inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 whitespace-nowrap">
@@ -152,7 +158,7 @@ export const ScheduleTimelineCard: React.FC<ScheduleTimelineCardProps> = ({
       style={{ animationDelay: `${60 + Math.min(index, 6) * 30}ms` }}
       className={`card-press stagger-in relative rounded-xl border p-4 shadow-xs transition-shadow hover:shadow-md ${
         isInProgress
-          ? 'bg-white border-slate-300 border-l-4 border-l-emerald-500'
+          ? 'bg-white border-slate-300 border-l-4 border-l-blue-500'
           : isCompleted
           ? 'bg-white border-slate-200'
           : isOverdue

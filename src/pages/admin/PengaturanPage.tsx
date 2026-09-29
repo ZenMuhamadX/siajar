@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader } from '../../components/admin/PageHeader';
 import {
   Database,
@@ -16,6 +16,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { FormField, TextInput, SelectInput, formStyles } from '../../components/common';
 import {
+  DEFAULT_SETTINGS,
   FONT_OPTIONS,
   FONT_SIZE_RANGE,
   normalizeSettings,
@@ -97,7 +98,14 @@ const TOGGLES: Array<{
   },
 ];
 
-/** Dua representasi warna: picker native + teks hex, selalu sinkron. */
+/**
+ * Dua representasi warna: picker native + teks hex, selalu sinkron.
+ *
+ * Susunannya sengaja mengikuti `FormField` — label, kontrol, lalu petunjuk di
+ * baris terpisah. Sebelumnya petunjuk menempel di sebelah input dalam satu
+ * baris flex, sehingga di kolom yang lebih sempit ia terhimpit jadi satu-dua
+ * kata per baris dan justru sulit dibaca.
+ */
 const ColorField: React.FC<{
   label: string;
   hint: string;
@@ -121,11 +129,11 @@ const ColorField: React.FC<{
         disabled={disabled}
         maxLength={6}
         onChange={(e) => onChange(stripHash(e.target.value))}
-        className="w-24 font-mono uppercase"
+        className="min-w-0 flex-1 font-mono uppercase"
         aria-label={`${label} (kode hex)`}
       />
-      <span className="text-xs text-slate-600">{hint}</span>
     </div>
+    <p className={formStyles.hint}>{hint}</p>
   </div>
 );
 
@@ -154,6 +162,24 @@ const ToggleField: React.FC<{
       <span className="block text-xs text-slate-600">{hint}</span>
     </span>
   </label>
+);
+
+/**
+ * Sub-judul di dalam satu bagian.
+ *
+ * Bagian "Tampilan Export Excel" memuat empat belas kontrol. Tanpa pemecah,
+ * semuanya tampil sebagai deretan grid yang beruntun sehingga admin tidak tahu
+ * bahwa itu sebenarnya tiga kelompok berbeda (tipografi, warna, dan opsi
+ * cetak) — dan harus membaca setiap label untuk menemukan satu pengaturan.
+ */
+const SubGroup: React.FC<{ title: string; children: React.ReactNode }> = ({
+  title,
+  children,
+}) => (
+  <div className="space-y-3">
+    <h4 className={formStyles.sectionTitle}>{title}</h4>
+    {children}
+  </div>
 );
 
 /**
@@ -441,13 +467,49 @@ export const PengaturanPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isResetOpen, setIsResetOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  /** Pengaturan berubah dari perangkat lain sementara draf ini sedang diisi. */
+  const [remoteChanged, setRemoteChanged] = useState(false);
 
-  // Ikuti Pengaturan dari database, TAPI hanya kalau pengguna belum mengubah
-  // apa pun — supaya hasil edit tidak tertimpa saat halaman lain menyimpan.
+  /**
+   * Pengaturan terakhir yang sudah sejalan dengan draf.
+   *
+   * Inilah pembanding untuk menguji "draf belum disentuh". Versi sebelumnya
+   * membandingkan draf dengan settings YANG BARU:
+   *
+   *   `current === settings ? current : settings`
+   *
+   * sehingga ia menimpa draf justru ketika draf BERBEDA dari settings — tepat
+   * pada saat admin sudah mengedit. Isian yang belum disimpan bisa hilang tanpa
+   * peringatan lewat dua jalur yang keduanya nyata:
+   *
+   *   1. Pemuatan awal dari database selesai SESUDAH admin mulai mengetik.
+   *   2. Pengaturan diubah dari tab/komputer lain — `SettingsContext`
+   *      berlangganan perubahan luar — sementara halaman ini sedang diisi.
+   *
+   * Karena itu yang dibandingkan adalah nilai yang TERAKHIR disinkronkan,
+   * bukan nilai yang baru masuk.
+   */
+  const syncedRef = useRef(settings);
+
   useEffect(() => {
-    setDraft((current) =>
-      JSON.stringify(current) === JSON.stringify(settings) ? current : settings,
-    );
+    const synced = syncedRef.current;
+    if (JSON.stringify(synced) === JSON.stringify(settings)) return;
+
+    if (JSON.stringify(draft) === JSON.stringify(synced)) {
+      // Draf masih setia pada nilai lama → belum disentuh, jadi nilai baru
+      // dari database boleh diadopsi.
+      setDraft(settings);
+      setRemoteChanged(false);
+    } else {
+      // Ada isian yang belum disimpan → JANGAN ditimpa. Cukup beri tahu,
+      // lalu serahkan keputusan kepada admin.
+      setRemoteChanged(true);
+    }
+
+    syncedRef.current = settings;
+    // `draft` sengaja tidak masuk dependensi: efek ini hanya boleh berjalan
+    // saat Pengaturan dari luar berubah, bukan tiap kali admin mengetik.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [settings]);
 
   // Draf yang diedit bisa saja berisi warna cacat (mis. hex setengah ketik),
@@ -471,6 +533,10 @@ export const PengaturanPage: React.FC = () => {
       const result = await save(normalized);
       if (result.ok) {
         setDraft(normalized);
+        // Draf dan database kini sama; tandai supaya perubahan luar berikutnya
+        // tidak dianggap sebagai tabrakan.
+        syncedRef.current = normalized;
+        setRemoteChanged(false);
         showToast('success', 'Pengaturan berhasil disimpan di semua perangkat.');
       } else {
         showToast('error', result.message ?? 'Gagal menyimpan pengaturan.');
@@ -485,6 +551,13 @@ export const PengaturanPage: React.FC = () => {
     try {
       const result = await reset();
       if (result.ok) {
+        // `resetSettings` menulis tepat `DEFAULT_SETTINGS` (lihat
+        // settingsService), jadi draf boleh langsung disamakan. Tanpa ini,
+        // formulir tetap menampilkan nilai lama sesudah admin meminta kembali
+        // ke bawaan — dan itu membingungkan.
+        setDraft(DEFAULT_SETTINGS);
+        syncedRef.current = DEFAULT_SETTINGS;
+        setRemoteChanged(false);
         showToast('success', 'Pengaturan dikembalikan ke nilai bawaan.');
       } else {
         showToast('error', result.message ?? 'Gagal memulihkan pengaturan.');
@@ -519,6 +592,33 @@ export const PengaturanPage: React.FC = () => {
         </div>
       )}
 
+      {/* Perubahan dari luar tidak lagi menimpa isian yang belum disimpan —
+          tetapi diam-diam menyimpang juga tidak jujur. Admin diberi tahu dan
+          dipersilakan memilih: periksa dulu, atau pakai nilai terbaru. */}
+      {remoteChanged && (
+        <div className="flex items-start gap-2.5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
+          <TriangleAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold">Pengaturan berubah di perangkat lain.</p>
+            <p className="mt-0.5 leading-relaxed">
+              Isian Anda belum tersimpan dan <strong>tidak</strong> ditimpa. Periksa
+              dulu sebelum menyimpan, atau pakai nilai terbaru dari server.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setDraft(settings);
+              syncedRef.current = settings;
+              setRemoteChanged(false);
+            }}
+            className={`${formStyles.ghostBtn} shrink-0`}
+          >
+            Pakai nilai terbaru
+          </button>
+        </div>
+      )}
+
       <div className="space-y-4">
         {/* Identitas sekolah */}
         <section className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
@@ -550,7 +650,24 @@ export const PengaturanPage: React.FC = () => {
           </FormField>
         </section>
 
-        {/* Tampilan Excel */}
+        {/* Tampilan Excel — kontrol dan pratinjau berdampingan.
+
+            Pratinjau diletakkan SEBELAH kontrol di layar lebar dan DI ATAS
+            kontrol di layar sempit. Sebelumnya ia berdiri sebagai bagian
+            terpisah di bawah seluruh pengaturan, sehingga untuk melihat akibat
+            satu perubahan warna admin harus menggulir turun lalu kembali naik.
+
+            Pembagian lebarnya sengaja tidak seimbang: kolom kontrol dipatok
+            26rem dan pratinjau mengambil sisanya. Kolom isian tidak butuh lebar
+            — sedangkan pratinjau adalah tabel empat kolom yang langsung tidak
+            terbaca kalau disempitkan, jadi justru dialah yang perlu ruang.
+
+            Dua kolom baru dinyalakan mulai `xl`; di bawah itu ruangnya tidak
+            cukup untuk keduanya, dan menumpuk lebih baik daripada berdesakan.
+
+            Isinya dipecah menjadi tiga sub-kelompok. Sebelumnya keempat belas
+            kontrol ini tampil sebagai deretan grid tanpa pemecah, sehingga
+            untuk menemukan satu pengaturan admin harus membaca setiap label. */}
         <section className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-5">
           <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
             <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
@@ -566,123 +683,138 @@ export const PengaturanPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <FormField label="Font" htmlFor="set-font">
-              <SelectInput
-                id="set-font"
-                value={excel.fontFamily}
-                onChange={(e) => patchExcel('fontFamily', e.target.value)}
-              >
-                {FONT_OPTIONS.map((f) => (
-                  <option key={f} value={f}>
-                    {f}
-                  </option>
-                ))}
-              </SelectInput>
-            </FormField>
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] gap-5 xl:gap-6 items-start">
+            <div className="order-2 xl:order-1 space-y-6">
+              <SubGroup title="Tipografi">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField label="Font" htmlFor="set-font">
+                    <SelectInput
+                      id="set-font"
+                      value={excel.fontFamily}
+                      onChange={(e) => patchExcel('fontFamily', e.target.value)}
+                    >
+                      {FONT_OPTIONS.map((f) => (
+                        <option key={f} value={f}>
+                          {f}
+                        </option>
+                      ))}
+                    </SelectInput>
+                  </FormField>
 
-            <FormField
-              label="Ukuran Font Isi"
-              htmlFor="set-base-size"
-              hint={`${FONT_SIZE_RANGE.base.min}-${FONT_SIZE_RANGE.base.max} pt`}
-            >
-              <TextInput
-                id="set-base-size"
-                type="number"
-                min={FONT_SIZE_RANGE.base.min}
-                max={FONT_SIZE_RANGE.base.max}
-                value={excel.baseFontSize}
-                onChange={(e) => patchExcel('baseFontSize', Number(e.target.value))}
-              />
-            </FormField>
+                  <FormField
+                    label="Ukuran Font Isi"
+                    htmlFor="set-base-size"
+                    hint={`${FONT_SIZE_RANGE.base.min}-${FONT_SIZE_RANGE.base.max} pt`}
+                  >
+                    <TextInput
+                      id="set-base-size"
+                      type="number"
+                      min={FONT_SIZE_RANGE.base.min}
+                      max={FONT_SIZE_RANGE.base.max}
+                      value={excel.baseFontSize}
+                      onChange={(e) => patchExcel('baseFontSize', Number(e.target.value))}
+                    />
+                  </FormField>
 
-            <FormField
-              label="Ukuran Font Judul"
-              htmlFor="set-title-size"
-              hint={`${FONT_SIZE_RANGE.title.min}-${FONT_SIZE_RANGE.title.max} pt`}
-            >
-              <TextInput
-                id="set-title-size"
-                type="number"
-                min={FONT_SIZE_RANGE.title.min}
-                max={FONT_SIZE_RANGE.title.max}
-                value={excel.titleFontSize}
-                onChange={(e) => patchExcel('titleFontSize', Number(e.target.value))}
-              />
-            </FormField>
+                  <FormField
+                    label="Ukuran Font Judul"
+                    htmlFor="set-title-size"
+                    hint={`${FONT_SIZE_RANGE.title.min}-${FONT_SIZE_RANGE.title.max} pt`}
+                  >
+                    <TextInput
+                      id="set-title-size"
+                      type="number"
+                      min={FONT_SIZE_RANGE.title.min}
+                      max={FONT_SIZE_RANGE.title.max}
+                      value={excel.titleFontSize}
+                      onChange={(e) => patchExcel('titleFontSize', Number(e.target.value))}
+                    />
+                  </FormField>
+                </div>
+              </SubGroup>
 
-            <FormField label="Orientasi Cetak" htmlFor="set-orientation">
-              <SelectInput
-                id="set-orientation"
-                value={excel.orientation}
-                onChange={(e) =>
-                  patchExcel(
-                    'orientation',
-                    e.target.value as AppSettings['excel']['orientation'],
-                  )
-                }
-              >
-                {ORIENTATION_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </SelectInput>
-            </FormField>
+              <SubGroup title="Warna">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {COLOR_FIELDS.map((field) => (
+                    <ColorField
+                      key={field.key}
+                      label={field.label}
+                      hint={field.hint}
+                      value={excel[field.key]}
+                      onChange={(hex) => patchExcel(field.key, hex)}
+                    />
+                  ))}
+                </div>
+              </SubGroup>
+
+              <SubGroup title="Opsi Cetak">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField label="Orientasi Cetak" htmlFor="set-orientation">
+                      <SelectInput
+                        id="set-orientation"
+                        value={excel.orientation}
+                        onChange={(e) =>
+                          patchExcel(
+                            'orientation',
+                            e.target.value as AppSettings['excel']['orientation'],
+                          )
+                        }
+                      >
+                        {ORIENTATION_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </SelectInput>
+                    </FormField>
+
+                    <FormField
+                      label="Pemisah Rentang Waktu"
+                      htmlFor="set-separator"
+                      hint="hanya berlaku di sheet Jadwal Mingguan"
+                    >
+                      <SelectInput
+                        id="set-separator"
+                        value={excel.timeSeparator}
+                        onChange={(e) =>
+                          patchExcel(
+                            'timeSeparator',
+                            e.target.value as AppSettings['excel']['timeSeparator'],
+                          )
+                        }
+                      >
+                        {SEPARATOR_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </SelectInput>
+                    </FormField>
+                  </div>
+
+                  {/* Satu toggle per baris: labelnya panjang dan berpasangan
+                      dengan keterangan, jadi dua kolom justru memaksa keduanya
+                      membungkus jadi tiga-empat baris. */}
+                  <div className="space-y-2.5">
+                    {TOGGLES.map((toggle) => (
+                      <ToggleField
+                        key={toggle.key}
+                        label={toggle.label}
+                        hint={toggle.hint}
+                        checked={excel[toggle.key]}
+                        onChange={(checked) => patchExcel(toggle.key, checked)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </SubGroup>
+            </div>
+
+            <div className="order-1 xl:order-2 min-w-0">
+              <SettingsPreview settings={normalized} />
+            </div>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {COLOR_FIELDS.map((field) => (
-              <ColorField
-                key={field.key}
-                label={field.label}
-                hint={field.hint}
-                value={excel[field.key]}
-                onChange={(hex) => patchExcel(field.key, hex)}
-              />
-            ))}
-          </div>
-
-          <FormField
-            label="Pemisah Rentang Waktu"
-            htmlFor="set-separator"
-            hint="hanya berlaku di sheet Jadwal Mingguan"
-          >
-            <SelectInput
-              id="set-separator"
-              value={excel.timeSeparator}
-              onChange={(e) =>
-                patchExcel(
-                  'timeSeparator',
-                  e.target.value as AppSettings['excel']['timeSeparator'],
-                )
-              }
-            >
-              {SEPARATOR_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </SelectInput>
-          </FormField>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
-            {TOGGLES.map((toggle) => (
-              <ToggleField
-                key={toggle.key}
-                label={toggle.label}
-                hint={toggle.hint}
-                checked={excel[toggle.key]}
-                onChange={(checked) => patchExcel(toggle.key, checked)}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* Pratinjau */}
-        <section className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-3">
-          <h3 className="font-bold text-slate-900 text-sm">Pratinjau</h3>
-          <SettingsPreview settings={normalized} />
         </section>
 
         {/* Informasi sistem (tetap read-only) */}
