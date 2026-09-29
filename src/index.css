@@ -448,6 +448,23 @@ nav.fixed.bottom-0 button {
   }
 }
 
+/* ---------------------------------------------------------------------------
+ * Lembar cetak (K-01, K-04, K-15)
+ *
+ * Menetapkan ukuran & margin kertas secara eksplisit supaya hasil cetak tidak
+ * lagi bergantung pada dialog browser — inilah yang bikin kolom tabel rekap
+ * (10 kolom) sering terpotong di F4/Letter portrait.
+ *
+ * `@page` tidak bisa memakai variabel CSS, jadi orientasi landscape disisipkan
+ * sebagai <style> dinamis oleh `useReportPrint` tepat sebelum mencetak, lalu
+ * dilepas kembali. Blok di bawah hanya nilai aman (portrait) untuk dokumen
+ * yang tidak menentukan orientasi.
+ * ------------------------------------------------------------------------- */
+@page {
+  size: A4 portrait;
+  margin: 12mm 12mm 14mm 12mm;
+}
+
 @media print {
   body {
     background-color: white !important;
@@ -472,6 +489,56 @@ nav.fixed.bottom-0 button {
   .page-break {
     page-break-inside: avoid;
     break-inside: avoid;
+  }
+
+  /* -----------------------------------------------------------------------
+   * Integritas dokumen (K-02, K-03)
+   *
+   * - `thead` berulang di setiap halaman: tanpa ini, tabel berlanjut ke
+   *   halaman 2 tanpa judul kolom sehingga deretan angka kehilangan konteks.
+   * - `tfoot` menempel di dasar halaman terakhir blok tabel (total tetap
+   *   terbaca).
+   * - baris tidak boleh terbelah dua lembar, jika tidak nilai JP/durasi satu
+   *   baris bisa terbaca sebagai dua baris berbeda.
+   * --------------------------------------------------------------------- */
+  .print-table thead {
+    display: table-header-group;
+  }
+
+  .print-table tfoot {
+    display: table-footer-group;
+  }
+
+  .print-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Blok kop/tanda tangan tidak boleh terpotong. */
+  .print-avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* -----------------------------------------------------------------------
+   * Kontras tahan mati-latar (K-16)
+   *
+   * Bila pengguna mematikan "Cetak latar belakang", `bg-slate-100` hilang dan
+   * header jadi putih polos. Kelas ini memaksa garis tegas hitam-putih yang
+   * tetap terbaca saat difotokopi.
+   * --------------------------------------------------------------------- */
+  .print-table {
+    border: 1pt solid #000 !important;
+  }
+
+  .print-table th {
+    border-top: 1.5pt solid #000 !important;
+    border-bottom: 1.5pt solid #000 !important;
+  }
+
+  .print-table th,
+  .print-table td {
+    border-color: #000 !important;
   }
 
   /* Disable animations on print */

@@ -23,3 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Catatan kerja asisten AI (memori proyek, artefak) — bukan bagian dari kode
+# aplikasi, jangan ikut ke repo tim.
+.workbuddy-ai/

@@ -37,6 +37,65 @@ export function invalidateEvidenceDisplayUrl(storagePath?: string | null): void 
 }
 
 /**
+ * Ambil banyak signed URL sekaligus (K-09).
+ *
+ * Menggantikan pola N+1 lama (`Promise.all` berisi satu `createSignedUrl` per
+ * berkas) yang membuat ratusan permintaan ke Storage ketika satu halaman
+ * memuat banyak foto. Supabase mendukung `createSignedUrls` (jamak) sehingga
+ * satu permintaan menangani seluruh daftar.
+ *
+ * Hanya path yang belum ada di cache yang diminta, dan hasilnya diisi ke cache
+ * yang sama dengan `getEvidenceSignedUrl`.
+ *
+ * Mengembalikan `Map<storagePath, signedUrl>`; path yang gagal tidak muncul.
+ */
+export async function getEvidenceSignedUrls(
+  storagePaths: string[],
+  expiresInSeconds = 3600
+): Promise<Map<string, string>> {
+  const now = Date.now();
+  const result = new Map<string, string>();
+  const missing: string[] = [];
+
+  for (const path of new Set(storagePaths.filter(Boolean))) {
+    const cached = signedUrlCache.get(path);
+    if (cached && cached.expiresAt > now + 60 * 1000) {
+      result.set(path, cached.url);
+    } else {
+      missing.push(path);
+    }
+  }
+
+  if (missing.length === 0) return result;
+
+  try {
+    const { data, error } = await supabase.storage
+      .from(EVIDENCE_BUCKET)
+      .createSignedUrls(missing, expiresInSeconds);
+
+    if (error || !data) {
+      console.warn('Gagal membuat signed URL batch untuk evidence:', error?.message);
+      return result;
+    }
+
+    for (const item of data) {
+      // `path` pada respons adalah path asli yang diminta.
+      const path = (item as { path?: string }).path;
+      const url = (item as { signedUrl?: string; signedURL?: string }).signedUrl
+        ?? (item as { signedURL?: string }).signedURL;
+      if (path && url) {
+        result.set(path, url);
+        signedUrlCache.set(path, { url, expiresAt: now + expiresInSeconds * 1000 });
+      }
+    }
+  } catch (err: any) {
+    console.warn('Gagal memproses signed URL batch evidence:', err?.message || err);
+  }
+
+  return result;
+}
+
+/**
  * Mengambil signed URL untuk file foto di Supabase Storage.
  * Masa aktif default 3600 detik (1 jam).
  */

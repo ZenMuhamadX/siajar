@@ -1,12 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Printer,
   Filter,
   RefreshCw,
 } from 'lucide-react';
 import { PageHeader } from '../../../components/admin/PageHeader';
-import { EmptyState, LoadingState } from '../../../components/common';
+import { EmptyState, LoadingState, ErrorState } from '../../../components/common';
 import { ReportPrintLayout } from '../../../components/admin/report/ReportPrintLayout';
+import { useReportPrint } from '../../../hooks/useReportPrint';
+import { createPrintModel, cellText } from '../../../services/report/printReportModel';
+import { mapFriendlyError } from '../../../utils/friendlyError';
 import {
   getMonthlyReport,
   formatMinutesToHourMin,
@@ -51,6 +54,8 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
   // Report Data
   const [reportResult, setReportResult] = useState<MonthlyReportResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  // K-11: kegagalan fetch jadi state, agar cetak bisa diblokir.
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Load Filters
   useEffect(() => {
@@ -71,6 +76,7 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
   // Fetch Report
   const fetchReport = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const data = await getMonthlyReport({
         year: selectedYear,
@@ -81,7 +87,10 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
       setReportResult(data);
     } catch (err: any) {
       console.error('Gagal memuat data rekap bulanan:', err);
-      showToast('error', 'Gagal memuat rekap bulanan: ' + (err?.message || ''));
+      // K-12: pesan ramah, bukan `err.message` mentah.
+      const message = mapFriendlyError(err, { subject: 'rekap bulanan' });
+      setLoadError(message);
+      showToast('error', message);
     } finally {
       setIsLoading(false);
     }
@@ -91,15 +100,72 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
     fetchReport();
   }, [fetchReport]);
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   const totals = reportResult?.totals;
   const activeAYName =
     reportResult?.academicYear?.name ||
     academicYears.find((y) => y.id === selectedAYId)?.name ||
     '2026/2027';
+
+  /**
+   * Model cetak (K-13, K-14). Landscape — tabel 10 kolom (K-15). Tanpa foto.
+   */
+  const printModel = useMemo(
+    () =>
+      createPrintModel({
+        orientation: 'landscape',
+        title: 'LAPORAN REKAPITULASI PEMBELAJARAN BULANAN',
+        subtitle: `Bulan: ${reportResult?.monthName || ''} ${selectedYear}`,
+        periodInfo: `${reportResult?.monthName || ''} ${selectedYear}`,
+        academicYearName: activeAYName,
+        columns: [
+          { key: 'no', header: 'No', align: 'center', width: 'w-8' },
+          { key: 'guru', header: 'Nama Guru', align: 'left' },
+          { key: 'jpTerjadwal', header: 'JP Terjadwal', align: 'center', width: 'w-16' },
+          { key: 'jpRealisasi', header: 'JP Realisasi', align: 'center', width: 'w-16' },
+          { key: 'durasiTerjadwal', header: 'Durasi Terjadwal', align: 'center', width: 'w-20' },
+          { key: 'durasiRealisasi', header: 'Durasi Realisasi', align: 'center', width: 'w-20' },
+          { key: 'badalMasuk', header: 'Badal Masuk', align: 'center', width: 'w-14' },
+          { key: 'badalKeluar', header: 'Badal Keluar', align: 'center', width: 'w-14' },
+          { key: 'belumRealisasi', header: 'Belum Realisasi', align: 'center', width: 'w-16' },
+          { key: 'capaian', header: 'Capaian %', align: 'center', width: 'w-16' },
+        ],
+        rows: (reportResult?.teacherSummaries ?? []).map((item, idx) => ({
+          no: cellText(idx + 1),
+          guru: cellText(item.teacherName),
+          jpTerjadwal: cellText(item.jpScheduled),
+          jpRealisasi: cellText(item.jpRealized),
+          durasiTerjadwal: cellText(formatMinutesToHourMin(item.durationScheduledMin)),
+          durasiRealisasi: cellText(formatMinutesToHourMin(item.durationRealizedMin)),
+          badalMasuk: item.badalIn > 0 ? `+${item.badalIn}` : '0',
+          badalKeluar: item.badalOut > 0 ? `-${item.badalOut}` : '0',
+          belumRealisasi: cellText(item.notRealized),
+          capaian: `${cellText(item.realizationRate)}%`,
+        })),
+        totalsRow: totals
+          ? {
+              no: '',
+              guru: 'TOTAL KESELURUHAN',
+              jpTerjadwal: cellText(totals.totalJpScheduled),
+              jpRealisasi: cellText(totals.totalJpRealized),
+              durasiTerjadwal: cellText(formatMinutesToHourMin(totals.totalDurationScheduledMin)),
+              durasiRealisasi: cellText(formatMinutesToHourMin(totals.totalDurationRealizedMin)),
+              badalMasuk: `+${totals.totalBadalIn}`,
+              badalKeluar: `-${totals.totalBadalOut}`,
+              belumRealisasi: cellText(totals.totalNotRealized),
+              capaian: `${cellText(totals.overallRealizationRate)}%`,
+            }
+          : undefined,
+        emptyMessage: 'Tidak ada data pembelajaran pada bulan ini.',
+      }),
+    [reportResult, selectedYear, activeAYName, totals]
+  );
+
+  // K-06 & K-11: cetak hanya saat data siap dan tidak ada kegagalan.
+  const { print } = useReportPrint({
+    orientation: printModel.orientation,
+    canPrint: !isLoading && !loadError && printModel.rows.length > 0,
+    onBlocked: (reason) => showToast('info', reason),
+  });
 
   return (
     <div className="space-y-6">
@@ -119,8 +185,14 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
                 <span>Segarkan</span>
               </button>
               <button
-                onClick={handlePrint}
-                className="px-3 py-2 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition flex items-center gap-1.5 shadow-xs"
+                onClick={print}
+                disabled={isLoading || Boolean(loadError) || printModel.rows.length === 0}
+                title={
+                  loadError
+                    ? 'Tidak dapat mencetak: data gagal dimuat'
+                    : 'Cetak laporan rekap bulanan'
+                }
+                className="px-3 py-2 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition flex items-center gap-1.5 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Printer className="w-3.5 h-3.5" />
                 <span>Cetak Laporan</span>
@@ -262,6 +334,17 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
           </div>
         </div>
 
+        {/* K-11: state error eksplisit; mencetak otomatis terblokir. */}
+        {loadError && (
+          <div className="bg-white rounded-xl border border-rose-200 shadow-2xs">
+            <ErrorState
+              title="Gagal memuat rekap bulanan"
+              message={loadError}
+              onRetry={fetchReport}
+            />
+          </div>
+        )}
+
         {/* Tabel Data Rekap Bulanan Per Guru */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
           <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
@@ -394,84 +477,71 @@ export const RekapBulananPage: React.FC<RekapBulananPageProps> = ({ showToast })
         </div>
       </div>
 
-      {/* PRINT VERSION (Shown ONLY on Print) */}
+      {/* PRINT VERSION (Shown ONLY on Print).
+          Dirender dari `printModel` (landscape, tanpa foto) — K-13/K-14/K-15.
+          Kelas `print-table` memberi header berulang + baris utuh (K-02/K-03). */}
       <ReportPrintLayout
-        title="LAPORAN REKAPITULASI PEMBELAJARAN BULANAN"
-        subtitle={`Bulan: ${reportResult?.monthName || ''} ${selectedYear}`}
-        periodInfo={`${reportResult?.monthName || ''} ${selectedYear}`}
-        academicYearName={activeAYName}
+        title={printModel.title}
+        subtitle={printModel.subtitle}
+        periodInfo={printModel.periodInfo}
+        academicYearName={printModel.academicYearName}
+        hasRows={printModel.rows.length > 0}
+        emptyMessage={printModel.emptyMessage}
       >
-        <table className="w-full text-left text-xs border-collapse border border-slate-900">
+        <table className="print-table w-full text-left text-xs border-collapse border border-slate-900">
           <thead className="bg-slate-100 border-b border-slate-900 font-bold uppercase text-center">
             <tr>
-              <th className="p-1.5 border-r border-slate-900 w-8">No</th>
-              <th className="p-1.5 border-r border-slate-900 text-left">Nama Guru</th>
-              <th className="p-1.5 border-r border-slate-900 w-16">JP Terjadwal</th>
-              <th className="p-1.5 border-r border-slate-900 w-16">JP Realisasi</th>
-              <th className="p-1.5 border-r border-slate-900 w-20">Durasi Terjadwal</th>
-              <th className="p-1.5 border-r border-slate-900 w-20">Durasi Realisasi</th>
-              <th className="p-1.5 border-r border-slate-900 w-14">Badal Masuk</th>
-              <th className="p-1.5 border-r border-slate-900 w-14">Badal Keluar</th>
-              <th className="p-1.5 border-r border-slate-900 w-16">Belum Realisasi</th>
-              <th className="p-1.5 w-16">Capaian %</th>
+              {printModel.columns.map((col, ci) => (
+                <th
+                  key={col.key}
+                  className={`p-1.5 ${col.width ?? ''} ${
+                    ci < printModel.columns.length - 1 ? 'border-r border-slate-900' : ''
+                  } ${col.align === 'left' ? 'text-left' : 'text-center'}`}
+                >
+                  {col.header}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-400">
-            {reportResult?.teacherSummaries.map((item, idx) => (
-              <tr key={idx}>
-                <td className="p-1.5 border-r border-slate-900 text-center">{idx + 1}</td>
-                <td className="p-1.5 border-r border-slate-900 font-medium">{item.teacherName}</td>
-                <td className="p-1.5 border-r border-slate-900 text-center font-bold">
-                  {item.jpScheduled}
-                </td>
-                <td className="p-1.5 border-r border-slate-900 text-center font-bold">
-                  {item.jpRealized}
-                </td>
-                <td className="p-1.5 border-r border-slate-900 text-center font-mono">
-                  {formatMinutesToHourMin(item.durationScheduledMin)}
-                </td>
-                <td className="p-1.5 border-r border-slate-900 text-center font-mono">
-                  {formatMinutesToHourMin(item.durationRealizedMin)}
-                </td>
-                <td className="p-1.5 border-r border-slate-900 text-center">
-                  {item.badalIn > 0 ? `+${item.badalIn}` : '0'}
-                </td>
-                <td className="p-1.5 border-r border-slate-900 text-center">
-                  {item.badalOut > 0 ? `-${item.badalOut}` : '0'}
-                </td>
-                <td className="p-1.5 border-r border-slate-900 text-center">{item.notRealized}</td>
-                <td className="p-1.5 text-center font-bold">{item.realizationRate}%</td>
+            {printModel.rows.map((row, i) => (
+              <tr key={i}>
+                {printModel.columns.map((col, ci) => (
+                  <td
+                    key={col.key}
+                    className={`p-1.5 ${
+                      ci < printModel.columns.length - 1 ? 'border-r border-slate-900' : ''
+                    } ${
+                      col.key === 'guru'
+                        ? 'font-medium text-left'
+                        : col.key === 'jpTerjadwal' || col.key === 'jpRealisasi'
+                          ? 'text-center font-bold'
+                          : col.key === 'durasiTerjadwal' || col.key === 'durasiRealisasi'
+                            ? 'text-center font-mono'
+                            : col.key === 'capaian'
+                              ? 'text-center font-bold'
+                              : 'text-center'
+                    }`}
+                  >
+                    {row[col.key]}
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>
-          {totals && (
+          {printModel.totalsRow && (
             <tfoot className="bg-slate-100 border-t-2 border-slate-900 font-bold">
               <tr>
-                <td colSpan={2} className="p-1.5 border-r border-slate-900 text-center">
-                  TOTAL KESELURUHAN
-                </td>
-                <td className="p-1.5 border-r border-slate-900 text-center">
-                  {totals.totalJpScheduled}
-                </td>
-                <td className="p-1.5 border-r border-slate-900 text-center">
-                  {totals.totalJpRealized}
-                </td>
-                <td className="p-1.5 border-r border-slate-900 text-center font-mono">
-                  {formatMinutesToHourMin(totals.totalDurationScheduledMin)}
-                </td>
-                <td className="p-1.5 border-r border-slate-900 text-center font-mono">
-                  {formatMinutesToHourMin(totals.totalDurationRealizedMin)}
-                </td>
-                <td className="p-1.5 border-r border-slate-900 text-center">
-                  +{totals.totalBadalIn}
-                </td>
-                <td className="p-1.5 border-r border-slate-900 text-center">
-                  -{totals.totalBadalOut}
-                </td>
-                <td className="p-1.5 border-r border-slate-900 text-center">
-                  {totals.totalNotRealized}
-                </td>
-                <td className="p-1.5 text-center">{totals.overallRealizationRate}%</td>
+                {printModel.columns.map((col, ci) => (
+                  <td
+                    key={col.key}
+                    className={`p-1.5 ${
+                      ci < printModel.columns.length - 1 ? 'border-r border-slate-900' : ''
+                    } text-center`}
+                  >
+                    {printModel.totalsRow![col.key]}
+                  </td>
+                ))}
               </tr>
             </tfoot>
           )}

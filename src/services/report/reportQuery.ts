@@ -44,6 +44,11 @@ export interface JournalRow {
     jam_ke: string;
     nama_guru: string;
     mapel: string;
+    /**
+     * Materi ajar. Dipakai dokumen cetak/PDF jurnal (kolom "Materi") — bukan
+     * kolom tabel layar. Wajib ikut di-select, kalau tidak kolomnya selalu "-".
+     */
+    materi?: string | null;
     is_badal?: boolean;
   }[];
   absensi: { id?: string; siswa_id: string; status: 'S' | 'I' | 'A' }[];
@@ -65,7 +70,7 @@ export const JOURNAL_LIST_SELECT = `
   schedule_id,
   actual_teacher_name,
   created_at,
-  agenda_kbm (id, jam_ke, nama_guru, mapel, is_badal),
+  agenda_kbm (id, jam_ke, nama_guru, mapel, materi, is_badal),
   agenda_absensi (id, siswa_id, status),
   agenda_evidence (id, storage_path, captured_at, uploaded_at, actual_teacher_name)
 `;
@@ -239,6 +244,70 @@ export async function queryJournalRows(params: JournalQueryParams): Promise<Jour
   const { data, error, count } = await buildJournalQuery(params, truncated ? null : ids);
   if (error) throw error;
   return { rows: (data || []).map(mapJournalRow), total: count ?? 0, searchTruncated: truncated };
+}
+
+/**
+ * Batas aman jumlah baris yang boleh diunduh untuk CETAK (K-05).
+ *
+ * Cetak berbeda dengan menampilkan: dokumen wajib memuat SELURUH hasil filter,
+ * bukan hanya halaman aktif. Tapi menarik ribuan baris sekaligus juga tidak
+ * sehat, jadi ada plafon. Bila hasil filter melebihi plafon, pemanggil diberi
+ * tahu lewat `truncated` supaya bisa memperingatkan pengguna (bukan diam-diam
+ * mencetak sebagian — itu bug aslinya).
+ */
+export const JOURNAL_PRINT_MAX_ROWS = 2000;
+
+/** Ukuran blok saat mengunduh seluruh baris cetak (menghindari satu query raksasa). */
+const PRINT_CHUNK_SIZE = 500;
+
+export interface JournalPrintRowsResult {
+  rows: JournalRow[];
+  /** Total hasil filter. */
+  total: number;
+  /** True bila `total` melebihi plafon — `rows` hanya berisi plafon pertama. */
+  truncated: boolean;
+}
+
+/**
+ * Ambil SELURUH baris hasil filter untuk keperluan cetak (K-05).
+ *
+ * Mengapa tidak memakai `rows` halaman aktif: sebelumnya tombol cetak memakai
+ * himpunan baris halaman berjalan, sehingga mencetak dari halaman 1 hanya
+ * menghasilkan 25 baris pertama — sisanya hilang tanpa peringatan. Fungsi ini
+ * mengunduh semua baris (dalam blok) agar dokumen lengkap.
+ */
+export async function queryAllJournalRowsForPrint(
+  params: JournalQueryParams
+): Promise<JournalPrintRowsResult> {
+  const { ids, truncated: searchTruncated } = await resolveSearchIds(params.search || '');
+  const effectiveIds = searchTruncated ? null : ids;
+
+  const all: JournalRow[] = [];
+  let offset = 0;
+
+  // Selama masih ada baris yang kembali dan belum menyentuh plafon, terus ambil.
+  while (all.length < JOURNAL_PRINT_MAX_ROWS) {
+    const chunkLimit = Math.min(PRINT_CHUNK_SIZE, JOURNAL_PRINT_MAX_ROWS - all.length);
+    const { data, error, count } = await buildJournalQuery(
+      { ...params, page: undefined, pageSize: undefined },
+      effectiveIds
+    )
+      // `buildJournalQuery` tidak menerima rentang kustom, jadi batasi di sini.
+      .range(offset, offset + chunkLimit - 1);
+
+    if (error) throw error;
+
+    const batch = (data || []).map(mapJournalRow);
+    all.push(...batch);
+
+    const total = count ?? all.length;
+    if (batch.length < chunkLimit || all.length >= total) {
+      return { rows: all, total, truncated: total > JOURNAL_PRINT_MAX_ROWS };
+    }
+    offset += batch.length;
+  }
+
+  return { rows: all, total: all.length, truncated: true };
 }
 
 /**
