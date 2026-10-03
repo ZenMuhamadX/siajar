@@ -132,7 +132,7 @@ export const ScheduleTimelineCard: React.FC<ScheduleTimelineCardProps> = ({
 
       <div className="mt-1 flex items-center justify-between gap-3">
         <p className="min-w-0 truncate text-xs text-slate-500">
-          {schedule.class_id}
+          {schedule.kelas}
           <span aria-hidden="true"> · </span>
           JP {schedule.period_number}
           {substitution && (
@@ -175,7 +175,7 @@ export const ScheduleTimelineCard: React.FC<ScheduleTimelineCardProps> = ({
           onClick={() => onSelectSlot(slot)}
           aria-label={`${isCompleted ? 'Lihat atau edit' : 'Isi'} agenda ${
             schedule.subject_name
-          } kelas ${schedule.class_id} pukul ${startTime}`}
+          } kelas ${schedule.kelas} pukul ${startTime}`}
           className="card-hit block w-full text-left rounded-lg focus-visible:outline-none"
         >
           {summaryRows}

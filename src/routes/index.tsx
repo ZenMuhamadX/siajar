@@ -57,6 +57,12 @@ const LazyDataGuru = lazy(() =>
 const LazyDataMapel = lazy(() =>
   import('../pages/DataMapel').then((m) => ({ default: m.DataMapel }))
 );
+const LazyDataKelasPage = lazy(() =>
+  import('../pages/admin/DataKelasPage').then((m) => ({ default: m.DataKelasPage }))
+);
+const LazyKenaikanKelasPage = lazy(() =>
+  import('../pages/admin/KenaikanKelasPage').then((m) => ({ default: m.KenaikanKelasPage }))
+);
 const LazyHomeroomManagement = lazy(() =>
   import('../pages/admin/HomeroomManagement').then((m) => ({ default: m.HomeroomManagement }))
 );
@@ -363,6 +369,7 @@ export function AppRoutes() {
               <Route path="siswa" element={<ToastPage component={LazyDataSiswa} />} />
               <Route path="guru" element={<ToastPage component={LazyDataGuru} />} />
               <Route path="mapel" element={<ToastPage component={LazyDataMapel} />} />
+              <Route path="kelas" element={<ToastPage component={LazyDataKelasPage} />} />
               <Route
                 path="wali_kelas"
                 element={<ToastPage component={LazyHomeroomManagement} />}
@@ -379,6 +386,10 @@ export function AppRoutes() {
               <Route
                 path="tahun_ajaran"
                 element={<ToastPage component={LazyAcademicYearPage} />}
+              />
+              <Route
+                path="kenaikan_kelas"
+                element={<ToastPage component={LazyKenaikanKelasPage} />}
               />
               <Route path="saran" element={<ToastPage component={LazyKotakSaranList} />} />
               <Route path="pengaturan" element={<LazyPengaturanPage />} />

@@ -236,7 +236,7 @@ export async function getTeacherDailyTimeline(
 
       if (Math.max(start1, start2) < Math.min(end1, end2)) {
         conflictDetected = true;
-        conflictMessage = `Terdapat jadwal yang bertabrakan pada waktu ini (${s1.class_id} ${s1.subject_name} & ${s2.class_id} ${s2.subject_name}). Hubungi administrator.`;
+        conflictMessage = `Terdapat jadwal yang bertabrakan pada waktu ini (${s1.kelas} ${s1.subject_name} & ${s2.kelas} ${s2.subject_name}). Hubungi administrator.`;
         break;
       }
     }
@@ -253,7 +253,7 @@ export async function getTeacherDailyTimeline(
       (a) =>
         a.header.schedule_id === sch.id ||
         (!a.header.schedule_id &&
-          a.header.kelas === sch.class_id &&
+          a.header.kelas === sch.kelas &&
           a.header.tanggal === targetDateStr &&
           a.kbm.some(
             (k) =>
@@ -403,7 +403,7 @@ export async function getAllClassesTimelineForDate(
         (a) =>
           a.header.schedule_id === sch.id ||
           (!a.header.schedule_id &&
-            a.header.kelas === sch.class_id &&
+            a.header.kelas === sch.kelas &&
             a.header.tanggal === date)
       ) || null;
 
@@ -472,7 +472,7 @@ export async function getSchoolDailyTimelineForDate(
           (a) =>
             a.header.schedule_id === sch.id ||
             (!a.header.schedule_id &&
-              a.header.kelas === sch.class_id &&
+              a.header.kelas === sch.kelas &&
               a.header.tanggal === date)
         ) || null;
 
@@ -483,7 +483,7 @@ export async function getSchoolDailyTimelineForDate(
       };
     })
     .sort((a, b) => {
-      const classCmp = a.schedule.class_id.localeCompare(b.schedule.class_id, 'id');
+      const classCmp = a.schedule.kelas.localeCompare(b.schedule.kelas, 'id');
       if (classCmp !== 0) return classCmp;
       return a.schedule.start_time.localeCompare(b.schedule.start_time);
     });

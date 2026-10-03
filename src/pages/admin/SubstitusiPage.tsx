@@ -20,7 +20,8 @@ interface SubstitusiPageProps {
 
 interface SubWithSchedule extends Substitution {
   schedule?: {
-    class_id: string;
+    /** Label kelas, mis. '1A'. */
+    kelas: string;
     subject_name: string;
     start_time: string;
     end_time: string;
@@ -147,7 +148,7 @@ export const SubstitusiPage: React.FC<SubstitusiPageProps> = ({ showToast }) => 
         if (!sch) return <span className="text-slate-600 italic">—</span>;
         return (
           <div className="whitespace-nowrap">
-            <span className="font-bold text-slate-900 text-xs block">{sch.class_id}</span>
+            <span className="font-bold text-slate-900 text-xs block">{sch.kelas}</span>
             <span className="text-slate-500 text-xs">{sch.subject_name}</span>
           </div>
         );
@@ -323,7 +324,7 @@ export const SubstitusiPage: React.FC<SubstitusiPageProps> = ({ showToast }) => 
         message={
           cancelTarget
             ? `Badal "${cancelTarget.substitute_teacher_name}" untuk kelas ${
-                cancelTarget.schedule?.class_id || '-'
+                cancelTarget.schedule?.kelas || '-'
               } akan dibatalkan dan jadwal kembali ke guru terjadwal.`
             : ''
         }

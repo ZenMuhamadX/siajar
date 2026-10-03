@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { PageHeader } from '../../components/admin/PageHeader';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { DAFTAR_KELAS, type Guru, type HomeroomAssignment } from '../../types';
+import { type Guru, type HomeroomAssignment } from '../../types';
+import { useClassLabels } from '../../contexts/ClassContext';
 import type { AcademicYear } from '../../types/schedule';
 import { getAcademicYears } from '../../services/scheduleService';
 import { getDaftarGuru } from '../../services/agendaService';
@@ -35,12 +36,15 @@ interface HomeroomRow {
 }
 
 export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToast }) => {
+  // Sumber kelas: master data, bukan konstanta hardcoded.
+  const kelasLabels = useClassLabels();
+
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [selectedAYId, setSelectedAYId] = useState<string>('');
   const [teachers, setTeachers] = useState<Guru[]>([]);
   const [assignments, setAssignments] = useState<HomeroomAssignment[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isSaving, setIsSaving] = useState<string | null>(null); // class_id being saved
+  const [isSaving, setIsSaving] = useState<string | null>(null); // kelas being saved
 
   // Temporary selection state for each class: { [classId]: teacherName }
   const [draftSelection, setDraftSelection] = useState<Record<string, string>>({});
@@ -78,7 +82,7 @@ export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToas
 
       const mapping: Record<string, string> = {};
       data.forEach((item) => {
-        mapping[item.class_id] = item.teacher_name;
+        mapping[item.kelas] = item.teacher_name;
       });
       setDraftSelection(mapping);
     } catch (err: any) {
@@ -144,7 +148,7 @@ export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToas
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDeleteAssignment = (classId: string) => {
-    const existing = assignments.find((a) => a.class_id === classId);
+    const existing = assignments.find((a) => a.kelas === classId);
     if (!existing) {
       // Just clear draft
       setDraftSelection((prev) => {
@@ -160,7 +164,7 @@ export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToas
 
   const confirmDeleteAssignment = async () => {
     if (!deleteTarget) return;
-    const existing = assignments.find((a) => a.class_id === deleteTarget);
+    const existing = assignments.find((a) => a.kelas === deleteTarget);
     if (!existing) {
       setDeleteTarget(null);
       return;
@@ -182,8 +186,8 @@ export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToas
   const selectedAY = academicYears.find((a) => a.id === selectedAYId);
 
   // Derived rows (murni tampilan): satu per kelas, berisi data tersimpan + draft
-  const tableRows: HomeroomRow[] = DAFTAR_KELAS.map((classId) => {
-    const saved = assignments.find((a) => a.class_id === classId);
+  const tableRows: HomeroomRow[] = kelasLabels.map((classId) => {
+    const saved = assignments.find((a) => a.kelas === classId);
     const selected = draftSelection[classId] || '';
     return {
       classId,
@@ -207,7 +211,7 @@ export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToas
       ),
     },
     {
-      key: 'class_id',
+      key: 'kelas',
       header: 'Kelas',
       align: 'center',
       width: '110px',
@@ -359,7 +363,7 @@ export const HomeroomManagement: React.FC<HomeroomManagementProps> = ({ showToas
       {/* Class Table */}
       <DataTable
         title="Daftar Penugasan Kelas"
-        subtitle={`Total ${DAFTAR_KELAS.length} data kelas`}
+        subtitle={`Total ${kelasLabels.length} data kelas`}
         titleIcon={<UserCheck className="w-4 h-4 text-slate-600" />}
         columns={columns}
         data={tableRows}

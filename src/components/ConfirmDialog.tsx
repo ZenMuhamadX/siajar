@@ -12,6 +12,16 @@ interface ConfirmDialogProps {
   cancelText?: string;
   variant?: 'danger' | 'warning' | 'info';
   isLoading?: boolean;
+  /**
+   * Matikan tombol konfirmasi tanpa menutup dialog.
+   *
+   * Dipakai saat tindakannya sudah diketahui tidak akan berhasil — mis. menghapus
+   * tahun ajaran yang ternyata masih berisi data. Lebih baik menjelaskan alasannya
+   * di dalam dialog daripada membiarkan pengguna menekan tombol yang pasti gagal.
+   */
+  confirmDisabled?: boolean;
+  /** Keterangan singkat kenapa tombolnya mati — muncul sebagai tooltip. */
+  confirmDisabledReason?: string;
 }
 
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
@@ -24,6 +34,8 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   cancelText = 'Batal',
   variant = 'danger',
   isLoading = false,
+  confirmDisabled = false,
+  confirmDisabledReason,
 }) => {
   const titleId = useId();
   const isDanger = variant === 'danger';
@@ -85,8 +97,9 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         <button
           type="button"
           onClick={onConfirm}
-          disabled={isLoading}
-          className={`px-4 py-2 text-xs font-bold text-white rounded-xl shadow-xs transition flex items-center gap-1.5 active:scale-95 disabled:opacity-50 ${
+          disabled={isLoading || confirmDisabled}
+          title={confirmDisabled ? confirmDisabledReason : undefined}
+          className={`px-4 py-2 text-xs font-bold text-white rounded-xl shadow-xs transition flex items-center gap-1.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
             isDanger ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-600 hover:bg-amber-700'
           }`}
         >

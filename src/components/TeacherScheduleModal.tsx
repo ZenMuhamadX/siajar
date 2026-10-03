@@ -182,9 +182,11 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
 
                 - Jam: "07:00–07:45" pada 14px monospace = 84.7px; + padding
                   12px kiri-kanan = 108.7px. Diambil 7.75rem (124px) → sisa 15px.
-                - Kelas: `class_id` sebenarnya berbunyi "KELAS 3" (bukan "6A" —
-                  itu contoh karangan yang membuat revisi sebelumnya lolos uji
-                  padahal luber). Badge-nya 65.6px termasuk padding badge; +
+                - Kelas: labelnya kini berbentuk "3A" (dulu "KELAS 3" sebelum
+                  kelas dipindah ke master data). Angka 92px di bawah diukur
+                  untuk bentuk LAMA yang lebih panjang, jadi masih aman — label
+                  baru selalu lebih pendek, tidak pernah lebih panjang.
+                  Sebelumnya: badge "KELAS 3" 65.6px termasuk padding badge; +
                   padding sel 16px = 81.6px. Diambil 5.75rem (92px) → sisa 10px.
                   Dengan 3.5rem, badge meluber 13.6px ke kolom Mapel — persis
                   yang membuat "KELAS 3" menempel ke "UMMI".
@@ -245,7 +247,7 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
                     </td>
                     <td className="px-2 sm:px-4 py-3 text-center whitespace-nowrap">
                       <span className="inline-block font-bold text-slate-900 bg-slate-100 px-1.5 sm:px-2 py-0.5 rounded text-xs">
-                        {item.class_id}
+                        {item.kelas}
                       </span>
                     </td>
                     <td className="px-3 sm:px-4 py-3 font-medium text-slate-800 break-words">

@@ -1,13 +1,24 @@
-export type KelasOption = 'KELAS 1' | 'KELAS 2' | 'KELAS 3' | 'KELAS 4' | 'KELAS 5' | 'KELAS 6';
-
-export const DAFTAR_KELAS: KelasOption[] = [
-  'KELAS 1',
-  'KELAS 2',
-  'KELAS 3',
-  'KELAS 4',
-  'KELAS 5',
-  'KELAS 6',
-];
+/**
+ * Master kelas.
+ *
+ * Kelas adalah entitas ber-`id`, bukan teks. `tingkat` + `rombel` adalah kunci
+ * bisnis; `label` ('1A', '1B', '2A', …) hanya tampilan, sehingga boleh diubah
+ * tanpa memutus relasi apa pun.
+ *
+ * Daftar kelas TIDAK lagi di-hardcode di sini. Sumbernya tabel `agenda.kelas`,
+ * dibaca sekali saat aplikasi start lewat `ClassProvider` — lihat
+ * `src/contexts/ClassContext.tsx`. Menambah rombel baru cukup dari halaman
+ * Data Kelas, tanpa mengubah kode.
+ */
+export interface Kelas {
+  id: string;
+  tingkat: number;
+  rombel: string;
+  label: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
 
 // Slot Jam Senin - Kamis (Total 14 Jam dengan 2x Istirahat di Jam 5 & Jam 10)
 export const SLOTS_SENIN_KAMIS = [
@@ -55,11 +66,74 @@ export const DAFTAR_JAM_PELAJARAN: string[] = [
   'Istirahat',
 ];
 
+/** Status keanggotaan siswa sepanjang waktu — bukan penempatan kelasnya. */
+export type SiswaStatus = 'AKTIF' | 'LULUS' | 'PINDAH_KELUAR' | 'NONAKTIF';
+
+export const LABEL_STATUS_SISWA: Record<SiswaStatus, string> = {
+  AKTIF: 'Aktif',
+  LULUS: 'Lulus',
+  PINDAH_KELUAR: 'Pindah Keluar',
+  NONAKTIF: 'Nonaktif',
+};
+
+/** Urutan tampil di dropdown — yang paling sering dipakai lebih dulu. */
+export const DAFTAR_STATUS_SISWA: SiswaStatus[] = [
+  'AKTIF',
+  'LULUS',
+  'PINDAH_KELUAR',
+  'NONAKTIF',
+];
+
+/**
+ * Status siswa PADA satu tahun ajaran — disimpan di `siswa_kelas.status`.
+ *
+ * Berbeda dari `SiswaStatus` yang global. `LULUS` sengaja tidak ada di sini:
+ * lulus berarti tahun itu sudah selesai dan tidak ada kelas lagi, jadi
+ * "punya kelas berstatus lulus" memang tidak mungkin.
+ *
+ * Kenapa dipisah: status itu sifatnya per tahun. Anak yang lulus tahun ini tetap
+ * AKTIF di tahun-tahun sebelumnya. Kalau hanya ada satu kolom global, "Lulus"
+ * akan berlaku surut dan membuka tahun ajaran lama jadi menyesatkan.
+ */
+export type StatusPenempatan = 'AKTIF' | 'PINDAH_KELUAR' | 'NONAKTIF';
+
+export const DAFTAR_STATUS_PENEMPATAN: StatusPenempatan[] = [
+  'AKTIF',
+  'PINDAH_KELUAR',
+  'NONAKTIF',
+];
+
+/**
+ * Identitas siswa. Kelas TIDAK ada di sini.
+ *
+ * Penempatan kelas disimpan per tahun ajaran di `agenda.siswa_kelas`, karena
+ * siswa naik kelas sementara kelasnya sendiri tetap. Untuk daftar yang sudah
+ * disertai kelasnya, pakai `SiswaTerdaftar`.
+ */
 export interface Siswa {
   id: string;
   nama_siswa: string;
-  kelas: string;
+  /** Opsional — boleh kosong, tetapi unik bila diisi. */
+  nis?: string | null;
+  status: SiswaStatus;
   created_at?: string;
+}
+
+/** Siswa beserta penempatan kelasnya pada satu tahun ajaran. */
+export interface SiswaTerdaftar extends Siswa {
+  /** Label kelas, mis. '1A'. Kosong berarti belum/tidak ditempatkan tahun itu. */
+  kelas: string;
+  kelas_id: string;
+  academic_year_id: string;
+  /**
+   * Status siswa PADA tahun ajaran itu.
+   *
+   * Untuk siswa yang punya penempatan, nilainya selalu `StatusPenempatan` —
+   * `LULUS` tidak akan pernah muncul, karena yang lulus memang tidak lagi punya
+   * kelas. Untuk siswa tanpa penempatan (dipakai `sertakanTanpaKelas`), nilainya
+   * status global dari `siswa.status`, yang bisa berisi `LULUS`.
+   */
+  status: SiswaStatus;
 }
 
 export interface Guru {
@@ -71,13 +145,20 @@ export interface Guru {
 export interface MataPelajaran {
   id: string;
   nama_mapel: string;
+  /**
+   * Warna latar sel mapel pada export Excel — 6 digit hex tanpa '#'.
+   * `null` / kosong berarti "otomatis": aplikasi memakai palet bawaan
+   * secara deterministik dari id mapel (lihat `subjectPalette.ts`).
+   */
+  warna?: string | null;
   created_at?: string;
 }
 
 export interface HomeroomAssignment {
   id: string;
   academic_year_id: string;
-  class_id: string;
+  /** Label kelas, mis. '1A' — BUKAN id. Lihat catatan di `ScheduleItem`. */
+  kelas: string;
   teacher_id?: string | null;
   teacher_name: string;
   created_at?: string;

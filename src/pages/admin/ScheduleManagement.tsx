@@ -7,10 +7,10 @@ import {
   type PeriodTemplate,
   SCHEDULE_DAYS,
   DAY_TRANSLATION_MAP,
-  DAFTAR_KELAS,
   type Guru,
   type MataPelajaran,
 } from '../../types';
+import { useClassLabels } from '../../contexts/ClassContext';
 import {
   getAcademicYears,
   getSchedules,
@@ -67,6 +67,9 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
   showToast,
   onNavigateTab,
 }) => {
+  // Sumber kelas: master data, bukan konstanta hardcoded.
+  const kelasLabels = useClassLabels();
+
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [selectedAYId, setSelectedAYId] = useState<string>('');
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
@@ -96,7 +99,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
     period_number: 1,
     start_time: '07:30',
     end_time: '08:05',
-    class_id: 'KELAS 1',
+    kelas: '',
     subject_name: '',
     teacher_name: '',
     status: 'ACTIVE' as ScheduleStatus,
@@ -148,6 +151,10 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
         academicYearName,
         schoolName: settings.schoolName,
         teachers,
+        // Warna latar sel diambil dari master mapel (kolom `warna`).
+        subjects,
+        // Kolom kelas pada sheet mingguan, urut tingkat lalu rombel.
+        classOptions: kelasLabels,
         showTeacherName: settings.excel.showTeacherName,
         includeDraft: settings.excel.includeDraft,
       });
@@ -246,7 +253,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
       period_number: firstPT?.period_number ?? 1,
       start_time: firstPT?.start_time.slice(0, 5) ?? '07:30',
       end_time: firstPT?.end_time.slice(0, 5) ?? '08:05',
-      class_id: DAFTAR_KELAS[0] || 'KELAS 1',
+      kelas: kelasLabels[0] ?? '',
       subject_name: '',
       teacher_name: '',
       status: 'ACTIVE',
@@ -266,7 +273,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
       period_number: item.period_number,
       start_time: item.start_time.slice(0, 5),
       end_time: item.end_time.slice(0, 5),
-      class_id: item.class_id,
+      kelas: item.kelas,
       subject_name: item.subject_name,
       teacher_name: item.teacher_name,
       status: item.status,
@@ -323,7 +330,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
           period_number: Number(formData.period_number),
           start_time: formData.start_time,
           end_time: formData.end_time,
-          class_id: formData.class_id,
+          kelas: formData.kelas,
           subject_name: formData.subject_name,
           subject_id: selectedSubject.id,
           teacher_name: formData.teacher_name,
@@ -339,7 +346,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
           period_number: Number(formData.period_number),
           start_time: formData.start_time,
           end_time: formData.end_time,
-          class_id: formData.class_id,
+          kelas: formData.kelas,
           subject_name: formData.subject_name,
           subject_id: selectedSubject.id,
           teacher_name: formData.teacher_name,
@@ -449,13 +456,13 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
     .filter((s) => {
       if (filterDay !== 'ALL' && s.day !== filterDay) return false;
       if (filterTeacher !== 'ALL' && s.teacher_name !== filterTeacher) return false;
-      if (filterClass !== 'ALL' && s.class_id !== filterClass) return false;
+      if (filterClass !== 'ALL' && s.kelas !== filterClass) return false;
       if (filterStatus !== 'ALL' && s.status !== filterStatus) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchSubj = s.subject_name.toLowerCase().includes(q);
         const matchTeach = s.teacher_name.toLowerCase().includes(q);
-        const matchClass = s.class_id.toLowerCase().includes(q);
+        const matchClass = s.kelas.toLowerCase().includes(q);
         if (!matchSubj && !matchTeach && !matchClass) return false;
       }
       return true;
@@ -466,7 +473,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
       if (a.period_number !== b.period_number) return a.period_number - b.period_number;
       const timeDiff = a.start_time.localeCompare(b.start_time);
       if (timeDiff !== 0) return timeDiff;
-      return a.class_id.localeCompare(b.class_id);
+      return a.kelas.localeCompare(b.kelas);
     });
 
   // KPI mengikuti filter yang sedang aktif, supaya angka == baris yang terlihat
@@ -488,7 +495,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
     <span className="font-bold text-slate-700">{item.period_number}</span>
   );
   const cellClass = (item: ScheduleItem) => (
-    <span className="font-bold text-slate-900">{item.class_id}</span>
+    <span className="font-bold text-slate-900">{item.kelas}</span>
   );
   const cellSubject = (item: ScheduleItem) => (
     <span className="font-semibold text-slate-900">{item.subject_name}</span>
@@ -557,7 +564,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
     accessor: cellPeriod,
   };
   const COL_CLASS: Column<ScheduleItem> = {
-    key: 'class_id',
+    key: 'kelas',
     header: 'Kelas',
     align: 'center',
     width: '90px',
@@ -700,7 +707,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
                 className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-700 text-xs"
               >
                 <option value="ALL">Semua Kelas</option>
-                {DAFTAR_KELAS.map((c) => (
+                {kelasLabels.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -944,13 +951,13 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
                         Kelas
                       </label>
                       <select
-                        value={formData.class_id}
+                        value={formData.kelas}
                         onChange={(e) =>
-                          setFormData({ ...formData, class_id: e.target.value })
+                          setFormData({ ...formData, kelas: e.target.value })
                         }
                         className={formStyles.select}
                       >
-                        {DAFTAR_KELAS.map((c) => (
+                        {kelasLabels.map((c) => (
                           <option key={c} value={c}>
                             {c}
                           </option>
@@ -1017,7 +1024,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
         title="Hapus jadwal ini?"
         message={
           deleteTarget
-            ? `Jadwal ${deleteTarget.class_id} — ${deleteTarget.subject_name} (${deleteTarget.teacher_name}) akan dihapus permanen.`
+            ? `Jadwal ${deleteTarget.kelas} — ${deleteTarget.subject_name} (${deleteTarget.teacher_name}) akan dihapus permanen.`
             : ''
         }
         confirmText="Hapus"

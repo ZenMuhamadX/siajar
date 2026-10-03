@@ -11,7 +11,9 @@ import {
   GraduationCap,
   LayoutDashboard,
   MessageSquare,
+  School,
   Settings,
+  TrendingUp,
   Trophy,
   Users,
 } from 'lucide-react';
@@ -35,10 +37,12 @@ export type AdminTab =
   | 'siswa'
   | 'guru'
   | 'mapel'
+  | 'kelas'
   | 'wali_kelas'
   | 'slot_waktu'
   | 'ekskul'
   | 'tahun_ajaran'
+  | 'kenaikan_kelas'
   | 'pengaturan'
   | 'saran'
   | 'badal';
@@ -113,6 +117,14 @@ export const ADMIN_ROUTES: AdminRouteDef[] = [
     title: 'Mata Pelajaran',
     icon: BookOpen,
   },
+  {
+    tab: 'kelas',
+    path: 'kelas',
+    group: 'MASTER DATA',
+    label: 'Kelas',
+    title: 'Data Kelas',
+    icon: School,
+  },
 
   // PENUGASAN
   {
@@ -166,6 +178,14 @@ export const ADMIN_ROUTES: AdminRouteDef[] = [
     label: 'Tahun Ajaran',
     title: 'Tahun Ajaran',
     icon: Calendar,
+  },
+  {
+    tab: 'kenaikan_kelas',
+    path: 'kenaikan_kelas',
+    group: 'PENGATURAN',
+    label: 'Kenaikan Kelas',
+    title: 'Kenaikan Kelas',
+    icon: TrendingUp,
   },
   {
     tab: 'saran',

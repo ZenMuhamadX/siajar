@@ -39,7 +39,15 @@ export interface ScheduleItem {
   period_number: number;
   start_time: string; // HH:mm or HH:mm:ss
   end_time: string;   // HH:mm or HH:mm:ss
-  class_id: string;   // e.g. 'KELAS 1'
+  /**
+   * Label kelas, mis. '1A' — BUKAN id.
+   *
+   * Database menyimpan `kelas_id` (referensi ke master kelas); label ini
+   * diturunkan saat membaca dan diterjemahkan kembali saat menulis, di
+   * `scheduleService`. Seluruh layar, validasi bentrok, dan export memakai
+   * label supaya tidak perlu tahu soal id.
+   */
+  kelas: string;
   subject_id?: string | null;
   subject_name: string;
   teacher_id?: string | null;

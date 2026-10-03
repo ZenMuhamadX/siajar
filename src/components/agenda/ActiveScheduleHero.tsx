@@ -55,7 +55,7 @@ export const ActiveScheduleHero: React.FC<ActiveScheduleHeroProps> = ({
               {schedule.subject_name}
             </h2>
             <p className="text-sm text-blue-50/90">
-              <strong className="text-white">{schedule.class_id}</strong>
+              <strong className="text-white">{schedule.kelas}</strong>
               <span aria-hidden="true"> &bull; </span>
               {schedule.teacher_name}
             </p>

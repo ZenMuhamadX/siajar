@@ -49,7 +49,8 @@ export function checkScheduleConflict(
     day: string;
     start_time: string;
     end_time: string;
-    class_id: string;
+    /** Label kelas, mis. '1A'. */
+    kelas: string;
     teacher_name: string;
     status?: string;
   },
@@ -71,7 +72,10 @@ export function checkScheduleConflict(
   }
 
   const normalizedTeacher = target.teacher_name.trim().toLowerCase();
-  const normalizedClass = target.class_id.trim().toUpperCase();
+  // Kelas di kedua sisi berasal dari master data yang sama, jadi perbandingannya
+  // bisa langsung. Normalisasi `.trim().toUpperCase()` yang dulu dipakai sudah
+  // tidak perlu — itu justru gejala pencocokan berbasis teks bebas.
+  const targetKelas = target.kelas;
 
   for (const item of existingSchedules) {
     // Skip self
@@ -99,17 +103,17 @@ export function checkScheduleConflict(
         hasConflict: true,
         type: 'TEACHER_CONFLICT',
         conflictingItem: item,
-        message: `Bentrok Guru: ${item.teacher_name} sudah memiliki jadwal di ${item.class_id} (${item.start_time.slice(0, 5)} - ${item.end_time.slice(0, 5)}) pada hari yang sama.`,
+        message: `Bentrok Guru: ${item.teacher_name} sudah memiliki jadwal di ${item.kelas} (${item.start_time.slice(0, 5)} - ${item.end_time.slice(0, 5)}) pada hari yang sama.`,
       };
     }
 
     // 2. Class conflict: same class, overlapping time
-    if (item.class_id.trim().toUpperCase() === normalizedClass) {
+    if (item.kelas === targetKelas) {
       return {
         hasConflict: true,
         type: 'CLASS_CONFLICT',
         conflictingItem: item,
-        message: `Bentrok Kelas: ${item.class_id} sudah memiliki jadwal mata pelajaran "${item.subject_name}" dengan ${item.teacher_name} (${item.start_time.slice(0, 5)} - ${item.end_time.slice(0, 5)}).`,
+        message: `Bentrok Kelas: ${item.kelas} sudah memiliki jadwal mata pelajaran "${item.subject_name}" dengan ${item.teacher_name} (${item.start_time.slice(0, 5)} - ${item.end_time.slice(0, 5)}).`,
       };
     }
   }

@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { TimelineSlot } from '../../services/scheduleDetectionService';
-import type { Siswa, AgendaEvidence, FullAgenda, Substitution } from '../../types';
-import { getDaftarSiswa, simpanAgenda } from '../../services/agendaService';
+import type { SiswaTerdaftar, AgendaEvidence, FullAgenda, Substitution } from '../../types';
+import {
+  getDaftarSiswa,
+  resolveAcademicYearIdForDate,
+  simpanAgenda,
+} from '../../services/agendaService';
 import { uploadAgendaEvidence, getEvidenceDisplayUrl } from '../../services/evidenceService';
 import { PhotoLightboxModal } from '../PhotoLightboxModal';
 import { ConfirmDialog } from '../ConfirmDialog';
@@ -122,7 +126,10 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   const existingAgenda = directEditData || slot?.existingAgenda;
 
   // Determine Class, Subject, Time, Teacher
-  const kelas = schedule?.class_id || existingAgenda?.header.kelas || 'KELAS 1';
+  // Tidak ada lagi fallback 'KELAS 1': label itu sudah tidak ada di master kelas.
+  // Agenda selalu dibuka dari jadwal atau dari agenda yang sudah tersimpan, jadi
+  // kalau keduanya kosong lebih baik gagal jelas daripada menyimpan kelas salah.
+  const kelas = schedule?.kelas || existingAgenda?.header.kelas || '';
   const subjectName = schedule?.subject_name || existingAgenda?.kbm?.[0]?.mapel || '-';
   // scheduledTeacherName = guru yang tercatat di jadwal (tidak berubah)
   const scheduledTeacherName = schedule?.teacher_name || activeTeacherName || '-';
@@ -140,7 +147,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   const [tugasPr, setTugasPr] = useState<string>('');
   const [absensiList, setAbsensiList] = useState<AbsensiInputItem[]>([]);
   const [uraianKejadian, setUraianKejadian] = useState<string>('');
-  const [siswaKelas, setSiswaKelas] = useState<Siswa[]>([]);
+  const [siswaKelas, setSiswaKelas] = useState<SiswaTerdaftar[]>([]);
   const [isLoadingSiswa, setIsLoadingSiswa] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -328,14 +335,25 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
     showToast('info', 'Draf dibuang. Isian kembali ke versi tersimpan.');
   };
 
-  // Load Siswa list for this class
+  // Daftar siswa untuk absensi kelas ini.
   useEffect(() => {
     let isMounted = true;
     async function loadSiswa() {
       if (!kelas) return;
       setIsLoadingSiswa(true);
       try {
-        const list = await getDaftarSiswa(kelas);
+        // Dua hal yang harus benar di sini:
+        //   1. Tahun ajaran mengikuti TANGGAL AGENDANYA, bukan tahun yang sedang
+        //      aktif — kalau tidak, membuka agenda tahun lalu menampilkan roster
+        //      tahun ini.
+        //   2. Hanya siswa yang masih aktif pada tahun itu. Yang sudah pindah
+        //      atau dinonaktifkan tidak lagi muncul sebagai pilihan kehadiran.
+        const academicYearId = await resolveAcademicYearIdForDate(targetDate);
+        const list = await getDaftarSiswa({
+          kelas,
+          academicYearId: academicYearId ?? undefined,
+          hanyaAktif: true,
+        });
         if (isMounted) setSiswaKelas(list);
       } catch (err) {
         console.warn('Gagal memuat data siswa:', err);
@@ -347,7 +365,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [kelas]);
+  }, [kelas, targetDate]);
 
   /**
    * Muat URL tampil untuk foto yang sedang ditampilkan.
@@ -413,6 +431,9 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
       (s) => s.id === currentId || !absensiList.some((a) => a.siswa_id === s.id)
     );
 
+  // `siswaKelas` sudah berisi HANYA siswa yang aktif pada tahun ajaran agenda ini
+  // (lihat pemuatannya di atas), jadi hitungannya bisa langsung — tidak perlu
+  // menyaring lagi di sini.
   const absentCount = absensiList.filter((a) => a.siswa_id && a.status).length;
   const presentCount = Math.max(0, siswaKelas.length - absentCount);
   const isAbsensiComplete = absensiList.every((a) => a.siswa_id && a.status);
@@ -979,6 +1000,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                   {absensiList.filter((a) => a.status === 'A').length} alpa
                 </span>
               </div>
+
 
               {absensiList.length === 0 ? (
                 <div className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/60 flex items-center justify-between gap-3">

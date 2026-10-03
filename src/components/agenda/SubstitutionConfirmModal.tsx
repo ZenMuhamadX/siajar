@@ -82,7 +82,7 @@ export const SubstitutionConfirmModal: React.FC<SubstitutionConfirmModalProps> =
           <div className="grid grid-cols-2 gap-2">
             <div>
               <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Kelas</p>
-              <p className="font-bold text-slate-900">{schedule.class_id}</p>
+              <p className="font-bold text-slate-900">{schedule.kelas}</p>
             </div>
             <div>
               <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Mata Pelajaran</p>

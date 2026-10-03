@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { localDateString } from '../../utils/date';
 import { useAgendaDateParam, useAgendaSlotParam } from '../../routes/useAgendaQuery';
-import { DAFTAR_KELAS, type FullAgenda, type Guru } from '../../types';
+import { type FullAgenda, type Guru } from '../../types';
+import { useClassLabels } from '../../contexts/ClassContext';
 import { getDaftarGuru } from '../../services/agendaService';
 import {
   getSchoolDailyTimelineForDate,
@@ -40,6 +41,9 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
   onCancelEdit,
   showToast,
 }) => {
+  // Sumber kelas: master data, bukan konstanta hardcoded.
+  const kelasLabels = useClassLabels();
+
   const todayStr = localDateString();
 
   // Tanggal & form isian kini diturunkan dari URL (`?date=` / `?slot=`) supaya
@@ -169,7 +173,7 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
   const filteredSlots = useMemo(() => {
     return slots.filter((slot) => {
       if (filterGuru !== 'SEMUA' && slot.schedule.teacher_name !== filterGuru) return false;
-      if (filterKelas !== 'SEMUA' && slot.schedule.class_id !== filterKelas) return false;
+      if (filterKelas !== 'SEMUA' && slot.schedule.kelas !== filterKelas) return false;
       if (filterStatus === 'SUDAH' && slot.status !== 'COMPLETED') return false;
       if (filterStatus === 'BELUM' && slot.status === 'COMPLETED') return false;
       return true;
@@ -243,7 +247,7 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
       align: 'left',
       accessor: (slot) => (
         <span className="font-semibold text-slate-900 whitespace-nowrap">
-          {slot.schedule.class_id}
+          {slot.schedule.kelas}
         </span>
       ),
     },
@@ -300,7 +304,7 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
             <p className="text-xs text-primary-800 mt-0.5">
               Mengisi / mengoreksi agenda atas nama{' '}
               <strong>{teacherNameForForm}</strong>
-              {selectedSlot ? ` · ${selectedSlot.schedule.class_id}` : directEdit ? ` · ${directEdit.header.kelas}` : ''}
+              {selectedSlot ? ` · ${selectedSlot.schedule.kelas}` : directEdit ? ` · ${directEdit.header.kelas}` : ''}
             </p>
           </div>
           <button
@@ -402,7 +406,7 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
               className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white"
             >
               <option value="SEMUA">Semua kelas</option>
-              {DAFTAR_KELAS.map((k) => (
+              {kelasLabels.map((k) => (
                 <option key={k} value={k}>
                   {k}
                 </option>

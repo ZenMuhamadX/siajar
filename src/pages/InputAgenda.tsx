@@ -892,7 +892,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                           <div className="space-y-1 text-xs">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="font-bold text-slate-900">
-                                {slot.schedule.class_id}
+                                {slot.schedule.kelas}
                               </span>
                               <span className="text-slate-500" aria-hidden="true">
                                 &bull;

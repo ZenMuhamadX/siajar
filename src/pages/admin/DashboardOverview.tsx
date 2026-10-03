@@ -348,7 +348,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       </div>
                       <p className="text-sm font-bold text-slate-900">{slot.subject_name}</p>
                       <p className="text-xs text-slate-600">
-                        {slot.class_id} • {slot.teacher_name}
+                        {slot.kelas} • {slot.teacher_name}
                       </p>
                     </div>
                   ))}
@@ -366,7 +366,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                         {jadwalBerikutnya.subject_name}
                       </p>
                       <p className="text-xs text-slate-600">
-                        {jadwalBerikutnya.class_id} • {jadwalBerikutnya.teacher_name}
+                        {jadwalBerikutnya.kelas} • {jadwalBerikutnya.teacher_name}
                       </p>
                     </div>
                   )}

@@ -7,6 +7,31 @@ import type {
   ScheduleDay,
 } from '../types/schedule';
 import { checkScheduleConflict } from '../utils/scheduleValidation';
+import { findKelasId, resolveKelasId } from './classService';
+
+/**
+ * Kelas disimpan di database sebagai `kelas_id` (referensi ke master kelas),
+ * tetapi seluruh layar, validasi bentrok, dan export bekerja dengan LABEL-nya
+ * (mis. '1A'). Terjemahannya dikurung di dua helper di bawah supaya pemakai
+ * tidak perlu tahu soal `kelas_id` sama sekali.
+ */
+const SCHEDULE_SELECT = '*, kelas:kelas_id (label)';
+
+function mapScheduleRow(row: any): ScheduleItem {
+  return { ...row, kelas: row?.kelas?.label ?? '' } as ScheduleItem;
+}
+
+/** Susun baris database dari `ScheduleItem` — label diterjemahkan ke `kelas_id`. */
+async function toScheduleRow(
+  item: Partial<Omit<ScheduleItem, 'id' | 'created_at' | 'updated_at'>>,
+): Promise<Record<string, unknown>> {
+  const row: Record<string, unknown> = { ...item };
+  delete row.kelas;
+  if (item.kelas !== undefined) {
+    row.kelas_id = await resolveKelasId(item.kelas);
+  }
+  return row;
+}
 
 // Local storage fallback keys for development / offline resilience
 const LOCAL_AY_KEY = 'siajar_academic_years_cache';
@@ -32,7 +57,14 @@ function saveLocalAcademicYears(list: AcademicYear[]) {
 function getLocalSchedules(): ScheduleItem[] {
   try {
     const raw = localStorage.getItem(LOCAL_SCH_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    // Cache dari versi sebelum Fase 2 menyimpan `class_id`. Bentuk lamanya
+    // disamakan di sini supaya kelas tidak tampil kosong saat jatuh ke jalur
+    // offline.
+    return (JSON.parse(raw) as any[]).map((s) => ({
+      ...s,
+      kelas: s.kelas ?? s.class_id ?? '',
+    }));
   } catch {
     return [];
   }
@@ -182,6 +214,74 @@ export async function archiveAcademicYear(id: string): Promise<void> {
   }
 }
 
+export interface IsiTahunAjaran {
+  kosong: boolean;
+  rincian: { label: string; jumlah: number }[];
+}
+
+/**
+ * Isi sebuah tahun ajaran — dipakai untuk menjelaskan kenapa ia belum bisa dihapus.
+ *
+ * Pemeriksaan ini hanya untuk pengalaman pengguna. Penjaga sebenarnya ada di
+ * fungsi `agenda.hapus_tahun_ajaran` di server, supaya tidak bisa dilewati dari
+ * klien: `schedule`, `siswa_kelas`, dan `period_templates` memakai
+ * ON DELETE RESTRICT, jadi penghapusan yang dipaksakan akan gagal dengan pesan
+ * kunci asing yang tidak bisa dibaca guru.
+ */
+export async function cekIsiTahunAjaran(id: string): Promise<IsiTahunAjaran> {
+  const [jadwal, siswa, wali, slot, kenaikan] = await Promise.all([
+    supabase
+      .from('schedule')
+      .select('id', { count: 'exact', head: true })
+      .eq('academic_year_id', id),
+    supabase
+      .from('siswa_kelas')
+      .select('id', { count: 'exact', head: true })
+      .eq('academic_year_id', id),
+    supabase
+      .from('homeroom_assignment')
+      .select('id', { count: 'exact', head: true })
+      .eq('academic_year_id', id),
+    supabase
+      .from('period_templates')
+      .select('id', { count: 'exact', head: true })
+      .eq('academic_year_id', id),
+    supabase
+      .from('promotion_log')
+      .select('id', { count: 'exact', head: true })
+      .or(`academic_year_to.eq.${id},academic_year_from.eq.${id}`),
+  ]);
+
+  for (const r of [jadwal, siswa, wali, slot, kenaikan]) {
+    if (r.error) throw r.error;
+  }
+
+  const rincian = [
+    { label: 'jadwal', jumlah: jadwal.count ?? 0 },
+    { label: 'penempatan siswa', jumlah: siswa.count ?? 0 },
+    { label: 'penugasan wali kelas', jumlah: wali.count ?? 0 },
+    { label: 'template jam', jumlah: slot.count ?? 0 },
+    { label: 'catatan kenaikan kelas', jumlah: kenaikan.count ?? 0 },
+  ].filter((r) => r.jumlah > 0);
+
+  return { kosong: rincian.length === 0, rincian };
+}
+
+/**
+ * Hapus tahun ajaran — hanya berhasil kalau benar-benar kosong.
+ *
+ * Dipakai saat salah memasukkan tanggal lalu ingin membuatnya ulang. Tahun ajaran
+ * yang sudah terisi tidak dihapus melainkan diarsipkan; itulah yang menjaga
+ * riwayat agenda, absensi, dan laporan tetap utuh.
+ */
+export async function hapusTahunAjaran(id: string): Promise<void> {
+  const { error } = await supabase.rpc('hapus_tahun_ajaran', { p_id: id });
+  if (error) throw new Error(error.message || 'Gagal menghapus tahun ajaran.');
+
+  const local = getLocalAcademicYears().filter((y) => y.id !== id);
+  saveLocalAcademicYears(local);
+}
+
 // ---------------------------------------------------------------------------
 // SCHEDULE SERVICES
 // ---------------------------------------------------------------------------
@@ -196,7 +296,10 @@ export interface GetScheduleFilters {
 
 export async function getSchedules(filters?: GetScheduleFilters): Promise<ScheduleItem[]> {
   try {
-    let query = supabase.from('schedule').select('*').order('period_number', { ascending: true });
+    let query = supabase
+      .from('schedule')
+      .select(SCHEDULE_SELECT)
+      .order('period_number', { ascending: true });
 
     if (filters?.academicYearId) {
       query = query.eq('academic_year_id', filters.academicYearId);
@@ -208,7 +311,10 @@ export async function getSchedules(filters?: GetScheduleFilters): Promise<Schedu
       query = query.eq('teacher_name', filters.teacherName);
     }
     if (filters?.classId) {
-      query = query.eq('class_id', filters.classId);
+      const kelasId = await findKelasId(filters.classId);
+      // Label yang tidak ada di master kelas berarti tidak ada jadwal yang cocok.
+      if (!kelasId) return [];
+      query = query.eq('kelas_id', kelasId);
     }
     if (filters?.status) {
       query = query.eq('status', filters.status);
@@ -221,11 +327,12 @@ export async function getSchedules(filters?: GetScheduleFilters): Promise<Schedu
     }
 
     if (data && data.length > 0) {
+      const rows = (data as any[]).map(mapScheduleRow);
       // Sync local cache
       const local = getLocalSchedules();
-      const nonMatching = local.filter((l) => !data.some((d: ScheduleItem) => d.id === l.id));
-      saveLocalSchedules([...(data as ScheduleItem[]), ...nonMatching]);
-      return data as ScheduleItem[];
+      const nonMatching = local.filter((l) => !rows.some((d) => d.id === l.id));
+      saveLocalSchedules([...rows, ...nonMatching]);
+      return rows;
     }
 
     return filterLocalSchedules(filters);
@@ -249,7 +356,7 @@ function filterLocalSchedules(filters?: GetScheduleFilters): ScheduleItem[] {
     list = list.filter((s) => s.teacher_name === filters.teacherName);
   }
   if (filters.classId) {
-    list = list.filter((s) => s.class_id === filters.classId);
+    list = list.filter((s) => s.kelas === filters.classId);
   }
   if (filters.status) {
     list = list.filter((s) => s.status === filters.status);
@@ -274,11 +381,15 @@ export async function createSchedule(
     updated_at: new Date().toISOString(),
   };
 
+  // Terjemahan label → kelas_id sengaja di LUAR try: kelas yang tidak ada di
+  // master data harus melempar, bukan diam-diam jatuh ke penyimpanan lokal.
+  const row = await toScheduleRow(payload);
+
   try {
     const { data, error } = await supabase
       .from('schedule')
-      .insert([payload])
-      .select()
+      .insert([row])
+      .select(SCHEDULE_SELECT)
       .single();
 
     if (error) {
@@ -290,10 +401,11 @@ export async function createSchedule(
     }
 
     // Update local cache
+    const saved = mapScheduleRow(data);
     const local = getLocalSchedules();
-    local.push(data as ScheduleItem);
+    local.push(saved);
     saveLocalSchedules(local);
-    return data as ScheduleItem;
+    return saved;
   } catch (e) {
     const local = getLocalSchedules();
     local.push(newRecord);
@@ -330,15 +442,18 @@ export async function updateSchedule(
     updated_at: new Date().toISOString(),
   };
 
+  // Sama seperti createSchedule: terjemahan label → kelas_id di luar try.
+  const row = await toScheduleRow(payload);
+
   try {
     const { data, error } = await supabase
       .from('schedule')
       .update({
-        ...payload,
+        ...row,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
-      .select()
+      .select(SCHEDULE_SELECT)
       .single();
 
     if (error) {
@@ -350,11 +465,12 @@ export async function updateSchedule(
       return updatedRecord;
     }
 
+    const saved = mapScheduleRow(data);
     const local = getLocalSchedules();
     const idx = local.findIndex((s) => s.id === id);
-    if (idx >= 0) local[idx] = data as ScheduleItem;
+    if (idx >= 0) local[idx] = saved;
     saveLocalSchedules(local);
-    return data as ScheduleItem;
+    return saved;
   } catch (e) {
     const local = getLocalSchedules();
     const idx = local.findIndex((s) => s.id === id);

@@ -50,7 +50,9 @@ export async function getSubstitutionHistory(filters?: {
 }): Promise<Substitution[]> {
   let query = supabase
     .from('substitutions')
-    .select('*, schedule:schedule_id(class_id, subject_name, start_time, end_time, period_number, day)')
+    .select(
+      '*, schedule:schedule_id(kelas:kelas_id (label), subject_name, start_time, end_time, period_number, day)',
+    )
     .order('substitution_date', { ascending: false })
     .order('created_at', { ascending: false });
 
@@ -149,7 +151,7 @@ export async function createSubstitution(
       const schEnd = timeToMinutes(sch.end_time);
       if (Math.max(targetStart, schStart) < Math.min(targetEnd, schEnd)) {
         throw new Error(
-          `Anda memiliki jadwal mengajar pada waktu tersebut (${sch.class_id} - ${sch.subject_name}) sehingga tidak dapat menjadi guru pengganti.`
+          `Anda memiliki jadwal mengajar pada waktu tersebut (${sch.kelas} - ${sch.subject_name}) sehingga tidak dapat menjadi guru pengganti.`
         );
       }
     }
