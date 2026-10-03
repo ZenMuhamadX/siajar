@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pratinjau Warna Mapel — Export Excel Jadwal</title>
+<style>
+  :root {
+    --navy: #1F3864;
+    --band: #D9E2F3;
+    --line: #9CA3AF;
+    --ink: #1F2937;
+    --muted: #6B7280;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px 24px 56px;
+    background: #F8FAFC;
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 6px; color: var(--navy); }
+  .sub { color: var(--muted); margin: 0 0 28px; font-size: 13px; }
+  h2 {
+    font-size: 13px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--navy); margin: 0 0 12px;
+  }
+  section { margin-bottom: 32px; }
+  .card {
+    background: #fff; border: 1px solid #E5E7EB; border-radius: 12px;
+    padding: 20px; overflow-x: auto;
+  }
+
+  /* ── legenda palet ── */
+  .legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+  .chip {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid #E5E7EB; border-radius: 8px; padding: 6px 8px; background: #fff;
+  }
+  .chip .sw { width: 22px; height: 22px; border-radius: 5px; border: 1px solid rgba(0,0,0,.14); flex: none; }
+  .chip .nm { font-weight: 600; font-size: 12px; }
+  .chip .hx { font-family: ui-monospace, Consolas, monospace; font-size: 10.5px; color: var(--muted); }
+
+  .palette { display: flex; flex-wrap: wrap; gap: 6px; }
+  .palette .p {
+    width: 46px; height: 34px; border-radius: 6px; border: 1px solid rgba(0,0,0,.14);
+    display: flex; align-items: flex-end; justify-content: center;
+    font-family: ui-monospace, Consolas, monospace; font-size: 8.5px; color: rgba(0,0,0,.62);
+    padding-bottom: 2px;
+  }
+  .palette .p.used { outline: 2px solid var(--navy); outline-offset: 1px; }
+
+  /* ── tiruan sheet Excel ── */
+  .sheet { font-family: "Bookman Old Style", Georgia, "Times New Roman", serif; }
+  .sheet .t1 { text-align: center; font-weight: 700; font-size: 20px; color: var(--navy); }
+  .sheet .t2 { text-align: center; font-weight: 700; font-size: 16px; color: var(--navy); }
+  .sheet .t3 { text-align: center; font-weight: 700; font-size: 12px; color: var(--navy); }
+  .sheet .spacer { height: 8px; }
+  table.grid { border-collapse: collapse; width: 100%; table-layout: fixed; }
+  table.grid th, table.grid td {
+    border: 1px solid var(--line);
+    text-align: center; vertical-align: middle;
+    padding: 4px 3px; font-size: 11px; line-height: 1.25;
+    white-space: pre-line; word-break: break-word;
+  }
+  table.grid th {
+    background: var(--navy); color: #fff; font-weight: 700; height: 26px;
+  }
+  table.grid td.time { font-weight: 400; }
+  table.grid tr.band td {
+    background: var(--band); color: var(--navy); font-weight: 700; height: 26px;
+  }
+  table.grid td.empty { background: #fff; }
+  .col-time { width: 15%; }
+
+  .note {
+    background: #F1F5F9; border-left: 3px solid var(--navy);
+    border-radius: 6px; padding: 12px 14px; font-size: 12.5px;
+  }
+  .note + .note { margin-top: 10px; }
+  .note b { color: var(--navy); }
+  code {
+    font-family: ui-monospace, Consolas, monospace; font-size: 11.5px;
+    background: #fff; border: 1px solid #E5E7EB; border-radius: 4px; padding: 1px 5px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Pratinjau warna mata pelajaran pada export Excel</h1>
+  <p class="sub">
+    Tiruan sheet <b>“Jadwal Mingguan”</b> setelah fitur Stage 8. Warna di bawah ini
+    dihasilkan oleh fungsi yang sama dengan yang dipakai file <code>.xlsx</code> asli,
+    jadi hasil di Excel akan tampak persis seperti ini.
+  </p>
+
+  <section>
+    <h2>Warna yang didapat tiap mata pelajaran (tanpa diatur manual)</h2>
+    <div class="card">
+      <div class="legend">
+        <div class="chip"><span class="sw" style="background:#B5D4F4"></span><span><span class="nm">Matematika</span><br><span class="hx">B5D4F4</span></span></div>
+        <div class="chip"><span class="sw" style="background:#F5C4B3"></span><span><span class="nm">Bahasa Indonesia</span><br><span class="hx">F5C4B3</span></span></div>
+        <div class="chip"><span class="sw" style="background:#CECBF6"></span><span><span class="nm">PAI</span><br><span class="hx">CECBF6</span></span></div>
+        <div class="chip"><span class="sw" style="background:#C0DD97"></span><span><span class="nm">IPA</span><br><span class="hx">C0DD97</span></span></div>
+        <div class="chip"><span class="sw" style="background:#9FE1CB"></span><span><span class="nm">IPS</span><br><span class="hx">9FE1CB</span></span></div>
+        <div class="chip"><span class="sw" style="background:#D3D1C7"></span><span><span class="nm">PPKn</span><br><span class="hx">D3D1C7</span></span></div>
+        <div class="chip"><span class="sw" style="background:#FAC775"></span><span><span class="nm">Bahasa Inggris</span><br><span class="hx">FAC775</span></span></div>
+        <div class="chip"><span class="sw" style="background:#F4C0D1"></span><span><span class="nm">PJOK</span><br><span class="hx">F4C0D1</span></span></div>
+        <div class="chip"><span class="sw" style="background:#FAECE7"></span><span><span class="nm">SBdP</span><br><span class="hx">FAECE7</span></span></div>
+        <div class="chip"><span class="sw" style="background:#F7C1C1"></span><span><span class="nm">Bahasa Arab</span><br><span class="hx">F7C1C1</span></span></div>
+        <div class="chip"><span class="sw" style="background:#FCEBEB"></span><span><span class="nm">Pramuka</span><br><span class="hx">FCEBEB</span></span></div>
+        <div class="chip"><span class="sw" style="background:#FAEEDA"></span><span><span class="nm">Upacara</span><br><span class="hx">FAEEDA</span></span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Palet bawaan (18 warna)</h2>
+    <div class="card">
+      <div class="palette">
+        <span class="p used" style="background:#F7C1C1">F7C1C1</span>
+        <span class="p used" style="background:#F5C4B3">F5C4B3</span>
+        <span class="p used" style="background:#FAC775">FAC775</span>
+        <span class="p used" style="background:#C0DD97">C0DD97</span>
+        <span class="p used" style="background:#9FE1CB">9FE1CB</span>
+        <span class="p used" style="background:#B5D4F4">B5D4F4</span>
+        <span class="p used" style="background:#CECBF6">CECBF6</span>
+        <span class="p used" style="background:#F4C0D1">F4C0D1</span>
+        <span class="p used" style="background:#D3D1C7">D3D1C7</span>
+        <span class="p used" style="background:#FCEBEB">FCEBEB</span>
+        <span class="p used" style="background:#FAECE7">FAECE7</span>
+        <span class="p used" style="background:#FAEEDA">FAEEDA</span>
+        <span class="p" style="background:#EAF3DE">EAF3DE</span>
+        <span class="p" style="background:#E1F5EE">E1F5EE</span>
+        <span class="p" style="background:#E6F1FB">E6F1FB</span>
+        <span class="p" style="background:#EEEDFE">EEEDFE</span>
+        <span class="p" style="background:#FBEAF0">FBEAF0</span>
+        <span class="p" style="background:#F1EFE8">F1EFE8</span>
+      </div>
+      <p style="margin:12px 0 0; font-size:12px; color:var(--muted)">
+        Sembilan warna pertama (bergaris tepi) adalah sembilan rumpun warna berbeda —
+        dipakai lebih dulu agar mudah dibedakan. Sembilan sisanya versi lembut,
+        hanya terpakai kalau mata pelajaran lebih dari sembilan.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Hasil di sheet “Jadwal Mingguan”</h2>
+    <div class="card">
+      <div class="sheet">
+        <div class="t1">JADWAL PELAJARAN</div>
+        <div class="t2">SDIT AS-SYIFA</div>
+        <div class="t3">TAHUN PELAJARAN 2026/2027</div>
+        <div class="spacer"></div>
+        <table class="grid">
+          <colgroup>
+            <col class="col-time" /><col /><col /><col /><col /><col /><col />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>WAKTU</th><th>KELAS 1</th><th>KELAS 2</th><th>KELAS 3</th>
+              <th>KELAS 4</th><th>KELAS 5</th><th>KELAS 6</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="band"><td colspan="7">SENIN</td></tr>
+            <tr>
+              <td class="time">07:00–07:35</td>
+              <td style="background:#FAEEDA">Upacara</td>
+              <td style="background:#FAEEDA">Upacara</td>
+              <td style="background:#FAEEDA">Upacara</td>
+              <td style="background:#FAEEDA">Upacara</td>
+              <td style="background:#FAEEDA">Upacara</td>
+              <td style="background:#FAEEDA">Upacara</td>
+            </tr>
+            <tr>
+              <td class="time">07:35–08:10</td>
+              <td style="background:#B5D4F4">Matematika
+Ikfina</td>
+              <td style="background:#CECBF6">PAI
+Abdulloh</td>
+              <td style="background:#C0DD97">IPA
+Dian</td>
+              <td style="background:#9FE1CB">IPS
+Nur</td>
+              <td style="background:#D3D1C7">PPKn
+Hasan</td>
+              <td style="background:#FAC775">Bahasa Inggris
+Siti</td>
+            </tr>
+            <tr>
+              <td class="time">08:10–08:45</td>
+              <td style="background:#CECBF6">PAI
+Abdulloh</td>
+              <td style="background:#B5D4F4">Matematika
+Ikfina</td>
+              <td style="background:#B5D4F4">Matematika
+Ikfina</td>
+              <td style="background:#C0DD97">IPA
+Dian</td>
+              <td style="background:#9FE1CB">IPS
+Nur</td>
+              <td style="background:#D3D1C7">PPKn
+Hasan</td>
+            </tr>
+            <tr>
+              <td class="time">09:05–09:40</td>
+              <td style="background:#C0DD97">IPA
+Dian</td>
+              <td style="background:#C0DD97">IPA
+Dian</td>
+              <td style="background:#CECBF6">PAI
+Abdulloh</td>
+              <td style="background:#B5D4F4">Matematika
+Ikfina</td>
+              <td style="background:#B5D4F4">Matematika
+Ikfina</td>
+              <td style="background:#9FE1CB">IPS
+Nur</td>
+            </tr>
+            <tr>
+              <td class="time">09:40–10:15</td>
+              <td style="background:#F5C4B3">Bahasa Indonesia
+Aisyah</td>
+              <td style="background:#F5C4B3">Bahasa Indonesia
+Aisyah</td>
+              <td style="background:#F5C4B3">Bahasa Indonesia
+Aisyah</td>
+              <td style="background:#F5C4B3">Bahasa Indonesia
+Aisyah</td>
+              <td style="background:#F7C1C1">Bahasa Arab
+Umar</td>
+              <td style="background:#F7C1C1">Bahasa Arab
+Umar</td>
+            </tr>
+            <tr>
+              <td class="time">10:35–11:10</td>
+              <td style="background:#F4C0D1">PJOK
+Bilal</td>
+              <td style="background:#FAECE7">SBdP
+Maryam</td>
+              <td style="background:#F4C0D1">PJOK
+Bilal</td>
+              <td style="background:#FAECE7">SBdP
+Maryam</td>
+              <td class="empty"></td>
+              <td class="empty"></td>
+            </tr>
+            <tr class="band"><td colspan="7">SELASA</td></tr>
+            <tr>
+              <td class="time">07:00–07:35</td>
+              <td style="background:#FAC775">Bahasa Inggris
+Siti</td>
+              <td style="background:#F4C0D1">PJOK
+Bilal</td>
+              <td style="background:#F5C4B3">Bahasa Indonesia
+Aisyah</td>
+              <td style="background:#FAC775">Bahasa Inggris
+Siti</td>
+              <td style="background:#C0DD97">IPA
+Dian</td>
+              <td style="background:#CECBF6">PAI
+Abdulloh</td>
+            </tr>
+            <tr>
+              <td class="time">07:35–08:10</td>
+              <td style="background:#B5D4F4">Matematika
+Ikfina</td>
+              <td style="background:#9FE1CB">IPS
+Nur</td>
+              <td style="background:#B5D4F4">Matematika
+Ikfina</td>
+              <td style="background:#CECBF6">PAI
+Abdulloh</td>
+              <td style="background:#D3D1C7">PPKn
+Hasan</td>
+              <td style="background:#F5C4B3">Bahasa Indonesia
+Aisyah</td>
+            </tr>
+            <tr>
+              <td class="time">08:10–08:45</td>
+              <td style="background:#FAECE7">SBdP
+Maryam</td>
+              <td style="background:#FAC775">Bahasa Inggris
+Siti</td>
+              <td style="background:#F7C1C1">Bahasa Arab
+Umar</td>
+              <td style="background:#F4C0D1">PJOK
+Bilal</td>
+              <td style="background:#CECBF6">PAI
+Abdulloh</td>
+              <td style="background:#C0DD97">IPA
+Dian</td>
+            </tr>
+            <tr>
+              <td class="time">09:05–09:40</td>
+              <td style="background:#F7C1C1">Bahasa Arab
+Umar</td>
+              <td style="background:#CECBF6">PAI
+Abdulloh</td>
+              <td style="background:#D3D1C7">PPKn
+Hasan</td>
+              <td style="background:#B5D4F4">Matematika
+Ikfina</td>
+              <td style="background:#FAECE7">SBdP
+Maryam</td>
+              <td style="background:#F4C0D1">PJOK
+Bilal</td>
+            </tr>
+            <tr>
+              <td class="time">09:40–10:15</td>
+              <td class="empty"></td>
+              <td style="background:#F7C1C1">Bahasa Arab
+Umar</td>
+              <td class="empty"></td>
+              <td style="background:#FCEBEB">Pramuka
+Ridwan</td>
+              <td style="background:#FCEBEB">Pramuka
+Ridwan</td>
+              <td class="empty"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Yang perlu diketahui</h2>
+    <div class="note">
+      <b>Warna tidak pernah kosong.</b> Mata pelajaran yang belum diatur warnanya tetap
+      dapat warna dari palet bawaan, begitu pula kegiatan seperti Upacara, Pramuka, dan
+      Istirahat. Tidak ada sel yang tampil polos.
+    </div>
+    <div class="note">
+      <b>Sel kosong tetap kosong.</b> Kelas yang tidak punya jadwal pada suatu jam
+      sengaja dibiarkan tanpa latar, supaya terlihat jelas sebagai “tidak ada jadwal”
+      dan bukan sebagai sebuah mata pelajaran.
+    </div>
+    <div class="note">
+      <b>Warna teks menyesuaikan otomatis.</b> Semua warna palet cukup terang sehingga
+      teks hitam aman dibaca. Kalau Anda memilih warna gelap sendiri (misalnya
+      <code>1F3864</code>), teks otomatis berubah jadi putih agar tetap terbaca.
+    </div>
+    <div class="note">
+      <b>Cara mengubah warna.</b> Buka <b>Master Data → Mata Pelajaran</b>, klik ikon
+      edit pada mata pelajaran, lalu pilih warna dari palet, dari pemilih warna, atau
+      ketik kode hex-nya. Tombol <b>Otomatis</b> mengembalikan ke warna bawaan;
+      tombol <b>Acak</b> memberi titik awal cepat.
+    </div>
+  </section>
+</div>
+</body>
+</html>

@@ -1,7 +1,11 @@
-import type { Guru } from '../../types';
-import { DAFTAR_KELAS } from '../../types';
+import type { Guru, MataPelajaran } from '../../types';
 import type { ScheduleDay, ScheduleItem } from '../../types/schedule';
 import { SCHEDULE_DAYS } from '../../types/schedule';
+import {
+  buildSubjectFillResolver,
+  contrastTextColor,
+  resolveSubjectFill,
+} from './subjectPalette';
 
 /**
  * Model export jadwal — MURNI, tanpa library Excel dan tanpa menyentuh DOM.
@@ -16,8 +20,10 @@ import { SCHEDULE_DAYS } from '../../types/schedule';
  *   - §13      kelas tanpa jadwal pada suatu slot => cell kosong (bukan "N/A")
  *   - §15      urutan Senin→Jumat, di dalamnya urut waktu mulai
  *
- * Kolom kelas & urutan hari TIDAK di-hardcode: diambil dari `DAFTAR_KELAS` dan
- * `SCHEDULE_DAYS` supaya export selalu mengikuti master data yang sama dengan UI.
+ * Kolom kelas & urutan hari TIDAK di-hardcode: `classOptions` diberikan
+ * pemanggil (dari `ClassContext`, sumbernya tabel `agenda.kelas`) dan urutan hari
+ * dari `SCHEDULE_DAYS` — supaya export selalu mengikuti master data yang sama
+ * dengan UI.
  */
 
 /** Kelas yang tidak lagi berlaku — tidak ikut dicetak (§5 "jadwal yang berlaku"). */
@@ -33,7 +39,16 @@ export interface ScheduleExportInput {
   academicYearName: string;
   /** Master guru, dipakai untuk resolve `schedule.teacher_id` → nama. */
   teachers?: Guru[];
-  /** Override kolom kelas, default `DAFTAR_KELAS`. */
+  /**
+   * Master mata pelajaran, dipakai untuk resolve `schedule.subject_id` →
+   * warna latar sel. Bila tidak diisi (atau mapelnya belum diwarnai), warna
+   * diambil dari palet bawaan secara deterministik — lihat `subjectPalette.ts`.
+   */
+  subjects?: MataPelajaran[];
+  /**
+   * Kolom kelas pada sheet mingguan, urut tingkat lalu rombel.
+   * Diisi pemanggil dari `ClassContext`; kosong = tidak ada kolom kelas.
+   */
   classOptions?: string[];
   /** Nama sekolah dari Pengaturan — baris subjudul di sheet mingguan. */
   schoolName?: string;
@@ -49,6 +64,12 @@ export interface ScheduleExportInput {
   includeDraft?: boolean;
 }
 
+/** Warna latar + warna teks satu sel mapel, dalam hex 6 digit tanpa '#'. */
+export interface CellStyle {
+  fill: string;
+  textColor: string;
+}
+
 export interface WeeklyRow {
   /** HH:mm — sudah dinormalisasi dari "HH:mm:ss" bila perlu. */
   start: string;
@@ -56,6 +77,12 @@ export interface WeeklyRow {
   periodNumber: number;
   /** map classId → "Mata Pelajaran\nNama Guru" (atau tanpa nama guru). */
   cells: Record<string, string>;
+  /**
+   * map classId → gaya warna sel. Dipisah dari `cells` supaya isi teks dan
+   * tampilan bisa diuji sendiri-sendiri, dan supaya `cells` tetap berupa
+   * string sederhana seperti sebelumnya.
+   */
+  cellStyles: Record<string, CellStyle>;
 }
 
 export interface WeeklyDay {
@@ -148,16 +175,50 @@ function cellText(subject: string, teacher: string): string {
 }
 
 /**
+ * Resolver warna sel dari master mapel.
+ *
+ * Seluruh keputusan warna didelegasikan ke `buildSubjectFillResolver()` di
+ * `subjectPalette.ts` — fungsi yang SAMA dipakai pratinjau di halaman Data
+ * Mapel. Ini disengaja: warna yang dilihat pengguna di tabel master harus
+ * persis sama dengan warna di file Excel, dan cara termurah menjamin itu
+ * adalah memakai satu implementasi, bukan dua yang mirip.
+ *
+ * Di sini hanya ditambahkan warna teks, karena itu urusan tampilan Excel.
+ */
+function buildSubjectColorResolver(subjects: MataPelajaran[]) {
+  const fillFor = buildSubjectFillResolver(subjects);
+
+  return (item: ScheduleItem): CellStyle => {
+    const fill = fillFor(item.subject_id, item.subject_name);
+    return { fill, textColor: contrastTextColor(fill) };
+  };
+}
+
+/**
+ * Dipakai bila `buildWeeklyGrid` dipanggil tanpa resolver — mis. di unit test
+ * yang hanya peduli isi teks. Warna tetap keluar dari palet otomatis, jadi
+ * hasilnya tidak pernah "polos" walau master mapel tidak dioper.
+ */
+const defaultSubjectColor = (item: ScheduleItem): CellStyle => {
+  const fill = resolveSubjectFill({ id: item.subject_id, name: item.subject_name });
+  return { fill, textColor: contrastTextColor(fill) };
+};
+
+/**
  * Sheet utama: grid per hari. Baris = slot waktu, kolom = kelas.
  * Tidak ada merge — dua slot berurutan dengan mapel sama tetap dua baris (§10).
  *
  * `teacherName` sudah diputuskan di luar: kalau pengaturan mematikan nama guru,
  * caller mengoper fungsi yang selalu mengembalikan string kosong — sehingga semua
  * kode di bawah tidak perlu tahu apa-apa soal toggle tersebut.
+ *
+ * `subjectColor` mengikuti pola yang sama: keputusan warna ada di
+ * `buildSubjectColorResolver`, di sini hanya ditempelkan ke sel yang tepat.
  */
 export function buildWeeklyGrid(
   schedules: ScheduleItem[],
   teacherName: (item: ScheduleItem) => string,
+  subjectColor: (item: ScheduleItem) => CellStyle = defaultSubjectColor,
 ): WeeklyDay[] {
   return SCHEDULE_DAYS.map(({ key, label }) => {
     const dayItems = schedules.filter((s) => s.day === key);
@@ -172,10 +233,11 @@ export function buildWeeklyGrid(
       const key = `${item.period_number}|${start}|${end}`;
       let row = rowMap.get(key);
       if (!row) {
-        row = { start, end, periodNumber: item.period_number, cells: {} };
+        row = { start, end, periodNumber: item.period_number, cells: {}, cellStyles: {} };
         rowMap.set(key, row);
       }
-      row.cells[item.class_id] = cellText(item.subject_name, teacherName(item));
+      row.cells[item.kelas] = cellText(item.subject_name, teacherName(item));
+      row.cellStyles[item.kelas] = subjectColor(item);
     }
 
     const rows = [...rowMap.values()].sort((a, b) =>
@@ -200,7 +262,7 @@ export function buildDetailRows(
       start: toHHmm(item.start_time),
       end: toHHmm(item.end_time),
       periodNumber: item.period_number,
-      classId: item.class_id,
+      classId: item.kelas,
       subject: item.subject_name,
       teacher: teacherName(item),
       academicYear: academicYearName,
@@ -234,7 +296,8 @@ export function buildScheduleExportModel(input: ScheduleExportInput): ScheduleEx
     schedules,
     academicYearName,
     teachers = [],
-    classOptions = DAFTAR_KELAS,
+    subjects = [],
+    classOptions = [],
     showTeacherName = true,
     includeDraft = true,
     schoolName = DEFAULT_SCHOOL_NAME,
@@ -250,12 +313,14 @@ export function buildScheduleExportModel(input: ScheduleExportInput): ScheduleEx
 
   // Saat nama guru dimatikan, cukup resolver yang mengembalikan string kosong.
   const teacherName = showTeacherName ? buildTeacherResolver(teachers) : () => '';
+  // Warna selalu aktif: master mapel menentukan, palet bawaan jadi cadangan.
+  const subjectColor = buildSubjectColorResolver(subjects);
 
   return {
     academicYearName,
     schoolName,
     classOptions: [...classOptions],
-    weekly: buildWeeklyGrid(included, teacherName),
+    weekly: buildWeeklyGrid(included, teacherName, subjectColor),
     detail: buildDetailRows(included, academicYearName, teacherName),
     exportedCount: included.length,
     archivedCount,

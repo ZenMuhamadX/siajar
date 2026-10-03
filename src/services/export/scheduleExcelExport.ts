@@ -14,8 +14,11 @@ import { exportFileName } from './scheduleExportModel';
  * saat app dimuat. Vite meng-code-split-nya jadi chunk sendiri (sudah
  * diverifikasi lewat `vite build`).
  *
- * Tampilan seluruhnya diambil dari Pengaturan (`ExcelSettings`) — tidak ada
- * warna/font/orientasi yang tertanam di sini. Nilai bawaannya meniru hasil
+ * Tampilan kerangka (font, orientasi, warna judul/header/band/border) diambil
+ * dari Pengaturan (`ExcelSettings`) — tidak ada nilai yang tertanam di sini.
+ * Satu pengecualian yang disengaja: WARNA LATAR SEL MAPEL. Itu bukan gaya
+ * dokumen, melainkan atribut mapelnya sendiri, jadi sudah diputuskan di model
+ * (`cellStyles`) dan di sini hanya ditempelkan. Nilai bawaannya meniru hasil
  * Stage 5.2 yang sudah disetujui, termasuk gaya file referensi
  * "JADWAL PELAJARAN 2026-2027.xlsx": font Bookman Old Style, border tipis
  * tanpa frame tebal, center/center + wrapText, lebar kolom WAKTU 16.3 & kelas
@@ -27,6 +30,8 @@ import { exportFileName } from './scheduleExportModel';
  *   - Band hari horizontal (merge A:G), bukan kolom A teks putar 90 derajat
  *   - Tidak ada merge sel mapel, sehingga 2 slot = 2 baris
  *   - Satu warna utama + tint-nya, bukan kuning/sian
+ *   - Stage 8: sel mapel diberi warna latar sendiri (per mata pelajaran),
+ *     bukan seragam seperti file referensi
  */
 
 /** Lebar kolom & tinggi baris tetap (bukan bagian kustomisasi). */
@@ -225,10 +230,22 @@ function writeScheduleRow(
     const cell = ws.getCell(rowNo, i + 2);
     // Kelas tanpa jadwal pada slot ini dibiarkan kosong, bukan "N/A"/"-".
     const value = row.cells[classId];
+    const cellStyle = row.cellStyles?.[classId];
     if (value) cell.value = value;
-    cell.font = { name: style.fontFamily, size: style.baseFontSize };
+
+    const font: Record<string, unknown> = {
+      name: style.fontFamily,
+      size: style.baseFontSize,
+    };
+    // Warna teks ikut latar supaya mapel berwarna gelap tetap terbaca.
+    if (value && cellStyle) font.color = { argb: argb(cellStyle.textColor) };
+    cell.font = font;
+
     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
     if (border) cell.border = border;
+    // Sel kosong sengaja TIDAK diberi latar: grid yang kosong harus tetap
+    // terbaca sebagai "tidak ada jadwal", bukan sebagai sebuah mapel.
+    if (value && cellStyle?.fill) cell.fill = solid(argb(cellStyle.fill));
   });
 
   ws.getRow(rowNo).height = ROW_BODY_HEIGHT;

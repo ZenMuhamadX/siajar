@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { MataPelajaran } from '../types';
 import {
   getDaftarMapel,
@@ -7,11 +7,19 @@ import {
   deleteMapel,
 } from '../services/agendaService';
 import {
+  SUBJECT_PALETTE,
+  buildSubjectFillResolver,
+  normalizeOptionalColor,
+} from '../services/export/subjectPalette';
+import { withHash } from '../services/settings/appSettings';
+import {
   Edit2,
   Trash2,
   Check,
   BookOpen,
   Plus,
+  RotateCcw,
+  Wand2,
 } from 'lucide-react';
 import {
   DataTable,
@@ -36,6 +44,12 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
 
   // Form state
   const [namaInput, setNamaInput] = useState<string>('');
+  /**
+   * Warna disimpan sebagai teks mentah (bukan hanya hex valid) supaya pengguna
+   * bisa mengetik sebagian tanpa field-nya "dibersihkan" di tengah jalan.
+   * Normalisasi ke hex 6 digit dilakukan sekali saat menyimpan.
+   */
+  const [warnaInput, setWarnaInput] = useState<string>('');
   const [editingMapel, setEditingMapel] = useState<MataPelajaran | null>(null);
   const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -57,6 +71,13 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
     fetchMapel();
   }, []);
 
+  /**
+   * Satu resolver untuk seluruh daftar, dipakai tabel DAN pratinjau form.
+   * Perhitungannya sama persis dengan penulis Excel (`subjectPalette.ts`),
+   * jadi warna di layar tidak akan pernah berbeda dengan warna di file.
+   */
+  const fillFor = useMemo(() => buildSubjectFillResolver(mapelList), [mapelList]);
+
   const handleSaveMapel = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!namaInput.trim()) {
@@ -66,15 +87,18 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
 
     setIsSaving(true);
     try {
+      // Kosong = "otomatis", disimpan sebagai NULL di database.
+      const warna = normalizeOptionalColor(warnaInput);
       if (editingMapel) {
-        await updateMapel(editingMapel.id, namaInput);
+        await updateMapel(editingMapel.id, namaInput, warna);
         showToast('success', 'Mata pelajaran berhasil diperbarui.');
         setEditingMapel(null);
       } else {
-        await addMapel(namaInput);
+        await addMapel(namaInput, warna);
         showToast('success', `Mata pelajaran ${namaInput} berhasil ditambahkan.`);
       }
       setNamaInput('');
+      setWarnaInput('');
       setIsFormOpen(false);
       fetchMapel();
     } catch (err: any) {
@@ -87,12 +111,14 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
   const handleOpenCreate = () => {
     setEditingMapel(null);
     setNamaInput('');
+    setWarnaInput('');
     setIsFormOpen(true);
   };
 
   const handleEditClick = (mapel: MataPelajaran) => {
     setEditingMapel(mapel);
     setNamaInput(mapel.nama_mapel);
+    setWarnaInput(mapel.warna ?? '');
     setIsFormOpen(true);
   };
 
@@ -100,6 +126,13 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
     setIsFormOpen(false);
     setEditingMapel(null);
     setNamaInput('');
+    setWarnaInput('');
+  };
+
+  /** Pilih acak dari palet — hanya untuk memberi titik awal, bukan nilai final. */
+  const pickRandomColor = () => {
+    const next = SUBJECT_PALETTE[Math.floor(Math.random() * SUBJECT_PALETTE.length)];
+    setWarnaInput(next);
   };
 
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; nama: string } | null>(null);
@@ -123,6 +156,26 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
       setIsDeleting(false);
     }
   };
+
+  const warnaManual = normalizeOptionalColor(warnaInput);
+
+  /**
+   * Pratinjau harus mencerminkan hasil akhir. Karena itu mapel yang sedang
+   * diedit — atau mapel baru yang belum ada di daftar — ikut dihitung BERSAMA
+   * daftar, bukan dihitung sendirian. Kalau dihitung sendirian, mapel baru
+   * bisa tampil dengan warna yang sudah dipakai mapel lain.
+   */
+  const previewFill = useMemo(() => {
+    const draft = {
+      id: editingMapel?.id ?? '__draft__',
+      nama_mapel: namaInput,
+      warna: warnaManual,
+    };
+    const list = editingMapel
+      ? mapelList.map((m) => (m.id === editingMapel.id ? draft : m))
+      : [...mapelList, draft];
+    return buildSubjectFillResolver(list)(draft.id, draft.nama_mapel);
+  }, [mapelList, editingMapel, namaInput, warnaManual]);
 
   return (
     <div className="space-y-4">
@@ -173,6 +226,28 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
                   {item.nama_mapel}
                 </span>
               ),
+            },
+            {
+              key: 'warna',
+              header: 'Warna Excel',
+              width: '150px',
+              align: 'left',
+              accessor: (item) => {
+                const manual = Boolean(normalizeOptionalColor(item.warna));
+                const fill = fillFor(item.id, item.nama_mapel);
+                return (
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="h-4 w-4 shrink-0 rounded border border-slate-300"
+                      style={{ backgroundColor: `#${fill}` }}
+                      aria-hidden="true"
+                    />
+                    <span className="font-mono text-[11px] uppercase text-slate-600">
+                      {manual ? fill : 'Otomatis'}
+                    </span>
+                  </div>
+                );
+              },
             },
             {
               key: 'status',
@@ -240,7 +315,7 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
         title={editingMapel ? 'Perbarui Data Mapel' : 'Tambah Mata Pelajaran Baru'}
         subtitle={
           editingMapel
-            ? 'Perbarui nama mata pelajaran yang sudah terdaftar.'
+            ? 'Perbarui nama dan warna mata pelajaran yang sudah terdaftar.'
             : 'Mata pelajaran ini akan tersedia pada agenda dan jadwal.'
         }
         size="sm"
@@ -261,7 +336,7 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
           </>
         )}
       >
-        <div className="p-5">
+        <div className="p-5 space-y-4">
           <FormField label="Nama Mata Pelajaran" htmlFor="mapel-nama" required>
             <TextInput
               id="mapel-nama"
@@ -272,6 +347,78 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
               value={namaInput}
               onChange={(e) => setNamaInput(e.target.value)}
             />
+          </FormField>
+
+          <FormField
+            label="Warna Latar di Excel"
+            htmlFor="mapel-warna"
+            hint={
+              warnaManual
+                ? `Warna ini akan dipakai untuk sel ${namaInput || 'mata pelajaran ini'} di file Excel.`
+                : `Belum diatur — Excel memakai warna otomatis (${previewFill}).`
+            }
+          >
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  id="mapel-warna"
+                  type="color"
+                  value={withHash(previewFill)}
+                  onChange={(e) => setWarnaInput(e.target.value.replace('#', '').toUpperCase())}
+                  className="h-8 w-11 shrink-0 cursor-pointer rounded-lg border border-slate-200 bg-white p-1"
+                  title="Pilih warna"
+                  aria-label="Pilih warna mata pelajaran"
+                />
+                <TextInput
+                  value={warnaInput}
+                  maxLength={6}
+                  placeholder="Otomatis"
+                  onChange={(e) =>
+                    setWarnaInput(
+                      e.target.value.replace(/[^0-9a-fA-F]/g, '').toUpperCase().slice(0, 6),
+                    )
+                  }
+                  className="min-w-0 flex-1 font-mono uppercase"
+                  aria-label="Kode hex warna"
+                />
+                <button
+                  type="button"
+                  onClick={() => setWarnaInput('')}
+                  className={formStyles.ghostBtn}
+                  title="Kembalikan ke warna otomatis"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Otomatis
+                </button>
+                <button
+                  type="button"
+                  onClick={pickRandomColor}
+                  className={formStyles.ghostBtn}
+                  title="Pilih warna acak dari palet"
+                >
+                  <Wand2 className="w-3.5 h-3.5" />
+                  Acak
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                {SUBJECT_PALETTE.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setWarnaInput(c)}
+                    title={`#${c}`}
+                    aria-label={`Pilih warna ${c}`}
+                    className={`h-6 w-6 rounded-md border transition ${
+                      warnaInput === c
+                        ? 'border-slate-800 ring-2 ring-slate-300'
+                        : 'border-slate-200 hover:border-slate-400'
+                    }`}
+                    style={{ backgroundColor: `#${c}` }}
+                  />
+                ))}
+              </div>
+            </div>
           </FormField>
         </div>
       </FormModal>
