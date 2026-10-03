@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { formatDateMedium, formatDateShort } from '../../../utils/date';
 import {
-  Printer,
+  FileDown,
   RefreshCw,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
 import { PageHeader } from '../../../components/admin/PageHeader';
 import { EmptyState, LoadingState, ErrorState } from '../../../components/common';
-import { ReportPrintLayout } from '../../../components/admin/report/ReportPrintLayout';
-import { useReportPrint } from '../../../hooks/useReportPrint';
+import { useReportPdf } from '../../../hooks/useReportPdf';
+import { useSchoolName } from '../../../contexts/SettingsContext';
 import { createPrintModel, cellText } from '../../../services/report/printReportModel';
 import { mapFriendlyError } from '../../../utils/friendlyError';
 import {
@@ -28,6 +29,9 @@ interface RekapMingguanPageProps {
 }
 
 export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast }) => {
+  // Nama sekolah dari Pengaturan — dipakai kop dan footer dokumen PDF.
+  const schoolName = useSchoolName();
+
   // Rentang minggu berjalan
   const [currentWeekDate, setCurrentWeekDate] = useState<Date>(new Date());
   const weekRange = getMondayToSundayRange(currentWeekDate);
@@ -103,19 +107,6 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
     setCurrentWeekDate(new Date());
   };
 
-  const formatDateDisplay = (dateStr: string) => {
-    try {
-      const d = new Date(dateStr + 'T00:00:00');
-      return d.toLocaleDateString('id-ID', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      });
-    } catch {
-      return dateStr;
-    }
-  };
-
   const totals = reportResult?.totals;
   const activeAYName =
     reportResult?.academicYear?.name ||
@@ -125,27 +116,44 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
   /**
    * Model cetak (K-13, K-14). Landscape — tabel 10 kolom tidak akan terpotong
    * (K-15). Tidak ada foto: kolom hanya angka & nama.
+   *
+   * Kolom dan urutannya SAMA PERSIS dengan rekap bulanan; yang berbeda hanya
+   * judul, periode, dan angka di dalamnya. Itulah yang membuat kedua dokumen
+   * tidak mungkin menyimpang satu dari yang lain.
    */
   const printModel = useMemo(
     () =>
       createPrintModel({
+        documentKind: 'mingguan',
         orientation: 'landscape',
-        title: 'LAPORAN REKAPITULASI PEMBELAJARAN MINGGUAN',
-        subtitle: `Periode: ${formatDateDisplay(weekRange.monday)} s.d. ${formatDateDisplay(weekRange.sunday)}`,
-        periodInfo: `${weekRange.monday} s.d. ${weekRange.sunday}`,
+        title: 'Laporan Rekapitulasi Pembelajaran Mingguan',
+        periodInfo: `${formatDateMedium(weekRange.monday)} s.d. ${formatDateMedium(weekRange.sunday)}`,
+        fileLabel: `${weekRange.monday}_sd_${weekRange.sunday}`,
         academicYearName: activeAYName,
         columns: [
-          { key: 'no', header: 'No', align: 'center', width: 'w-8' },
+          { key: 'no', header: 'No', align: 'center', ptWidth: 22 },
           { key: 'guru', header: 'Nama Guru', align: 'left' },
-          { key: 'jpTerjadwal', header: 'JP Terjadwal', align: 'center', width: 'w-16' },
-          { key: 'jpRealisasi', header: 'JP Realisasi', align: 'center', width: 'w-16' },
-          { key: 'durasiTerjadwal', header: 'Durasi Terjadwal', align: 'center', width: 'w-20' },
-          { key: 'durasiRealisasi', header: 'Durasi Realisasi', align: 'center', width: 'w-20' },
-          { key: 'badalMasuk', header: 'Badal Masuk', align: 'center', width: 'w-14' },
-          { key: 'badalKeluar', header: 'Badal Keluar', align: 'center', width: 'w-14' },
-          { key: 'belumRealisasi', header: 'Belum Realisasi', align: 'center', width: 'w-16' },
-          { key: 'capaian', header: 'Capaian %', align: 'center', width: 'w-16' },
+          { key: 'jpTerjadwal', header: 'JP Terjadwal', align: 'center', ptWidth: 54 },
+          { key: 'jpRealisasi', header: 'JP Realisasi', align: 'center', ptWidth: 54 },
+          { key: 'durasiTerjadwal', header: 'Durasi Terjadwal', align: 'center', ptWidth: 68 },
+          { key: 'durasiRealisasi', header: 'Durasi Realisasi', align: 'center', ptWidth: 68 },
+          { key: 'badalMasuk', header: 'Badal Masuk', align: 'center', ptWidth: 50 },
+          { key: 'badalKeluar', header: 'Badal Keluar', align: 'center', ptWidth: 50 },
+          { key: 'belumRealisasi', header: 'Belum Realisasi', align: 'center', ptWidth: 58 },
+          { key: 'capaian', header: 'Capaian %', align: 'center', ptWidth: 52 },
         ],
+        summary: totals
+          ? [
+              { label: 'JP Terjadwal', value: `${cellText(totals.totalJpScheduled)} JP` },
+              { label: 'JP Terealisasi', value: `${cellText(totals.totalJpRealized)} JP` },
+              {
+                label: 'Badal',
+                value: `+${totals.totalBadalIn} / \u2212${totals.totalBadalOut}`,
+              },
+              { label: 'Belum Realisasi', value: `${cellText(totals.totalNotRealized)} JP` },
+              { label: 'Capaian', value: `${cellText(totals.overallRealizationRate)}%` },
+            ]
+          : undefined,
         rows: (reportResult?.teacherSummaries ?? []).map((item, idx) => ({
           no: cellText(idx + 1),
           guru: cellText(item.teacherName),
@@ -177,11 +185,14 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
     [reportResult, weekRange.monday, weekRange.sunday, activeAYName, totals]
   );
 
-  // K-06 & K-11: cetak hanya saat data siap dan tidak ada kegagalan.
-  const { print } = useReportPrint({
-    orientation: printModel.orientation,
-    canPrint: !isLoading && !loadError && printModel.rows.length > 0,
+  // K-06 & K-11: unduh hanya saat data siap dan tidak ada kegagalan.
+  const { downloadPdf, isPreparing } = useReportPdf({
+    model: printModel,
+    schoolName,
+    canExport: !isLoading && !loadError,
     onBlocked: (reason) => showToast('info', reason),
+    onSuccess: (fileName) => showToast('success', `PDF dibuat: ${fileName}`),
+    onError: (message) => showToast('error', message),
   });
 
   return (
@@ -202,17 +213,17 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
                 <span>Segarkan</span>
               </button>
               <button
-                onClick={print}
-                disabled={isLoading || Boolean(loadError) || printModel.rows.length === 0}
+                onClick={downloadPdf}
+                disabled={isLoading || Boolean(loadError) || isPreparing}
                 title={
                   loadError
-                    ? 'Tidak dapat mencetak: data gagal dimuat'
-                    : 'Cetak laporan rekap mingguan'
+                    ? 'Tidak dapat mengunduh: data gagal dimuat'
+                    : 'Unduh laporan rekap mingguan sebagai PDF'
                 }
                 className="px-3 py-2 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition flex items-center gap-1.5 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Cetak Laporan</span>
+                <FileDown className={`w-3.5 h-3.5 ${isPreparing ? 'animate-pulse' : ''}`} />
+                <span>{isPreparing ? 'Menyiapkan…' : 'Unduh PDF'}</span>
               </button>
             </div>
           }
@@ -285,7 +296,7 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
 
                <div className="px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 text-center">
                 <span>
-                  {formatDateDisplay(weekRange.monday)} &mdash; {formatDateDisplay(weekRange.sunday)}
+                  {formatDateShort(weekRange.monday)} &mdash; {formatDateShort(weekRange.sunday)}
                 </span>
               </div>
 
@@ -342,7 +353,7 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
           </div>
         </div>
 
-        {/* K-11: state error eksplisit; mencetak otomatis terblokir. */}
+        {/* K-11: state error eksplisit; unduhan otomatis terblokir. */}
         {loadError && (
           <div className="bg-white rounded-xl border border-rose-200 shadow-2xs">
             <ErrorState
@@ -508,76 +519,9 @@ export const RekapMingguanPage: React.FC<RekapMingguanPageProps> = ({ showToast 
         </div>
       </div>
 
-      {/* PRINT VERSION (Shown ONLY on Print).
-          Dirender dari `printModel` (landscape, tanpa foto) — K-13/K-14/K-15.
-          Kelas `print-table` memberi header berulang + baris utuh (K-02/K-03). */}
-      <ReportPrintLayout
-        title={printModel.title}
-        subtitle={printModel.subtitle}
-        periodInfo={printModel.periodInfo}
-        academicYearName={printModel.academicYearName}
-        hasRows={printModel.rows.length > 0}
-        emptyMessage={printModel.emptyMessage}
-      >
-        <table className="print-table w-full text-left text-xs border-collapse border border-slate-900">
-          <thead className="bg-slate-100 border-b border-slate-900 font-bold uppercase text-center">
-            <tr>
-              {printModel.columns.map((col, ci) => (
-                <th
-                  key={col.key}
-                  className={`p-1.5 ${col.width ?? ''} ${
-                    ci < printModel.columns.length - 1 ? 'border-r border-slate-900' : ''
-                  } ${col.align === 'left' ? 'text-left' : 'text-center'}`}
-                >
-                  {col.header}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-400">
-            {printModel.rows.map((row, i) => (
-              <tr key={i}>
-                {printModel.columns.map((col, ci) => (
-                  <td
-                    key={col.key}
-                    className={`p-1.5 ${
-                      ci < printModel.columns.length - 1 ? 'border-r border-slate-900' : ''
-                    } ${
-                      col.key === 'guru'
-                        ? 'font-medium text-left'
-                        : col.key === 'capaian'
-                          ? 'text-center font-bold'
-                          : col.key === 'jpTerjadwal' || col.key === 'jpRealisasi'
-                            ? 'text-center font-bold'
-                            : col.key === 'durasiTerjadwal' || col.key === 'durasiRealisasi'
-                              ? 'text-center font-mono'
-                              : 'text-center'
-                    }`}
-                  >
-                    {row[col.key]}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-          {printModel.totalsRow && (
-            <tfoot className="bg-slate-100 border-t-2 border-slate-900 font-bold">
-              <tr>
-                {printModel.columns.map((col, ci) => (
-                  <td
-                    key={col.key}
-                    className={`p-1.5 ${
-                      ci < printModel.columns.length - 1 ? 'border-r border-slate-900' : ''
-                    } text-center`}
-                  >
-                    {printModel.totalsRow![col.key]}
-                  </td>
-                ))}
-              </tr>
-            </tfoot>
-          )}
-        </table>
-      </ReportPrintLayout>
+      {/* Dokumen cetak dihasilkan mesin PDF terprogram dari `printModel`
+          (landscape, tanpa foto) — K-13/K-14/K-15. Tidak ada tabel cetak
+          tersembunyi di sini, dan lebar kolom ditentukan model, bukan CSS. */}
     </div>
   );
 };

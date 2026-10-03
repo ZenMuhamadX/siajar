@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { localDateString } from '../../../utils/date';
+import { formatDateLong, formatDateMedium, localDateString } from '../../../utils/date';
 import {
-  Printer,
+  FileDown,
   RefreshCw,
   Eye,
   Camera,
@@ -11,9 +11,9 @@ import {
 import { PageHeader } from '../../../components/admin/PageHeader';
 import { DataTable, FilterBar, ErrorState, type Column } from '../../../components/common';
 import { DailyReportDetailModal } from '../../../components/admin/report/DailyReportDetailModal';
-import { ReportPrintLayout } from '../../../components/admin/report/ReportPrintLayout';
 import { PhotoLightboxModal } from '../../../components/PhotoLightboxModal';
-import { useReportPrint } from '../../../hooks/useReportPrint';
+import { useReportPdf } from '../../../hooks/useReportPdf';
+import { useSchoolName } from '../../../contexts/SettingsContext';
 import { createPrintModel, cellText } from '../../../services/report/printReportModel';
 import { mapFriendlyError } from '../../../utils/friendlyError';
 import {
@@ -26,7 +26,8 @@ import {
 } from '../../../services/reportService';
 import { getAcademicYears } from '../../../services/scheduleService';
 import { getDaftarGuru, getDaftarMapel } from '../../../services/agendaService';
-import { DAFTAR_KELAS, type Guru, type MataPelajaran } from '../../../types';
+import { type Guru, type MataPelajaran } from '../../../types';
+import { useClassLabels } from '../../../contexts/ClassContext';
 import type { AcademicYear } from '../../../types/schedule';
 
 interface RekapHarianPageProps {
@@ -34,6 +35,11 @@ interface RekapHarianPageProps {
 }
 
 export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) => {
+  // Nama sekolah dari Pengaturan — dipakai kop dan footer dokumen PDF.
+  const schoolName = useSchoolName();
+  // Sumber kelas: master data, bukan konstanta hardcoded.
+  const kelasLabels = useClassLabels();
+
   // Tanggal default: Hari ini
   const todayStr = localDateString();
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
@@ -117,20 +123,6 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
     fetchReport();
   }, [fetchReport]);
 
-  const formatDateIndo = (dateStr: string) => {
-    try {
-      const d = new Date(dateStr + 'T00:00:00');
-      return d.toLocaleDateString('id-ID', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      });
-    } catch {
-      return dateStr;
-    }
-  };
-
   // Badge status memakai peta gaya yang sama dengan halaman rekap lain
   // (src/services/report/reportStatus.ts) supaya tampilan konsisten.
   const renderStatusBadge = (status: ReportItemStatus) => (
@@ -189,27 +181,42 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
   };
 
   /**
-   * Model cetak (K-13, K-14). Dibangun MURNI dari state yang sudah jadi, tanpa
-   * foto: kolom dokumentasi hanya "Ada"/"-", tidak pernah URL gambar.
-   * Orientasi portrait — kolom harian tidak banyak.
+   * Model cetak (K-13, K-14). Dibangun MURNI dari state yang sudah jadi.
+   *
+   * Tanpa kolom Dokumentasi: dokumen cetak hanya memuat informasi tekstual
+   * (waktu, kelas, mapel, guru, status). Status keberadaan foto tetap tampil di
+   * tabel layar — dokumen arsip tidak perlu menyatakannya, apalagi gambarnya.
+   *
+   * Portrait (7 kolom), dan — karena barisnya per slot, bukan agregat per guru —
+   * dokumen ini TIDAK memakai baris TOTAL. Angka agregatnya dipindahkan ke strip
+   * ringkasan di bawah judul, sama seperti kartu ringkasan di layar.
    */
   const printModel = useMemo(
     () =>
       createPrintModel({
+        documentKind: 'harian',
         orientation: 'portrait',
-        title: 'LAPORAN REKAP PEMBELAJARAN HARIAN',
-        subtitle: `Hari, Tanggal: ${formatDateIndo(selectedDate)}`,
-        periodInfo: selectedDate,
+        title: 'Laporan Rekap Pembelajaran Harian',
+        subtitle: `Hari, Tanggal: ${formatDateLong(selectedDate)}`,
+        periodInfo: formatDateMedium(selectedDate),
+        fileLabel: selectedDate,
         academicYearName: activeAYName,
         columns: [
-          { key: 'no', header: 'No', align: 'center', width: 'w-8' },
-          { key: 'waktu', header: 'Waktu', align: 'center', width: 'w-24' },
-          { key: 'kelas', header: 'Kelas', align: 'center', width: 'w-16' },
+          { key: 'no', header: 'No', align: 'center', ptWidth: 20 },
+          { key: 'waktu', header: 'Waktu', align: 'center', ptWidth: 60 },
+          { key: 'kelas', header: 'Kelas', align: 'center', ptWidth: 40 },
+          // Mata Pelajaran menyerap sisa lebar — termasuk ruang yang dulu dipakai
+          // kolom Dokumentasi, sehingga nama mapel panjang membungkus penuh.
           { key: 'mapel', header: 'Mata Pelajaran', align: 'left' },
-          { key: 'guruTerjadwal', header: 'Guru Terjadwal', align: 'left' },
-          { key: 'guruAktual', header: 'Guru Aktual', align: 'left' },
-          { key: 'status', header: 'Status', align: 'center', width: 'w-20' },
-          { key: 'dokumentasi', header: 'Dokumentasi', align: 'center', width: 'w-20' },
+          { key: 'guruTerjadwal', header: 'Guru Terjadwal', align: 'left', ptWidth: 86 },
+          { key: 'guruAktual', header: 'Guru Aktual', align: 'left', ptWidth: 86 },
+          { key: 'status', header: 'Status', align: 'center', ptWidth: 52 },
+        ],
+        summary: [
+          { label: 'Total Jadwal', value: `${cellText(totalSlots)} JP` },
+          { label: 'Terealisasi', value: `${cellText(completedSlots)} JP` },
+          { label: 'Badal', value: `${cellText(badalSlots)} JP` },
+          { label: 'Belum Terealisasi', value: `${cellText(missingSlots)} JP` },
         ],
         rows: filteredItems.map((r, i) => ({
           no: cellText(i + 1),
@@ -222,19 +229,28 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
           guruTerjadwal: cellText(r.scheduledTeacherName),
           guruAktual: `${cellText(r.actualTeacherName)}${r.isBadal ? ' (Badal)' : ''}`,
           status: cellText(REPORT_STATUS_PRINT_LABEL[r.status]),
-          // Foto hanya statusnya, bukan gambarnya (K-13).
-          dokumentasi: r.hasDocumentation ? 'Ada Foto' : '-',
         })),
         emptyMessage: 'Tidak ada jadwal atau agenda pada tanggal ini untuk filter yang dipilih.',
       }),
-    [filteredItems, selectedDate, activeAYName]
+    [
+      filteredItems,
+      selectedDate,
+      activeAYName,
+      totalSlots,
+      completedSlots,
+      badalSlots,
+      missingSlots,
+    ]
   );
 
-  // K-06 & K-11: cetak hanya boleh saat data siap dan tidak ada kegagalan.
-  const { print } = useReportPrint({
-    orientation: printModel.orientation,
-    canPrint: !isLoading && !loadError && printModel.rows.length > 0,
+  // K-06 & K-11: unduh hanya boleh saat data siap dan tidak ada kegagalan.
+  const { downloadPdf, isPreparing } = useReportPdf({
+    model: printModel,
+    schoolName,
+    canExport: !isLoading && !loadError,
     onBlocked: (reason) => showToast('info', reason),
+    onSuccess: (fileName) => showToast('success', `PDF dibuat: ${fileName}`),
+    onError: (message) => showToast('error', message),
   });
 
   const selectClass =
@@ -367,17 +383,17 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
                 <span>Segarkan</span>
               </button>
               <button
-                onClick={print}
-                disabled={isLoading || Boolean(loadError) || printModel.rows.length === 0}
+                onClick={downloadPdf}
+                disabled={isLoading || Boolean(loadError) || isPreparing}
                 title={
                   loadError
-                    ? 'Tidak dapat mencetak: data gagal dimuat'
-                    : 'Cetak laporan rekap harian'
+                    ? 'Tidak dapat mengunduh: data gagal dimuat'
+                    : 'Unduh laporan rekap harian sebagai PDF'
                 }
                 className="px-3 py-2 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition flex items-center gap-1.5 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Cetak Laporan</span>
+                <FileDown className={`w-3.5 h-3.5 ${isPreparing ? 'animate-pulse' : ''}`} />
+                <span>{isPreparing ? 'Menyiapkan…' : 'Unduh PDF'}</span>
               </button>
             </div>
           }
@@ -456,7 +472,7 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
                 className={selectClass}
               >
                 <option value="SEMUA">Semua Kelas</option>
-                {DAFTAR_KELAS.map((k) => (
+                {kelasLabels.map((k) => (
                   <option key={k} value={k}>
                     {k}
                   </option>
@@ -505,8 +521,8 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
           }
         />
 
-        {/* K-11: state error eksplisit — pencetakan otomatis terblokir karena
-            `canPrint` pada useReportPrint bernilai false saat `loadError` ada. */}
+        {/* K-11: state error eksplisit — unduhan otomatis terblokir karena
+            `canExport` pada useReportPdf bernilai false saat `loadError` ada. */}
         {loadError ? (
           <div className="bg-white rounded-xl border border-rose-200 shadow-2xs">
             <ErrorState
@@ -517,7 +533,7 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
           </div>
         ) : (
           <DataTable
-            title={`Daftar Jadwal & Agenda • ${formatDateIndo(selectedDate)}`}
+            title={`Daftar Jadwal & Agenda • ${formatDateLong(selectedDate)}`}
             subtitle={`Menampilkan ${filteredItems.length} slot pembelajaran`}
             columns={columns}
             data={filteredItems}
@@ -530,62 +546,10 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
         )}
       </div>
 
-      {/* PRINT VERSION (Shown ONLY on Print).
-          Tabel dirender dari `printModel` — bukan dari state UI — sehingga
-          tidak ada kolom/foto layar yang bocor ke kertas (K-13/K-14).
-          Kelas `print-table` memberi header berulang + baris tak terpotong
-          (K-02/K-03) dan kontras aman (K-16). */}
-      <ReportPrintLayout
-        title={printModel.title}
-        subtitle={printModel.subtitle}
-        periodInfo={printModel.periodInfo}
-        academicYearName={printModel.academicYearName}
-        hasRows={printModel.rows.length > 0}
-        emptyMessage={printModel.emptyMessage}
-      >
-        <table className="print-table w-full text-left text-xs border-collapse border border-slate-900">
-          <thead className="bg-slate-100 border-b border-slate-900 font-bold uppercase">
-            <tr>
-              {printModel.columns.map((col, ci) => (
-                <th
-                  key={col.key}
-                  className={`p-1.5 ${col.width ?? ''} ${
-                    ci < printModel.columns.length - 1 ? 'border-r border-slate-900' : ''
-                  } ${col.align === 'center' ? 'text-center' : 'text-left'}`}
-                >
-                  {col.header}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-400">
-            {printModel.rows.map((row, i) => (
-              <tr key={i}>
-                {printModel.columns.map((col, ci) => (
-                  <td
-                    key={col.key}
-                    className={`p-1.5 ${
-                      ci < printModel.columns.length - 1 ? 'border-r border-slate-900' : ''
-                    } ${
-                      col.key === 'waktu'
-                        ? 'text-center font-mono'
-                        : col.key === 'kelas'
-                          ? 'text-center font-bold'
-                          : col.key === 'mapel'
-                            ? 'font-medium'
-                            : col.align === 'center'
-                              ? 'text-center'
-                              : ''
-                    }`}
-                  >
-                    {row[col.key]}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </ReportPrintLayout>
+      {/* Dokumen cetak dihasilkan mesin PDF terprogram dari `printModel` —
+          bukan dari DOM. Jadi tidak ada tabel cetak tersembunyi di sini yang
+          bisa membawa kolom/foto layar ke kertas (K-13/K-14), dan orientasi
+          serta lebar kolom ditentukan model, bukan CSS halaman (K-15). */}
 
       {/* Modal Detail Agenda */}
       <DailyReportDetailModal

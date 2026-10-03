@@ -13,42 +13,90 @@
  *
  * Aturan yang ditegakkan di sini:
  *   1. Semua baris adalah STRING SIAP TAMPIL. Tidak ada komponen, tidak ada
- *      `Date` yang diformat di dalam JSX cetak.
+ *      `Date` yang diformat di dalam dokumen cetak.
  *   2. TIDAK ADA field gambar. `PrintReportRow` hanya boleh memuat boolean
  *      `hasDocumentation`. Signed URL / `storage_path` dilarang masuk tipe ini
  *      (lihat `assertNoImages` untuk penjaga runtimenya).
- *   3. Model sadar-halaman: judul, periode, kolom, baris, total, pesan kosong.
- *   4. Orientasi ditentukan di sini, bukan di CSS halaman — supaya tabel 10
- *      kolom (mingguan/bulanan) memakai landscape dan tidak terpotong.
+ *   3. Model sadar-halaman: judul, periode, kolom, baris, total, ringkasan,
+ *      pesan kosong.
+ *   4. Orientasi dan LEBAR KOLOM ditentukan di sini, bukan di CSS halaman —
+ *      supaya tabel 10 kolom (mingguan/bulanan) memakai landscape dan tidak
+ *      terpotong.
+ *
+ * Model yang sama menyuplai SATU penulis dokumen
+ * (`services/export/reportPdfExport.ts`) untuk keempat jenis laporan: harian,
+ * mingguan, bulanan, dan jurnal. Karena itu keempatnya tidak mungkin menyimpang
+ * satu dari yang lain.
  */
 
-/** Orientasi lembar. Dipakai `useReportPrint` untuk menyisipkan `@page`. */
+/** Orientasi lembar dokumen. */
 export type PrintOrientation = 'portrait' | 'landscape';
+
+/**
+ * Jenis dokumen. Menentukan awalan nama berkas PDF sekaligus memberi penulis
+ * dokumen konteks bila kelak butuh perlakuan khusus per jenis.
+ */
+export type ReportDocumentKind = 'harian' | 'mingguan' | 'bulanan' | 'jurnal';
 
 export interface PrintColumn {
   key: string;
   header: string;
   /** Perataan isi kolom. */
   align?: 'left' | 'center' | 'right';
-  /** Lebar kolom (kelas Tailwind, mis. "w-16"). Opsional. */
-  width?: string;
+  /**
+   * Lebar kolom dalam **poin** (satuan cetak), dipakai penulis PDF.
+   *
+   * Bila kosong, kolom ini menyerap sisa lebar halaman — inilah yang dipakai
+   * kolom teks panjang (Nama Guru, Materi, Mata Pelajaran) agar teksnya
+   * membungkus penuh, bukan terpotong.
+   */
+  ptWidth?: number;
+}
+
+/** Satu indikator pada strip ringkasan (mis. "Total Jadwal" → "32 JP"). */
+export interface PrintSummaryItem {
+  label: string;
+  value: string;
 }
 
 /** Satu baris dokumen: nilai sudah berupa string siap cetak. */
 export type PrintReportRow = Record<string, string>;
 
 export interface PrintReportModel {
-  /** Dokumen beroritentasi halaman. */
+  /** Jenis laporan — menentukan awalan nama berkas. */
+  documentKind: ReportDocumentKind;
+  /** Dokumen berorientasi halaman. */
   orientation: PrintOrientation;
   title: string;
+  /** Konteks cakupan (opsional), mis. "Kelas: XI RPL 1 • Guru: Semua Guru". */
   subtitle?: string;
-  /** Label periode yang selalu ikut tercetak di kop judul. */
+  /**
+   * Nilai periode TANPA awalan "Periode:" — penulis dokumen yang menambahkan
+   * labelnya. Ini mencegah keluaran seperti "Periode: Periode: …" yang dulu
+   * terjadi karena tiap halaman mengirim teks yang sudah berlabel.
+   */
   periodInfo: string;
   academicYearName?: string;
   columns: PrintColumn[];
   rows: PrintReportRow[];
   /** Baris total (opsional); nilainya juga string siap tampil. */
   totalsRow?: PrintReportRow;
+  /**
+   * Strip ringkasan di bawah judul (opsional). Dipakai harian (4 indikator)
+   * dan mingguan/bulanan (5 indikator) supaya dokumen punya "kepala" yang
+   * sama, bukan langsung masuk ke tabel.
+   */
+  summary?: PrintSummaryItem[];
+  /**
+   * Token periode untuk nama berkas, sudah ramah-slug:
+   *   harian   → "2026-10-01"
+   *   mingguan → "2026-09-28_sd_2026-10-04"
+   *   bulanan  → "2026-10"
+   *   jurnal   → "2026-10-01"
+   * Sengaja dipisah dari `periodInfo` karena `periodInfo` untuk manusia
+   * ("1 Oktober 2026") sedangkan ini untuk nama berkas.
+   */
+  fileLabel: string;
   /** Teks yang dicetak saat `rows` kosong — dokumen kosong tidak boleh ambigu. */
   emptyMessage: string;
 }
@@ -100,6 +148,10 @@ export function assertNoImages(model: PrintReportModel): void {
   };
   model.rows.forEach((r, i) => inspect(r, `rows[${i}]`));
   if (model.totalsRow) inspect(model.totalsRow, 'totalsRow');
+  // Strip ringkasan juga bagian dokumen — periksa dengan aturan yang sama.
+  model.summary?.forEach((item, i) => {
+    inspect({ label: item.label, value: item.value }, `summary[${i}]`);
+  });
 }
 
 /**

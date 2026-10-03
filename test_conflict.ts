@@ -27,7 +27,7 @@ const mockExisting: ScheduleItem[] = [
     period_number: 1,
     start_time: '08:00',
     end_time: '08:35',
-    class_id: 'KELAS 1',
+    kelas: '1A',
     subject_name: 'Matematika',
     teacher_name: 'Guru A',
     status: 'ACTIVE',
@@ -39,7 +39,7 @@ const mockExisting: ScheduleItem[] = [
     period_number: 2,
     start_time: '08:35',
     end_time: '09:10',
-    class_id: 'KELAS 1',
+    kelas: '1A',
     subject_name: 'Bahasa Indonesia',
     teacher_name: 'Guru B',
     status: 'ACTIVE',
@@ -51,7 +51,7 @@ const mockExisting: ScheduleItem[] = [
     period_number: 1,
     start_time: '08:00',
     end_time: '08:35',
-    class_id: 'KELAS 2',
+    kelas: '2A',
     subject_name: 'Tematik',
     teacher_name: 'Guru C',
     status: 'ACTIVE',
@@ -63,7 +63,7 @@ const mockExisting: ScheduleItem[] = [
     period_number: 1,
     start_time: '08:00',
     end_time: '08:35',
-    class_id: 'KELAS 3',
+    kelas: '3A',
     subject_name: 'PAI',
     teacher_name: 'Guru D',
     status: 'ARCHIVED', // Archived should not cause conflict!
@@ -77,7 +77,7 @@ const teacherConflict = checkScheduleConflict(
     day: 'MONDAY',
     start_time: '08:20',
     end_time: '08:55',
-    class_id: 'KELAS 4',
+    kelas: '4A',
     teacher_name: 'Guru A', // Guru A already at KELAS 1 08:00-08:35
   },
   mockExisting
@@ -91,7 +91,7 @@ const classConflict = checkScheduleConflict(
     day: 'MONDAY',
     start_time: '08:20',
     end_time: '08:55',
-    class_id: 'KELAS 1', // KELAS 1 already has Guru A 08:00-08:35 and Guru B 08:35-09:10
+    kelas: '1A', // KELAS 1 already has Guru A 08:00-08:35 and Guru B 08:35-09:10
     teacher_name: 'Guru Z',
   },
   mockExisting
@@ -105,7 +105,7 @@ const validSimultaneous = checkScheduleConflict(
     day: 'MONDAY',
     start_time: '08:00',
     end_time: '08:35',
-    class_id: 'KELAS 5',
+    kelas: '5A',
     teacher_name: 'Guru E',
   },
   mockExisting
@@ -119,7 +119,7 @@ const validBackToBack = checkScheduleConflict(
     day: 'MONDAY',
     start_time: '08:35',
     end_time: '09:10',
-    class_id: 'KELAS 2',
+    kelas: '2A',
     teacher_name: 'Guru A', // Guru A finishes in KELAS 1 at 08:35, then teaches KELAS 2 at 08:35
   },
   mockExisting
@@ -133,7 +133,7 @@ const archiveIgnore = checkScheduleConflict(
     day: 'MONDAY',
     start_time: '08:00',
     end_time: '08:35',
-    class_id: 'KELAS 3',
+    kelas: '3A',
     teacher_name: 'Guru F', // KELAS 3 has Guru D at 08:00-08:35 but status is ARCHIVED
   },
   mockExisting
@@ -148,7 +148,7 @@ const selfUpdate = checkScheduleConflict(
     day: 'MONDAY',
     start_time: '08:00',
     end_time: '08:35',
-    class_id: 'KELAS 1',
+    kelas: '1A',
     teacher_name: 'Guru A',
   },
   mockExisting
@@ -162,7 +162,7 @@ const invalidTime = checkScheduleConflict(
     day: 'MONDAY',
     start_time: '09:00',
     end_time: '08:00',
-    class_id: 'KELAS 1',
+    kelas: '1A',
     teacher_name: 'Guru A',
   },
   mockExisting

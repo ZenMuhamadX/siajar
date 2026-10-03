@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { localDateString, formatDateShort, formatDateLong } from '../utils/date';
-import { DAFTAR_KELAS, type Guru } from '../types';
+import { type Guru } from '../types';
+import { useClassLabels } from '../contexts/ClassContext';
 import type { AcademicYear } from '../types/schedule';
 import { deleteAgenda, getDaftarGuru } from '../services/agendaService';
 import { getAcademicYears } from '../services/scheduleService';
@@ -15,12 +16,11 @@ import {
 } from '../services/report/reportQuery';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { AgendaDetailDrawer } from '../components/report/AgendaDetailDrawer';
-import { ReportPrintLayout } from '../components/admin/report/ReportPrintLayout';
 import { createPrintModel, cellText } from '../services/report/printReportModel';
 import {
-  downloadJournalPdf,
-  JournalPdfExportError,
-} from '../services/export/journalPdfExport';
+  downloadReportPdf,
+  ReportPdfExportError,
+} from '../services/export/reportPdfExport';
 import { mapFriendlyError } from '../utils/friendlyError';
 import { useAuth } from '../contexts/AuthContext';
 import { useSchoolName } from '../contexts/SettingsContext';
@@ -72,6 +72,8 @@ const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgenda }) => {
   const { isAdmin } = useAuth();
   const schoolName = useSchoolName();
+  // Sumber kelas: master data, bukan konstanta hardcoded.
+  const kelasLabels = useClassLabels();
 
   // ---- Filter state ----
   // Default "Hari Ini" — halaman ini dipakai sebagai papan pemantauan harian,
@@ -257,19 +259,30 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
     }
   };
 
-  // Label periode dipakai layar DAN dokumen cetak; memoized agar `useCallback`
-  // model cetak & `useMemo` kolom tidak dibuat ulang setiap render.
-  const periodeLabel = useMemo(() => {
+  /**
+   * Rentang tanggal siap tampil.
+   *
+   * Dipisah dari `periodeLabel` karena keduanya dipakai di tempat berbeda:
+   * label layar memuat nama preset ("Hari Ini: …"), sedangkan dokumen PDF hanya
+   * butuh rentangnya — baris "Periode:" pada dokumen sudah menambahkan
+   * labelnya sendiri, sehingga tidak ada keluaran "Periode: Hari Ini: …".
+   */
+  const periodeRange = useMemo(() => {
     if (periodeType === 'custom' && (customStartDate || customEndDate)) {
-      return `Periode: ${formatDateShort(customStartDate || dateRange.startDate)} s.d. ${formatDateShort(
-        customEndDate || dateRange.endDate
+      return `${formatDateShort(customStartDate || dateRange.startDate)} s.d. ${formatDateShort(
+        customEndDate || dateRange.endDate,
       )}`;
     }
-    const preset = PERIODE_OPTIONS.find((o) => o.value === periodeType)?.label;
-    return `${preset || 'Periode'}: ${formatDateShort(dateRange.startDate)} s.d. ${formatDateShort(
-      dateRange.endDate
-    )}`;
+    return `${formatDateShort(dateRange.startDate)} s.d. ${formatDateShort(dateRange.endDate)}`;
   }, [periodeType, customStartDate, customEndDate, dateRange.startDate, dateRange.endDate]);
+
+  const periodeLabel = useMemo(() => {
+    if (periodeType === 'custom' && (customStartDate || customEndDate)) {
+      return `Periode: ${periodeRange}`;
+    }
+    const preset = PERIODE_OPTIONS.find((o) => o.value === periodeType)?.label;
+    return `${preset || 'Periode'}: ${periodeRange}`;
+  }, [periodeType, customStartDate, customEndDate, periodeRange]);
 
   const isFiltered =
     periodeType !== 'hari_ini' ||
@@ -305,24 +318,30 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
    *      tekstual yang diminta; status kehadiran siswa dan bukti foto adalah
    *      kebutuhan dashboard, bukan dokumen arsip.
    *
-   * Kolom "Materi" sengaja TIDAK diletakkan paling kanan sebagai kolom sempit,
-   * melainkan tetap memperoleh sisa lebar tabel (lihat `COLUMN_WIDTHS` di
-   * penulis PDF) sehingga teksnya membungkus penuh, tidak pernah terpotong.
+   * Kolom "Materi" sengaja TIDAK diberi lebar tetap, melainkan menyerap sisa
+   * lebar tabel (lihat `resolveColumnWidths` di penulis PDF) sehingga teksnya
+   * membungkus penuh, tidak pernah terpotong.
+   *
+   * Lebar kolom ditulis dalam POIN (satuan cetak) karena model yang sama juga
+   * menyuplai layar — tidak ada lagi daftar lebar terpisah di penulis PDF yang
+   * bisa menyimpang dari kolomnya.
    */
   const buildJournalPrintModel = useCallback(
     (printRows: JournalRow[]) =>
       createPrintModel({
+        documentKind: 'jurnal',
         orientation: 'landscape',
         title: 'Laporan Rekapitulasi Agenda & KBM Kelas',
         subtitle: `Kelas: ${kelasLabel} • Guru: ${guruLabel}`,
-        periodInfo: periodeLabel,
+        periodInfo: periodeRange,
+        fileLabel: localDateString(),
         columns: [
-          { key: 'no', header: 'No', align: 'center', width: 'w-8' },
-          { key: 'tanggal', header: 'Tanggal', align: 'center', width: 'w-24' },
-          { key: 'kelas', header: 'Kelas', align: 'center', width: 'w-16' },
-          { key: 'guru', header: 'Nama Guru', align: 'left', width: 'w-44' },
-          { key: 'mapel', header: 'Mata Pelajaran', align: 'left', width: 'w-32' },
-          { key: 'jp', header: 'JP Ke-', align: 'center', width: 'w-12' },
+          { key: 'no', header: 'No', align: 'center', ptWidth: 24 },
+          { key: 'tanggal', header: 'Tanggal', align: 'center', ptWidth: 62 },
+          { key: 'kelas', header: 'Kelas', align: 'center', ptWidth: 48 },
+          { key: 'guru', header: 'Nama Guru', align: 'left', ptWidth: 118 },
+          { key: 'mapel', header: 'Mata Pelajaran', align: 'left', ptWidth: 88 },
+          { key: 'jp', header: 'JP Ke-', align: 'center', ptWidth: 34 },
           { key: 'materi', header: 'Materi', align: 'left' },
         ],
         rows: printRows
@@ -346,17 +365,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
           .map((row, i) => ({ no: cellText(i + 1), ...row })),
         emptyMessage: 'Tidak ada agenda pada periode dan filter yang dipilih.',
       }),
-    [kelasLabel, guruLabel, periodeLabel],
-  );
-
-  /**
-   * Model cetak halaman aktif. PDF yang diunduh dibangun ulang dari SELURUH
-   * baris hasil filter (lihat `handleDownloadPdf`); model ini menyuplai bentuk
-   * dokumen untuk pratinjau di layar sekaligus rujukan orientasi.
-   */
-  const printModel = useMemo(
-    () => buildJournalPrintModel(rows),
-    [buildJournalPrintModel, rows],
+    [kelasLabel, guruLabel, periodeRange],
   );
 
   /**
@@ -366,13 +375,14 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
    *   1. tarik SELURUH baris hasil filter (dibatasi `JOURNAL_PRINT_MAX_ROWS`) —
    *      bukan hanya halaman aktif, sehingga tidak ada data yang hilang diam-diam;
    *   2. bangun model cetak dari baris lengkap itu;
-   *   3. serahkan model ke penulis PDF (`downloadJournalPdf`), yang menyusun
+   *   3. serahkan model ke penulis PDF (`downloadReportPdf`), yang menyusun
    *      dokumen dari NOL — tanpa membaca DOM, sehingga tabel layar, paginasi,
    *      filter, dan kolom AKSI tidak mungkin ikut tercetak;
    *   4. bila hasil melebihi plafon, beri tahu pengguna bahwa dokumen dibatasi.
    *
-   * Tidak ada `window.print()` di jalur ini sama sekali; unduhan PDF ditangani
-   * pdfmake (pola yang sama dengan export jadwal .xlsx).
+   * Tidak ada `window.print()` di jalur ini sama sekali; dokumen ditulis oleh
+   * mesin PDF yang sama dengan rekap harian/mingguan/bulanan (pola yang sama
+   * dengan export jadwal .xlsx).
    */
   const handleDownloadPdf = useCallback(async () => {
     if (isPreparingPrint) return;
@@ -385,7 +395,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
       }
 
       const fullModel = buildJournalPrintModel(allRows);
-      const fileName = await downloadJournalPdf(fullModel, {
+      const fileName = await downloadReportPdf(fullModel, {
         schoolName,
         // Tanggal dokumen: hari ini, memakai formatter terpusat (WIB-safe).
         dateLabel: formatDateLong(localDateString()),
@@ -405,7 +415,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
       console.error('Gagal menyiapkan dokumen PDF:', err);
       // Error domain pdf sudah punya pesan Indonesia; sisanya dipetakan.
       const message =
-        err instanceof JournalPdfExportError
+        err instanceof ReportPdfExportError
           ? err.message
           : mapFriendlyError(err, { subject: 'dokumen PDF' });
       showToast('error', message);
@@ -699,7 +709,7 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
                 className="bg-transparent font-medium text-slate-800 w-full text-xs"
               >
                 <option value="SEMUA">Semua Kelas</option>
-                {DAFTAR_KELAS.map((k) => (
+                {kelasLabels.map((k) => (
                   <option key={k} value={k}>
                     {k}
                   </option>
@@ -808,65 +818,10 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
         }}
       />
 
-      {/* LAYOUT CETAK — satu kop resmi. Dirender dari `printModel`, bukan dari
-          state UI mentah (K-14). Orientasi landscape (K-15), header berulang +
-          baris utuh (K-02/K-03), kolom foto hanya status teks (K-13). */}
-      <ReportPrintLayout
-        title={printModel.title}
-        periodInfo={printModel.periodInfo}
-        subtitle={printModel.subtitle}
-        hasRows={printModel.rows.length > 0}
-        emptyMessage={printModel.emptyMessage}
-        signature={
-          <div className="grid grid-cols-2 text-center">
-            <div>
-              <p>Mengetahui,</p>
-              <p className="font-bold">Kepala Sekolah {schoolName}</p>
-              <div className="h-16" />
-              <p className="font-bold underline">( ........................................ )</p>
-            </div>
-            <div>
-              <p>Pengawas / Guru Piket,</p>
-              <p className="font-bold">{schoolName}</p>
-              <div className="h-16" />
-              <p className="font-bold underline">( ........................................ )</p>
-            </div>
-          </div>
-        }
-      >
-        <table className="print-table w-full text-left text-xs border-collapse border border-slate-900">
-          <thead className="bg-slate-100 border-b border-slate-900 font-bold uppercase">
-            <tr>
-              {printModel.columns.map((col, ci) => (
-                <th
-                  key={col.key}
-                  className={`p-1.5 ${col.width ?? ''} ${
-                    ci < printModel.columns.length - 1 ? 'border-r border-slate-900' : ''
-                  } ${col.align === 'left' ? 'text-left' : 'text-center'}`}
-                >
-                  {col.header}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-400">
-            {printModel.rows.map((row, i) => (
-              <tr key={i}>
-                {printModel.columns.map((col, ci) => (
-                  <td
-                    key={col.key}
-                    className={`p-1.5 ${
-                      ci < printModel.columns.length - 1 ? 'border-r border-slate-900' : ''
-                    } ${col.align === 'left' ? '' : 'text-center'}`}
-                  >
-                    {row[col.key]}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </ReportPrintLayout>
+      {/* Dokumen cetak dihasilkan mesin PDF terprogram (`downloadReportPdf`)
+          langsung dari `printModel` — bukan dari DOM. Karena itu tidak ada lagi
+          tabel cetak tersembunyi di sini yang bisa bocor ke kertas (K-13/K-14),
+          dan orientasi/lebar kolom ditentukan model, bukan CSS halaman (K-15). */}
 
       {/* Drawer detail: isi agenda lengkap (KBM, absensi, kejadian, foto) */}
       <AgendaDetailDrawer

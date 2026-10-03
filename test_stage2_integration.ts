@@ -64,7 +64,7 @@ console.log('--- Starting Stage 2 Automated Verification Tests ---');
       period_number: 1,
       start_time: '08:05:00',
       end_time: '08:40:00',
-      class_id: 'KELAS 1',
+      kelas: '1A',
       subject_id: 'sub-1',
       subject_name: 'Bahasa Indonesia',
       teacher_id: 't-1',
@@ -82,7 +82,7 @@ console.log('--- Starting Stage 2 Automated Verification Tests ---');
       period_number: 1,
       start_time: '08:05:00',
       end_time: '08:40:00',
-      class_id: 'KELAS 4',
+      kelas: '4A',
       subject_id: 'sub-2',
       subject_name: 'Bahasa Inggris',
       teacher_id: 't-1',
@@ -118,7 +118,7 @@ console.log('--- Starting Stage 2 Automated Verification Tests ---');
     period_number: 2,
     start_time: '08:40:00',
     end_time: '09:15:00',
-    class_id: 'KELAS 4',
+    kelas: '4A',
     subject_id: 'sub-eng',
     subject_name: 'Bahasa Inggris',
     teacher_id: 't-ikfina',
@@ -130,7 +130,7 @@ console.log('--- Starting Stage 2 Automated Verification Tests ---');
   };
 
   // Schedule specifies KELAS 4, NOT homeroom class
-  assert.strictEqual(scheduleForIkfina.class_id, 'KELAS 4');
+  assert.strictEqual(scheduleForIkfina.kelas, '4A');
   assert.strictEqual(scheduleForIkfina.subject_name, 'Bahasa Inggris');
   console.log('✓ Test 5 Passed: Subject teacher teaching another class verified as Schedule-driven');
 }
@@ -144,7 +144,7 @@ console.log('--- Starting Stage 2 Automated Verification Tests ---');
     period_number: 1,
     start_time: '08:05:00',
     end_time: '08:40:00',
-    class_id: 'KELAS 1',
+    kelas: '1A',
     subject_id: 'sub-1',
     subject_name: 'Matematika',
     teacher_id: 't-1',
@@ -193,17 +193,17 @@ console.log('--- Starting Stage 2 Automated Verification Tests ---');
   const homeroomAssignment = {
     id: 'ha-1',
     academic_year_id: 'ay-2026-2027',
-    class_id: 'KELAS 1',
+    kelas: '1A',
     teacher_id: 'g-1',
     teacher_name: 'Ikfina Khoirun Nisa, S.Pd.',
   };
-  assert.strictEqual(homeroomAssignment.class_id, 'KELAS 1');
+  assert.strictEqual(homeroomAssignment.kelas, '1A');
   assert.strictEqual(homeroomAssignment.academic_year_id, 'ay-2026-2027');
 
   // Ensure unique 1 homeroom per class constraint
   const assignments = [homeroomAssignment];
   const duplicate = assignments.filter(
-    (a) => a.academic_year_id === 'ay-2026-2027' && a.class_id === 'KELAS 1'
+    (a) => a.academic_year_id === 'ay-2026-2027' && a.kelas === '1A'
   );
   assert.strictEqual(duplicate.length, 1, 'Only one homeroom teacher per class in an academic year');
   console.log('✓ Test 8 Passed: Stage 2.1 Teacher identity and Homeroom assignment verified');
@@ -221,7 +221,7 @@ import { computeSlotStatus, recomputeTimelineSlotStatuses, type TimelineSlot } f
     period_number: 3,
     start_time: '09:35:00',
     end_time: '10:10:00',
-    class_id: 'KELAS 1',
+    kelas: '1A',
     subject_name: 'Bahasa Indonesia',
     teacher_name: 'Ikfina Khoirun Nisa, S.Pd.',
     status: 'ACTIVE',
@@ -244,7 +244,7 @@ import { computeSlotStatus, recomputeTimelineSlotStatuses, type TimelineSlot } f
     period_number: 2,
     start_time: '08:40:00',
     end_time: '09:15:00',
-    class_id: 'KELAS 3',
+    kelas: '3A',
     subject_name: 'Matematika',
     teacher_name: 'Ikfina Khoirun Nisa, S.Pd.',
     status: 'ACTIVE',
@@ -267,7 +267,7 @@ import { computeSlotStatus, recomputeTimelineSlotStatuses, type TimelineSlot } f
     period_number: 1,
     start_time: '08:05:00',
     end_time: '08:40:00',
-    class_id: 'KELAS 3',
+    kelas: '3A',
     subject_name: 'Matematika',
     teacher_name: 'Ikfina Khoirun Nisa, S.Pd.',
     status: 'ACTIVE',
@@ -276,7 +276,7 @@ import { computeSlotStatus, recomputeTimelineSlotStatuses, type TimelineSlot } f
   };
 
   const mockAgenda: any = {
-    header: { id: 'ag-1', kelas: 'KELAS 3', tanggal: '2026-09-14' },
+    header: { id: 'ag-1', kelas: '3A', tanggal: '2026-09-14' },
     kbm: [{ materi: 'Pecahan Senilai' }],
   };
 
@@ -295,7 +295,7 @@ import { computeSlotStatus, recomputeTimelineSlotStatuses, type TimelineSlot } f
     period_number: 1,
     start_time: '08:05:00',
     end_time: '08:40:00',
-    class_id: 'KELAS 3',
+    kelas: '3A',
     subject_name: 'Matematika',
     teacher_name: 'Ikfina Khoirun Nisa, S.Pd.',
     status: 'ACTIVE',
@@ -318,7 +318,7 @@ import { computeSlotStatus, recomputeTimelineSlotStatuses, type TimelineSlot } f
     period_number: 2,
     start_time: '08:40:00',
     end_time: '09:15:00',
-    class_id: 'KELAS 3',
+    kelas: '3A',
     subject_name: 'Matematika',
     teacher_name: 'Ikfina',
     status: 'ACTIVE',

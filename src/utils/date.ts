@@ -66,6 +66,25 @@ export function formatDateCompact(dateStr: string): string {
   }
 }
 
+/**
+ * "14 September 2026" — tanpa nama hari.
+ *
+ * Dipakai baris "Periode:" pada dokumen PDF rekap. Nama hari sengaja tidak ikut:
+ * baris periode menyatakan *rentang data*, bukan hari apa dokumen itu dicetak,
+ * dan pada laporan mingguan/bulanan nama hari akan salah atau menyesatkan.
+ */
+export function formatDateMedium(dateStr: string): string {
+  try {
+    return new Date(`${dateStr}T00:00:00`).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
 /** "14 Sep 2026" — tanggal ringkas tanpa nama hari, untuk kolom tabel padat. */
 export function formatDateShort(dateStr: string): string {
   try {

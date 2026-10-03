@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase';
+import { findKelasId } from '../classService';
 
 /**
  * Lapisan query khusus daftar jurnal (bukan detail).
@@ -65,7 +66,7 @@ export interface JournalRow {
 export const JOURNAL_LIST_SELECT = `
   id,
   sekolah,
-  kelas,
+  kelas:kelas_id (label),
   tanggal,
   schedule_id,
   actual_teacher_name,
@@ -143,11 +144,23 @@ async function resolveSearchIds(
   if (!s) return { ids: null, truncated: false };
   const like = `%${s}%`;
 
+  // `agenda_header.kelas` kini referensi ke master kelas, bukan teks. Pencarian
+  // di nama kelas diselesaikan lebih dulu ke daftar id — bukan lewat filter pada
+  // relasi, yang perilakunya bergantung pada inner/left join dan gampang salah.
+  const { data: kelasCocok, error: kelasErr } = await supabase
+    .from('kelas')
+    .select('id')
+    .ilike('label', like);
+  if (kelasErr) throw kelasErr;
+
+  const kelasIds = (kelasCocok ?? []).map((k: any) => k.id as string);
+  const headerOr = [
+    ...(kelasIds.length > 0 ? [`kelas_id.in.(${kelasIds.join(',')})`] : []),
+    `actual_teacher_name.ilike.${like}`,
+  ].join(',');
+
   const [headers, kbm, kejadian] = await Promise.all([
-    supabase
-      .from('agenda_header')
-      .select('id')
-      .or(`kelas.ilike.${like},actual_teacher_name.ilike.${like}`),
+    supabase.from('agenda_header').select('id').or(headerOr),
     supabase
       .from('agenda_kbm')
       .select('agenda_id')
@@ -171,7 +184,29 @@ async function resolveSearchIds(
 }
 
 /** Query dasar daftar jurnal: rentang tanggal + kelas + guru + id hasil pencarian. */
-function buildJournalQuery(params: JournalQueryParams, searchIds: string[] | null) {
+/**
+ * Terjemahkan filter kelas dari layar (label) menjadi `kelas_id`.
+ *
+ * Tiga keadaan yang sengaja dibedakan:
+ *   `undefined` — tidak ada filter kelas,
+ *   `null`      — label tidak ada di master kelas (hasil harus kosong),
+ *   `string`    — id yang dipakai menyaring.
+ */
+async function resolveClassFilterId(classId?: string): Promise<string | null | undefined> {
+  if (isAll(classId)) return undefined;
+  return findKelasId(classId!);
+}
+
+/**
+ * Sengaja BUKAN `async`: `PostgrestFilterBuilder` itu thenable, jadi
+ * mengembalikannya dari fungsi async membuat TypeScript menganggapnya promise
+ * yang harus di-await — dan `.range()` di pemanggil ikut hilang tipenya.
+ */
+function buildJournalQuery(
+  params: JournalQueryParams,
+  searchIds: string[] | null,
+  kelasId: string | null | undefined,
+) {
   const { startDate, endDate } = params;
   let q = supabase
     .from('agenda_header')
@@ -179,8 +214,12 @@ function buildJournalQuery(params: JournalQueryParams, searchIds: string[] | nul
     .gte('tanggal', startDate)
     .lte('tanggal', endDate);
 
-  if (!isAll(params.classId)) {
-    q = q.eq('kelas', params.classId);
+  if (kelasId === null) {
+    // Label yang tidak ada di master kelas berarti tidak ada hasil — bukan
+    // "tanpa filter", yang justru akan menampilkan seluruh sekolah.
+    q = q.eq('id', NO_MATCH_ID);
+  } else if (kelasId !== undefined) {
+    q = q.eq('kelas_id', kelasId);
   }
 
   if (!isAll(params.teacherName)) {
@@ -211,7 +250,8 @@ export function mapJournalRow(item: any): JournalRow {
   return {
     id: item.id,
     sekolah: item.sekolah ?? null,
-    kelas: item.kelas,
+    // `JOURNAL_LIST_SELECT` mengambil labelnya lewat relasi `kelas_id`.
+    kelas: item.kelas?.label ?? '',
     tanggal: item.tanggal,
     scheduleId: item.schedule_id ?? null,
     actualTeacherName: item.actual_teacher_name ?? null,
@@ -241,7 +281,12 @@ export interface JournalRowsResult {
 /** Ambil satu halaman baris jurnal (payload ringan). */
 export async function queryJournalRows(params: JournalQueryParams): Promise<JournalRowsResult> {
   const { ids, truncated } = await resolveSearchIds(params.search || '');
-  const { data, error, count } = await buildJournalQuery(params, truncated ? null : ids);
+  const kelasId = await resolveClassFilterId(params.classId);
+  const { data, error, count } = await buildJournalQuery(
+    params,
+    truncated ? null : ids,
+    kelasId,
+  );
   if (error) throw error;
   return { rows: (data || []).map(mapJournalRow), total: count ?? 0, searchTruncated: truncated };
 }
@@ -281,6 +326,7 @@ export async function queryAllJournalRowsForPrint(
 ): Promise<JournalPrintRowsResult> {
   const { ids, truncated: searchTruncated } = await resolveSearchIds(params.search || '');
   const effectiveIds = searchTruncated ? null : ids;
+  const kelasId = await resolveClassFilterId(params.classId);
 
   const all: JournalRow[] = [];
   let offset = 0;
@@ -290,7 +336,8 @@ export async function queryAllJournalRowsForPrint(
     const chunkLimit = Math.min(PRINT_CHUNK_SIZE, JOURNAL_PRINT_MAX_ROWS - all.length);
     const { data, error, count } = await buildJournalQuery(
       { ...params, page: undefined, pageSize: undefined },
-      effectiveIds
+      effectiveIds,
+      kelasId
     )
       // `buildJournalQuery` tidak menerima rentang kustom, jadi batasi di sini.
       .range(offset, offset + chunkLimit - 1);
@@ -328,7 +375,11 @@ export async function queryJournalAbsenceStats(
     .gte('tanggal', params.startDate)
     .lte('tanggal', params.endDate);
 
-  if (!isAll(params.classId)) q = q.eq('kelas', params.classId);
+  if (!isAll(params.classId)) {
+    const kelasId = await findKelasId(params.classId!);
+    if (!kelasId) return { S: 0, I: 0, A: 0, total: 0 };
+    q = q.eq('kelas_id', kelasId);
+  }
   if (!isAll(params.teacherName)) {
     q = q.ilike('actual_teacher_name', `%${escapeSingle(params.teacherName!)}%`);
   }

@@ -56,7 +56,7 @@ function sch(p: Partial<ScheduleItem>): ScheduleItem {
     period_number: 1,
     start_time: '08:05',
     end_time: '08:40',
-    class_id: 'KELAS 1',
+    kelas: '1A',
     subject_name: 'Matematika',
     teacher_id: 't-ikfina',
     teacher_name: 'Ikfina Khoirun Nisa, S.Pd.',
@@ -84,7 +84,7 @@ function buildFixture(): ScheduleItem[] {
     [9, '13:05:00', '13:35:00'],
   ];
   days.forEach((day, di) => {
-    out.push(sch({ day, period_number: 1, start_time: '07:15', end_time: '07:30', class_id: 'KELAS 1', subject_name: di === 0 ? 'UPACARA' : 'DHUHA', teacher_id: null, teacher_name: '' }));
+    out.push(sch({ day, period_number: 1, start_time: '07:15', end_time: '07:30', kelas: '1A', subject_name: di === 0 ? 'UPACARA' : 'DHUHA', teacher_id: null, teacher_name: '' }));
     periods.slice(1).forEach(([p, s, e], pi) => {
       for (let c = 0; c < 6; c += 1) {
         out.push(
@@ -93,7 +93,7 @@ function buildFixture(): ScheduleItem[] {
             period_number: p + 1,
             start_time: s,
             end_time: e,
-            class_id: `KELAS ${c + 1}`,
+            kelas: `${c + 1}A`,
             subject_name: c === 0 ? 'Matematika' : `Mapel ${di}${c}${pi}`,
             teacher_id: idk[(di + c) % teachers.length],
             teacher_name: teachers[(di + c) % teachers.length].nama_guru,
@@ -101,20 +101,26 @@ function buildFixture(): ScheduleItem[] {
         );
       }
     });
-    out.push(sch({ day, period_number: 8, start_time: '11:55', end_time: '12:30', class_id: 'KELAS 1', subject_name: 'ISTIRAHAT', teacher_id: null, teacher_name: '' }));
-    out.push(sch({ day, period_number: 8, start_time: '12:30', end_time: '13:05', class_id: 'KELAS 1', subject_name: 'LAMA', teacher_id: idk[0], teacher_name: teachers[0].nama_guru, status: 'ARCHIVED' }));
+    out.push(sch({ day, period_number: 8, start_time: '11:55', end_time: '12:30', kelas: '1A', subject_name: 'ISTIRAHAT', teacher_id: null, teacher_name: '' }));
+    out.push(sch({ day, period_number: 8, start_time: '12:30', end_time: '13:05', kelas: '1A', subject_name: 'LAMA', teacher_id: idk[0], teacher_name: teachers[0].nama_guru, status: 'ARCHIVED' }));
   });
-  out.push(sch({ day: 'FRIDAY', period_number: 10, start_time: '13:35', end_time: '14:10', class_id: 'KELAS 3', subject_name: 'TKA', teacher_id: idk[1], teacher_name: teachers[1].nama_guru, status: 'DRAFT' }));
+  out.push(sch({ day: 'FRIDAY', period_number: 10, start_time: '13:35', end_time: '14:10', kelas: '3A', subject_name: 'TKA', teacher_id: idk[1], teacher_name: teachers[1].nama_guru, status: 'DRAFT' }));
   return out;
 }
 
 const FIXTURE = buildFixture();
+
+/** Label kelas pada fixture di atas, urut tingkat lalu rombel. */
+const CLASS_OPTIONS = ['1A', '2A', '3A', '4A', '5A', '6A'];
 
 function modelFor(overrides: Record<string, unknown> = {}): ScheduleExportModel {
   return buildScheduleExportModel({
     schedules: FIXTURE,
     academicYearName: '2026/2027',
     teachers,
+    // Daftar kelas TIDAK lagi punya default hardcoded — pemanggil wajib
+    // mengisinya, sama seperti `ScheduleManagement` mengisi dari ClassContext.
+    classOptions: CLASS_OPTIONS,
     ...overrides,
   } as Parameters<typeof buildScheduleExportModel>[0]);
 }
@@ -232,8 +238,8 @@ describe('B. toggle baru bekerja di model', () => {
   it('showTeacherName=false menghapus nama guru dari sheet & detail', () => {
     const withName = modelFor({ showTeacherName: true });
     const without = modelFor({ showTeacherName: false });
-    expect(withName.weekly[0].rows[1].cells['KELAS 1']).toBe('Matematika\nIkfina');
-    expect(without.weekly[0].rows[1].cells['KELAS 1']).toBe('Matematika');
+    expect(withName.weekly[0].rows[1].cells['1A']).toBe('Matematika\nIkfina');
+    expect(without.weekly[0].rows[1].cells['1A']).toBe('Matematika');
     expect(without.detail[1].teacher).toBe('');
   });
 
@@ -278,12 +284,12 @@ describe('C. default = file Stage 5.2 yang sudah disetujui', () => {
     // header
     expect([1, 2, 3, 4, 5, 6, 7].map((c) => val(6, c))).toEqual([
       'WAKTU',
-      'KELAS 1',
-      'KELAS 2',
-      'KELAS 3',
-      'KELAS 4',
-      'KELAS 5',
-      'KELAS 6',
+      '1A',
+      '2A',
+      '3A',
+      '4A',
+      '5A',
+      '6A',
     ]);
     // nama depan guru + wrap + vertical middle
     expect(val(9, 2)).toBe('Matematika\nIkfina');

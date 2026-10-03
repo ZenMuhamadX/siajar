@@ -96,7 +96,7 @@ function findAgenda(
 
   const legacy = legacyCandidates.find(
     (a) =>
-      a.header.kelas === schedule.class_id &&
+      a.header.kelas === schedule.kelas &&
       a.header.tanggal === date &&
       (a.kbm || []).some(
         (k) => norm(k.nama_guru) === norm(schedule.teacher_name) && norm(k.mapel) === norm(schedule.subject_name)
@@ -199,7 +199,7 @@ export function buildSlotRows(input: BuildSlotRowsInput): SlotRow[] {
         date,
         scheduleId: schedule.id,
         agendaId: agenda?.header.id || null,
-        classId: schedule.class_id,
+        classId: schedule.kelas,
         subjectName: schedule.subject_name,
         scheduledTeacherName: schedule.teacher_name,
         actualTeacherName,
