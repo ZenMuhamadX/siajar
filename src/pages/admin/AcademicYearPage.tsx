@@ -5,6 +5,9 @@ import {
   createAcademicYear,
   setActiveAcademicYear,
   archiveAcademicYear,
+  hapusTahunAjaran,
+  cekIsiTahunAjaran,
+  type IsiTahunAjaran,
 } from '../../services/scheduleService';
 import { PageHeader } from '../../components/admin/PageHeader';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -24,6 +27,7 @@ import {
   Archive,
   RefreshCw,
   CalendarCheck,
+  Trash2,
 } from 'lucide-react';
 
 interface AcademicYearPageProps {
@@ -44,10 +48,18 @@ export const AcademicYearPage: React.FC<AcademicYearPageProps> = ({ showToast })
 
   // Dialog konfirmasi (menggantikan confirm() bawaan browser)
   const [confirmAction, setConfirmAction] = useState<{
-    type: 'activate' | 'archive';
+    type: 'activate' | 'archive' | 'delete';
     ay: AcademicYear;
   } | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
+
+  /**
+   * Isi tahun ajaran yang sedang diperiksa untuk dihapus. `null` = masih memeriksa.
+   *
+   * Diperiksa lebih dulu supaya dialognya bisa menjelaskan APA yang menghalangi,
+   * bukan membiarkan pengguna menekan tombol yang pasti gagal.
+   */
+  const [isiTahunAjaran, setIsiTahunAjaran] = useState<IsiTahunAjaran | null>(null);
 
   const fetchYears = async () => {
     setIsLoading(true);
@@ -112,6 +124,22 @@ export const AcademicYearPage: React.FC<AcademicYearPageProps> = ({ showToast })
     setConfirmAction({ type: 'archive', ay });
   };
 
+  /**
+   * Menghapus tahun ajaran. Isinya diperiksa lebih dulu — kalau belum kosong,
+   * dialognya menjelaskan apa yang menghalangi alih-alih membiarkan tombolnya
+   * ditekan lalu gagal.
+   */
+  const handleDelete = async (ay: AcademicYear) => {
+    setConfirmAction({ type: 'delete', ay });
+    setIsiTahunAjaran(null);
+    try {
+      setIsiTahunAjaran(await cekIsiTahunAjaran(ay.id));
+    } catch (err: any) {
+      showToast('error', 'Gagal memeriksa isi tahun ajaran: ' + (err?.message || ''));
+      setConfirmAction(null);
+    }
+  };
+
   const runConfirmAction = async () => {
     if (!confirmAction) return;
     const { type, ay } = confirmAction;
@@ -120,25 +148,80 @@ export const AcademicYearPage: React.FC<AcademicYearPageProps> = ({ showToast })
       if (type === 'activate') {
         await setActiveAcademicYear(ay.id);
         showToast('success', `Tahun ajaran ${ay.name} sekarang ACTIVE.`);
-      } else {
+      } else if (type === 'archive') {
         await archiveAcademicYear(ay.id);
         showToast('info', `Tahun ajaran ${ay.name} diarsipkan.`);
+      } else {
+        await hapusTahunAjaran(ay.id);
+        showToast('success', `Tahun ajaran ${ay.name} dihapus.`);
       }
       setConfirmAction(null);
+      setIsiTahunAjaran(null);
       fetchYears();
     } catch (err: any) {
-      showToast(
-        'error',
-        (type === 'activate'
-          ? 'Gagal mengaktifkan tahun ajaran: '
-          : 'Gagal mengarsipkan: ') + (err?.message || '')
-      );
+      const aksi =
+        type === 'activate'
+          ? 'mengaktifkan tahun ajaran'
+          : type === 'archive'
+            ? 'mengarsipkan tahun ajaran'
+            : 'menghapus tahun ajaran';
+      showToast('error', `Gagal ${aksi}: ` + (err?.message || ''));
     } finally {
       setIsConfirming(false);
     }
   };
 
   const activeAY = academicYears.find((y) => y.status === 'ACTIVE');
+
+  /**
+   * Isi dialog konfirmasi. Dihitung di luar JSX supaya tiga cabangnya tidak
+   * berubah menjadi terner bersarang yang sulit dibaca.
+   */
+  const dialog = (() => {
+    if (!confirmAction) return null;
+    const { type, ay } = confirmAction;
+
+    if (type === 'activate') {
+      return {
+        variant: 'warning' as const,
+        title: 'Aktifkan Tahun Ajaran?',
+        message: `Aktifkan Tahun Ajaran "${ay.name}"? Tahun ajaran yang saat ini aktif akan otomatis diarsipkan.`,
+        confirmText: 'Aktifkan',
+        disabled: false,
+        reason: undefined as string | undefined,
+      };
+    }
+
+    if (type === 'archive') {
+      return {
+        variant: 'danger' as const,
+        title: 'Arsipkan Tahun Ajaran?',
+        message: `Arsipkan Tahun Ajaran "${ay.name}"? Data historis tetap tersimpan.`,
+        confirmText: 'Arsipkan',
+        disabled: false,
+        reason: undefined as string | undefined,
+      };
+    }
+
+    const kosong = isiTahunAjaran?.kosong === true;
+    const rincian = (isiTahunAjaran?.rincian ?? [])
+      .map((r) => `${r.jumlah} ${r.label}`)
+      .join(', ');
+
+    return {
+      variant: 'danger' as const,
+      title: 'Hapus Tahun Ajaran?',
+      message:
+        isiTahunAjaran === null
+          ? `Memeriksa isi tahun ajaran "${ay.name}"…`
+          : kosong
+            ? `Tahun ajaran "${ay.name}" kosong dan akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.`
+            : `Tahun ajaran "${ay.name}" belum kosong — ada ${rincian}. Batalkan kenaikan kelas dan kosongkan isinya dulu, atau arsipkan saja. Tahun ajaran yang sudah dipakai tidak boleh dihapus karena riwayat agenda dan absensinya ikut hilang.`,
+      confirmText: 'Hapus',
+      disabled: !kosong,
+      reason: kosong ? undefined : 'Tahun ajaran ini belum kosong',
+    };
+  })();
 
   const columns: Column<AcademicYear>[] = [
     {
@@ -223,6 +306,19 @@ export const AcademicYearPage: React.FC<AcademicYearPageProps> = ({ showToast })
               >
                 <Archive className="w-3.5 h-3.5 text-slate-500" />
                 <span>Arsipkan</span>
+              </button>
+            )}
+            {/* Hapus hanya masuk akal untuk tahun ajaran yang belum dipakai.
+                Tahun ajaran aktif tidak boleh dihapus sama sekali. */}
+            {!isActive && (
+              <button
+                type="button"
+                onClick={() => handleDelete(ay)}
+                aria-label={`Hapus tahun ajaran ${ay.name}`}
+                title="Hapus tahun ajaran — hanya bisa kalau belum berisi data"
+                className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
@@ -382,26 +478,21 @@ export const AcademicYearPage: React.FC<AcademicYearPageProps> = ({ showToast })
         </div>
       </FormModal>
 
-      {/* Dialog konfirmasi aktifkan / arsipkan */}
+      {/* Dialog konfirmasi aktifkan / arsipkan / hapus */}
       <ConfirmDialog
-        isOpen={Boolean(confirmAction)}
-        onClose={() => setConfirmAction(null)}
+        isOpen={Boolean(dialog)}
+        onClose={() => {
+          setConfirmAction(null);
+          setIsiTahunAjaran(null);
+        }}
         onConfirm={runConfirmAction}
         isLoading={isConfirming}
-        variant={confirmAction?.type === 'activate' ? 'warning' : 'danger'}
-        title={
-          confirmAction?.type === 'activate'
-            ? 'Aktifkan Tahun Ajaran?'
-            : 'Arsipkan Tahun Ajaran?'
-        }
-        message={
-          confirmAction
-            ? confirmAction.type === 'activate'
-              ? `Aktifkan Tahun Ajaran "${confirmAction.ay.name}"? Tahun ajaran yang saat ini aktif akan otomatis diarsipkan.`
-              : `Arsipkan Tahun Ajaran "${confirmAction.ay.name}"? Data historis tetap tersimpan.`
-            : ''
-        }
-        confirmText={confirmAction?.type === 'activate' ? 'Aktifkan' : 'Arsipkan'}
+        variant={dialog?.variant ?? 'danger'}
+        title={dialog?.title ?? ''}
+        message={dialog?.message ?? ''}
+        confirmText={dialog?.confirmText}
+        confirmDisabled={dialog?.disabled ?? false}
+        confirmDisabledReason={dialog?.reason}
       />
     </div>
   );

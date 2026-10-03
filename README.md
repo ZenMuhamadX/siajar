@@ -81,6 +81,19 @@ File itu idempoten dan sudah mencakup seluruh tabel (termasuk `app_settings`), i
 
 File migrasi lama dipindahkan ke `supabase/legacy/` dan hanya diperlukan untuk database yang sudah berjalan sebelumnya.
 
+### Urutan deploy saat master kelas berubah
+
+`schema.sql` bagian 9 mengubah nilai teks kelas di `agenda.siswa`, `agenda.schedule`,
+`agenda.homeroom_assignment`, dan `agenda.agenda_header` dari `KELAS 1` menjadi `1A`.
+Daftar kelas di frontend **tidak lagi hardcoded** — ia dibaca dari tabel `agenda.kelas`
+lewat `ClassProvider`.
+
+Karena itu, menjalankan `schema.sql` dan mengunggah bundle baru harus **berdekatan**.
+Kalau SQL jalan sementara bundle lama masih terpasang, pilihan filter kelas akan kosong
+sampai bundle baru naik. Lakukan di luar jam sekolah.
+
+Untuk instalasi baru, urutan itu tidak berlaku — tidak ada data lama yang perlu diubah.
+
 ### Database existing
 
 Backup dulu, lalu jalankan `supabase/schema.sql` untuk menyelaraskan struktur dan policy. Untuk tabel legacy `guru_kelas`, lihat `supabase/legacy/stage_6_drop_guru_kelas.sql`.
@@ -94,5 +107,38 @@ bun run lint
 bunx tsc --noEmit -p tsconfig.app.json
 bun test_conflict.ts
 bun test_stage2_integration.ts
+bun test_report_pdf_model.ts
+bun test_promotion_preview.ts
+bun test_status_per_tahun.ts
+bun test_schema_struktur.ts
 bun run build
 ```
+
+`test_schema_struktur.ts` memeriksa `supabase/schema.sql` tanpa perlu database:
+keseimbangan `$$`, pasangan `THEN` ↔ `END IF;` di setiap blok `DO`, dan yang
+paling penting — **setiap `DROP COLUMN` harus berada di dalam blok `DO` yang
+dijaga**. Aturan terakhir itu lahir dari bug nyata: `UPDATE agenda.schedule SET
+class_id = …` sempat ditulis di luar penjaga sementara `DROP COLUMN class_id`
+dikerjakan di dalam penjaga di bagian lain. Sekali dijalankan file itu berhasil,
+dijalankan lagi gagal dengan `column s.class_id does not exist`.
+
+**Aturan saat menambah kolom ke `schema.sql`:** kalau sebuah kolom di-`DROP`, maka
+perapian data untuk kolom itu harus berada di blok `DO` yang sama-sama dijaga
+pengecekan keberadaan kolomnya. Kalau sebuah index dibuat di atas kolom baru,
+namanya harus berbeda dari index lama di kolom yang akan dihapus.
+
+`test_status_per_tahun.ts` mengunci aturan status per tahun ajaran. Bug yang
+dijaganya: `siswa.status` dulu hanya satu kolom global, sehingga menjalankan
+kenaikan kelas membuat siswa tingkat 6 berstatus LULUS **berlaku surut** —
+membuka tahun ajaran lama menampilkan mereka punya kelas sekaligus berstatus
+lulus, dan form absensinya jadi kosong. Sekarang status pada sebuah tahun dibaca
+dari penempatan tahun itu (`agenda.siswa_kelas.status`).
+
+`test_promotion_preview.ts` mengunci aturan kenaikan kelas yang dihitung di klien
+(siapa naik, siapa lulus, siapa dilewati). Aturan yang sama diulang di fungsi SQL
+`agenda.kenaikan_kelas` — kalau keduanya berbeda, pratinjau di halaman akan
+berbohong tentang apa yang benar-benar terjadi.
+
+`tmp-settings.test.ts` adalah berkas kerja, bukan bagian dari rangkaian di atas.
+Satu uji di dalamnya (`showBorders=false`) memang sudah gagal sejak sebelum
+perubahan kenaikan kelas.

@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { DAFTAR_KELAS, type KelasOption, type Siswa } from '../types';
+import {
+  DAFTAR_STATUS_PENEMPATAN,
+  DAFTAR_STATUS_SISWA,
+  LABEL_STATUS_SISWA,
+  type SiswaStatus,
+  type SiswaTerdaftar,
+} from '../types';
 import {
   getDaftarSiswa,
   addSiswa,
   updateSiswa,
   deleteSiswa,
 } from '../services/agendaService';
+import { useClassLabels } from '../contexts/ClassContext';
 import {
   Users,
   Edit2,
@@ -31,14 +38,24 @@ interface DataSiswaProps {
 }
 
 export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
-  const [selectedFilterKelas, setSelectedFilterKelas] = useState<string>('KELAS 1');
+  // Daftar kelas berasal dari master data (`agenda.kelas`), bukan konstanta
+  // hardcoded — supaya rombel baru langsung muncul tanpa deploy ulang.
+  const kelasLabels = useClassLabels();
+
+  const [selectedFilterKelas, setSelectedFilterKelas] = useState<string>('SEMUA');
+  // Bawaannya 'AKTIF', bukan 'SEMUA': begitu ada siswa lulus atau pindah, daftar
+  // akan bercampur mantan siswa yang kelasnya "—" dan justru menutupi yang masih
+  // aktif. Yang lain tetap bisa dilihat dengan mengganti filter ini.
+  const [selectedFilterStatus, setSelectedFilterStatus] = useState<string>('AKTIF');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [siswaList, setSiswaList] = useState<Siswa[]>([]);
+  const [siswaList, setSiswaList] = useState<SiswaTerdaftar[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Form states for Add / Edit
   const [namaInput, setNamaInput] = useState<string>('');
-  const [kelasInput, setKelasInput] = useState<KelasOption>('KELAS 1');
+  const [nisInput, setNisInput] = useState<string>('');
+  const [kelasInput, setKelasInput] = useState<string>('');
+  const [statusInput, setStatusInput] = useState<SiswaStatus>('AKTIF');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -46,9 +63,12 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
   const fetchSiswa = async () => {
     setIsLoading(true);
     try {
-      const data = await getDaftarSiswa(
-        selectedFilterKelas === 'SEMUA' ? undefined : selectedFilterKelas
-      );
+      const data = await getDaftarSiswa({
+        kelas: selectedFilterKelas === 'SEMUA' ? undefined : selectedFilterKelas,
+        // Siswa yang sudah lulus atau pindah tidak punya penempatan lagi, tetapi
+        // tetap harus terlihat di sini — justru statusnya yang perlu diubah.
+        sertakanTanpaKelas: true,
+      });
       setSiswaList(data);
     } catch (err) {
       console.error(err);
@@ -68,18 +88,35 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
       showToast('error', 'Nama siswa tidak boleh kosong.');
       return;
     }
+    // Kelas wajib saat menambah siswa baru. Saat menyunting boleh kosong — itu
+    // keadaan wajar bagi siswa yang sudah lulus atau pindah.
+    if (!editingId && !kelasInput.trim()) {
+      showToast('error', 'Kelas siswa belum dipilih.');
+      return;
+    }
 
     setIsSaving(true);
     try {
       if (editingId) {
-        await updateSiswa(editingId, namaInput, kelasInput);
+        await updateSiswa(editingId, {
+          nama: namaInput,
+          kelas: kelasInput,
+          nis: nisInput,
+          status: statusInput,
+        });
         showToast('success', 'Data siswa berhasil diperbarui.');
         setEditingId(null);
       } else {
-        await addSiswa(namaInput, kelasInput);
+        await addSiswa({
+          nama: namaInput,
+          kelas: kelasInput,
+          nis: nisInput,
+          status: statusInput,
+        });
         showToast('success', `Siswa ${namaInput} berhasil ditambahkan.`);
       }
       setNamaInput('');
+      setNisInput('');
       setIsFormOpen(false);
       fetchSiswa();
     } catch (err: any) {
@@ -92,16 +129,20 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
   const handleOpenCreate = () => {
     setEditingId(null);
     setNamaInput('');
+    setNisInput('');
+    setStatusInput('AKTIF');
     setKelasInput(
-      selectedFilterKelas === 'SEMUA' ? 'KELAS 1' : (selectedFilterKelas as KelasOption),
+      selectedFilterKelas === 'SEMUA' ? (kelasLabels[0] ?? '') : selectedFilterKelas,
     );
     setIsFormOpen(true);
   };
 
-  const handleEditClick = (siswa: Siswa) => {
+  const handleEditClick = (siswa: SiswaTerdaftar) => {
     setEditingId(siswa.id);
     setNamaInput(siswa.nama_siswa);
-    setKelasInput(siswa.kelas as KelasOption);
+    setNisInput(siswa.nis ?? '');
+    setStatusInput(siswa.status);
+    setKelasInput(siswa.kelas);
     setIsFormOpen(true);
   };
 
@@ -109,7 +150,9 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
     setIsFormOpen(false);
     setEditingId(null);
     setNamaInput('');
-    setKelasInput('KELAS 1');
+    setNisInput('');
+    setStatusInput('AKTIF');
+    setKelasInput('');
   };
 
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; nama: string } | null>(null);
@@ -134,6 +177,17 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
     }
   };
 
+  const hasActiveFilter =
+    selectedFilterKelas !== 'SEMUA' ||
+    selectedFilterStatus !== 'SEMUA' ||
+    Boolean(searchQuery.trim());
+
+  const resetFilters = () => {
+    setSelectedFilterKelas('SEMUA');
+    setSelectedFilterStatus('SEMUA');
+    setSearchQuery('');
+  };
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -147,26 +201,40 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
           searchPlaceholder="Cari nama siswa..."
-          isFiltered={selectedFilterKelas !== 'SEMUA' || Boolean(searchQuery.trim())}
-          onResetFilters={() => {
-            setSelectedFilterKelas('SEMUA');
-            setSearchQuery('');
-          }}
+          isFiltered={hasActiveFilter}
+          onResetFilters={resetFilters}
           filters={
-            <div className="flex items-center gap-1.5">
-              <span className="text-slate-600 text-xs">Kelas:</span>
-              <select
-                value={selectedFilterKelas}
-                onChange={(e) => setSelectedFilterKelas(e.target.value)}
-                className={`${formStyles.select} w-auto font-semibold`}
-              >
-                <option value="SEMUA">Semua Kelas</option>
-                {DAFTAR_KELAS.map((k) => (
-                  <option key={k} value={k}>
-                    {k}
-                  </option>
-                ))}
-              </select>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-600 text-xs">Kelas:</span>
+                <select
+                  value={selectedFilterKelas}
+                  onChange={(e) => setSelectedFilterKelas(e.target.value)}
+                  className={`${formStyles.select} w-auto font-semibold`}
+                >
+                  <option value="SEMUA">Semua Kelas</option>
+                  {kelasLabels.map((k) => (
+                    <option key={k} value={k}>
+                      {k}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-600 text-xs">Status:</span>
+                <select
+                  value={selectedFilterStatus}
+                  onChange={(e) => setSelectedFilterStatus(e.target.value)}
+                  className={`${formStyles.select} w-auto font-semibold`}
+                >
+                  <option value="SEMUA">Semua Status</option>
+                  {DAFTAR_STATUS_SISWA.map((s) => (
+                    <option key={s} value={s}>
+                      {LABEL_STATUS_SISWA[s]}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           }
           actions={
@@ -205,22 +273,33 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
               ),
             },
             {
+              key: 'nis',
+              header: 'NIS',
+              width: '110px',
+              align: 'left',
+              accessor: (item) => (
+                <span className="font-mono text-xs text-slate-600">{item.nis || '—'}</span>
+              ),
+            },
+            {
               key: 'kelas',
               header: 'Kelas',
               width: '100px',
               align: 'center',
               accessor: (item) => (
                 <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 font-bold rounded-md border border-emerald-200/80 text-xs">
-                  {item.kelas}
+                  {item.kelas || '—'}
                 </span>
               ),
             },
             {
               key: 'status',
               header: 'Status',
-              width: '100px',
+              width: '120px',
               align: 'center',
-              accessor: () => <StatusBadge status="Aktif" />,
+              accessor: (item) => (
+                <StatusBadge status={LABEL_STATUS_SISWA[item.status] ?? item.status} />
+              ),
             },
             {
               key: 'actions',
@@ -251,18 +330,21 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
               ),
             },
           ]}
-          data={siswaList.filter((s) =>
-            searchQuery.trim()
-              ? s.nama_siswa.toLowerCase().includes(searchQuery.toLowerCase().trim())
-              : true
-          )}
+          data={siswaList.filter((s) => {
+            if (selectedFilterStatus !== 'SEMUA' && s.status !== selectedFilterStatus) {
+              return false;
+            }
+            const q = searchQuery.toLowerCase().trim();
+            if (!q) return true;
+            return (
+              s.nama_siswa.toLowerCase().includes(q) ||
+              (s.nis ?? '').toLowerCase().includes(q)
+            );
+          })}
           keyExtractor={(item) => item.id}
           isLoading={isLoading}
-          isFiltered={selectedFilterKelas !== 'SEMUA' || Boolean(searchQuery.trim())}
-          onResetFilter={() => {
-            setSelectedFilterKelas('SEMUA');
-            setSearchQuery('');
-          }}
+          isFiltered={hasActiveFilter}
+          onResetFilter={resetFilters}
           emptyTitle="Belum ada data siswa"
           emptyDescription={
             searchQuery.trim()
@@ -284,8 +366,8 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
         title={editingId ? 'Perbarui Data Siswa' : 'Tambah Siswa Baru'}
         subtitle={
           editingId
-            ? 'Perbarui data siswa yang sudah terdaftar.'
-            : 'Siswa ini akan muncul di daftar absensi pada jurnal.'
+            ? 'Perbarui data siswa, termasuk kelasnya pada tahun ajaran berjalan.'
+            : 'Kelas yang dipilih berlaku untuk tahun ajaran berjalan.'
         }
         onSubmit={handleSaveSiswa}
         busy={isSaving}
@@ -308,16 +390,19 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
           <FormField
             label="Tingkat Kelas"
             htmlFor="siswa-kelas"
-            className="sm:col-span-4"
+            className="sm:col-span-3"
             required
           >
             <SelectInput
               id="siswa-kelas"
               value={kelasInput}
-              onChange={(e) => setKelasInput(e.target.value as KelasOption)}
+              onChange={(e) => setKelasInput(e.target.value)}
               className="font-bold"
             >
-              {DAFTAR_KELAS.map((k) => (
+              {kelasInput === '' && (
+                <option value="">{editingId ? '— Tidak ditempatkan —' : 'Pilih kelas…'}</option>
+              )}
+              {kelasLabels.map((k) => (
                 <option key={k} value={k}>
                   {k}
                 </option>
@@ -328,7 +413,7 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
           <FormField
             label="Nama Lengkap Siswa"
             htmlFor="siswa-nama"
-            className="sm:col-span-8"
+            className="sm:col-span-6"
             required
           >
             <TextInput
@@ -340,6 +425,52 @@ export const DataSiswa: React.FC<DataSiswaProps> = ({ showToast }) => {
               value={namaInput}
               onChange={(e) => setNamaInput(e.target.value)}
             />
+          </FormField>
+
+          <FormField
+            label="NIS"
+            htmlFor="siswa-nis"
+            className="sm:col-span-3"
+            hint="Opsional. Membantu membedakan siswa bernama sama."
+          >
+            <TextInput
+              id="siswa-nis"
+              type="text"
+              placeholder="Contoh: 2026001"
+              value={nisInput}
+              onChange={(e) => setNisInput(e.target.value)}
+              className="font-mono"
+            />
+          </FormField>
+
+          {/*
+            Pilihan status mengikuti keadaan siswa:
+            - punya kelas tahun ini  → status PADA tahun itu (tanpa Lulus, karena
+              yang lulus memang tidak lagi punya kelas);
+            - tidak punya kelas      → status SEKARANG, termasuk Lulus.
+            Aturan ini yang membuat "punya kelas tapi berstatus lulus" mustahil.
+          */}
+          <FormField
+            label="Status"
+            htmlFor="siswa-status"
+            className="sm:col-span-4"
+            hint={
+              kelasInput
+                ? 'Berlaku untuk tahun ajaran berjalan. Selain Aktif, siswa tidak lagi muncul di absensi dan tidak ikut naik kelas.'
+                : 'Lulus hanya untuk siswa yang sudah tidak punya kelas di tahun ajaran berjalan.'
+            }
+          >
+            <SelectInput
+              id="siswa-status"
+              value={statusInput}
+              onChange={(e) => setStatusInput(e.target.value as SiswaStatus)}
+            >
+              {(kelasInput ? DAFTAR_STATUS_PENEMPATAN : DAFTAR_STATUS_SISWA).map((s) => (
+                <option key={s} value={s}>
+                  {LABEL_STATUS_SISWA[s]}
+                </option>
+              ))}
+            </SelectInput>
           </FormField>
         </div>
       </FormModal>

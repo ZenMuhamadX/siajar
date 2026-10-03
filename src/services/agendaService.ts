@@ -1,7 +1,11 @@
 import { supabase } from '../lib/supabase';
 import { getSettingsSync } from './settings/settingsService';
+import { findKelasId, resolveKelasId } from './classService';
 import type {
   Siswa,
+  SiswaStatus,
+  SiswaTerdaftar,
+  StatusPenempatan,
   Guru,
   MataPelajaran,
   FullAgenda,
@@ -10,32 +14,300 @@ import type {
 } from '../types';
 
 // ----------------- SISWA SERVICES -----------------
-export async function getDaftarSiswa(kelas?: string): Promise<Siswa[]> {
-  let query = supabase.from('siswa').select('*').order('nama_siswa', { ascending: true });
-  if (kelas) {
-    query = query.eq('kelas', kelas);
-  }
-  const { data, error } = await query;
+
+/**
+ * Tahun ajaran yang dipakai untuk membaca dan menulis penempatan siswa.
+ *
+ * Prioritas: yang berstatus ACTIVE. Kalau belum ada yang diaktifkan, dipakai
+ * yang `start_date`-nya paling akhir — supaya aplikasi tetap jalan di sekolah
+ * yang belum menandai tahun ajarannya sebagai aktif.
+ */
+async function resolveAcademicYearId(): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('academic_year')
+    .select('id, status, start_date')
+    .order('start_date', { ascending: false })
+    .limit(20);
   if (error) throw error;
-  return data || [];
+
+  const rows = data ?? [];
+  const aktif = rows.find((r) => r.status === 'ACTIVE');
+  return (aktif ?? rows[0])?.id ?? null;
 }
 
-export async function addSiswa(nama: string, kelas: string): Promise<Siswa> {
+/**
+ * Tahun ajaran yang mencakup sebuah tanggal.
+ *
+ * Dipakai form agenda. Daftar siswa di sana harus mengikuti tahun ajaran
+ * AGENDANYA, bukan tahun ajaran yang sedang aktif — kalau tidak, membuka agenda
+ * tahun lalu sementara tahun ajaran baru sudah aktif akan menampilkan roster
+ * tahun yang salah. Kalau tidak ada tahun ajaran yang mencakup tanggal itu,
+ * jatuh kembali ke tahun ajaran aktif supaya form tetap bisa dipakai.
+ */
+export async function resolveAcademicYearIdForDate(tanggal: string): Promise<string | null> {
+  if (!tanggal) return resolveAcademicYearId();
+
+  const { data, error } = await supabase
+    .from('academic_year')
+    .select('id')
+    .lte('start_date', tanggal)
+    .gte('end_date', tanggal)
+    .order('start_date', { ascending: false })
+    .limit(1);
+  if (error) throw error;
+
+  return (data?.[0]?.id as string | undefined) ?? (await resolveAcademicYearId());
+}
+
+/** Siswa yang punya penempatan pada tahun ajaran tersebut. */
+async function ambilSiswaTerdaftar(academicYearId: string): Promise<SiswaTerdaftar[]> {
+  const { data, error } = await supabase
+    .from('siswa_kelas')
+    .select(
+      'kelas_id, academic_year_id, status, ' +
+        'siswa:siswa_id (id, nama_siswa, nis, status, created_at), ' +
+        'kelas:kelas_id (label)',
+    )
+    .eq('academic_year_id', academicYearId);
+  if (error) throw error;
+
+  return (data ?? [])
+    .map((row: any): SiswaTerdaftar | null => {
+      const siswa = row.siswa;
+      if (!siswa) return null;
+      return {
+        id: siswa.id,
+        nama_siswa: siswa.nama_siswa,
+        nis: siswa.nis ?? null,
+        // Status PENEMPATAN, bukan status global — inilah yang membuat tahun
+        // lama tetap terbaca sebagaimana adanya.
+        status: statusSiswaPadaTahun(row, siswa.status),
+        created_at: siswa.created_at,
+        kelas: row.kelas?.label ?? '',
+        kelas_id: row.kelas_id,
+        academic_year_id: row.academic_year_id,
+      };
+    })
+    .filter((s): s is SiswaTerdaftar => s !== null)
+    .sort((a, b) => a.nama_siswa.localeCompare(b.nama_siswa, 'id'));
+}
+
+/**
+ * Seluruh siswa, termasuk yang tidak punya penempatan pada tahun ajaran itu.
+ *
+ * Dipakai halaman Data Siswa. Tanpa ini, siswa yang sudah lulus atau pindah
+ * akan hilang dari daftar begitu ia tidak lagi punya penempatan — padahal justru
+ * merekalah yang statusnya perlu diubah.
+ */
+async function ambilSemuaSiswa(academicYearId: string | null): Promise<SiswaTerdaftar[]> {
   const { data, error } = await supabase
     .from('siswa')
-    .insert([{ nama_siswa: nama.trim(), kelas }])
+    .select(
+      'id, nama_siswa, nis, status, created_at, ' +
+        'penempatan:siswa_kelas (kelas_id, academic_year_id, status, kelas:kelas_id (label))',
+    );
+  if (error) throw error;
+
+  return (data ?? [])
+    .map((row: any): SiswaTerdaftar => {
+      const cocok = (row.penempatan ?? []).find(
+        (p: any) => p.academic_year_id === academicYearId,
+      );
+      return {
+        id: row.id,
+        nama_siswa: row.nama_siswa,
+        nis: row.nis ?? null,
+        // Punya penempatan tahun itu → status pada tahun itu. Tidak punya →
+        // status sekarang, yang menjelaskan kenapa ia tidak ditempatkan.
+        status: statusSiswaPadaTahun(cocok, row.status),
+        created_at: row.created_at,
+        // Kelas kosong = belum/tidak ditempatkan pada tahun ajaran berjalan.
+        kelas: cocok?.kelas?.label ?? '',
+        kelas_id: cocok?.kelas_id ?? '',
+        academic_year_id: academicYearId ?? '',
+      };
+    })
+    .sort((a, b) => a.nama_siswa.localeCompare(b.nama_siswa, 'id'));
+}
+
+/**
+ * Daftar siswa beserta kelasnya pada satu tahun ajaran.
+ *
+ * Kelas siswa tidak lagi disimpan di tabel `siswa` — penempatannya ada di
+ * `siswa_kelas`. Karena itu daftar ini terikat tahun ajaran: yang belum
+ * ditempatkan pada tahun tersebut tidak muncul, kecuali diminta lewat
+ * `sertakanTanpaKelas`.
+ *
+ * `kelas` diisi label (mis. '1A'), bukan id — pemanggil lama membandingkan
+ * kelas sebagai teks, dan penyaringan dilakukan di sini supaya mereka tidak
+ * perlu tahu soal `kelas_id`.
+ */
+export async function getDaftarSiswa(options?: {
+  kelas?: string;
+  academicYearId?: string;
+  /** Ikut sertakan siswa tanpa penempatan di tahun itu (mis. sudah lulus). */
+  sertakanTanpaKelas?: boolean;
+  /**
+   * Hanya siswa yang masih AKTIF pada tahun itu.
+   *
+   * Dipakai daftar absensi: siswa yang sudah pindah atau dinonaktifkan tidak
+   * boleh muncul lagi sebagai pilihan kehadiran.
+   */
+  hanyaAktif?: boolean;
+}): Promise<SiswaTerdaftar[]> {
+  const academicYearId = options?.academicYearId ?? (await resolveAcademicYearId());
+
+  const daftar = options?.sertakanTanpaKelas
+    ? await ambilSemuaSiswa(academicYearId)
+    : academicYearId
+      ? await ambilSiswaTerdaftar(academicYearId)
+      : [];
+
+  const tersaring = options?.kelas
+    ? daftar.filter((s) => s.kelas === options.kelas)
+    : daftar;
+
+  return options?.hanyaAktif ? tersaring.filter((s) => s.status === 'AKTIF') : tersaring;
+}
+
+/**
+ * Tempatkan siswa di sebuah kelas pada tahun ajaran yang sedang berlaku.
+ * Dipakai `addSiswa` dan `updateSiswa` supaya keduanya lewat jalur yang sama.
+ */
+/**
+ * Status yang ditampilkan untuk seorang siswa pada satu tahun ajaran.
+ *
+ * Aturannya sengaja hanya satu kalimat, dan dipakai di semua tempat:
+ *   - punya penempatan tahun itu → status PADA tahun itu;
+ *   - tidak punya penempatan     → status global, yang menjelaskan kenapa.
+ *
+ * Inilah yang mencegah "Lulus" berlaku surut. Siswa yang lulus tetap punya
+ * penempatan di tahun terakhirnya, dan di sana statusnya AKTIF — tahun itu memang
+ * dijalaninya penuh. `LULUS` hanya muncul saat membuka tahun yang tidak lagi
+ * punya kelas untuknya.
+ *
+ * Murni supaya bisa diuji tanpa database.
+ */
+export function statusSiswaPadaTahun(
+  penempatan: { status?: string | null } | null | undefined,
+  statusGlobal?: string | null,
+): SiswaStatus {
+  if (penempatan) return (penempatan.status ?? 'AKTIF') as SiswaStatus;
+  return (statusGlobal ?? 'AKTIF') as SiswaStatus;
+}
+
+/**
+ * `LULUS` tidak pernah ditulis ke penempatan — kolomnya memang tidak menerimanya,
+ * karena yang lulus tidak lagi punya kelas.
+ */
+function statusPenempatanDari(status?: SiswaStatus): StatusPenempatan {
+  return status && status !== 'LULUS' ? status : 'AKTIF';
+}
+
+async function tempatkanSiswa(
+  siswaId: string,
+  kelasLabel: string,
+  status: StatusPenempatan = 'AKTIF',
+): Promise<void> {
+  const academicYearId = await resolveAcademicYearId();
+  if (!academicYearId) {
+    throw new Error(
+      'Belum ada tahun ajaran. Buat dulu di menu Tahun Ajaran sebelum menambah siswa.',
+    );
+  }
+
+  const { data: kelasRow, error: kelasErr } = await supabase
+    .from('kelas')
+    .select('id')
+    .eq('label', kelasLabel)
+    .maybeSingle();
+  if (kelasErr) throw kelasErr;
+  if (!kelasRow) {
+    throw new Error(`Kelas "${kelasLabel}" tidak ada di master kelas.`);
+  }
+
+  const { error } = await supabase.from('siswa_kelas').upsert(
+    {
+      siswa_id: siswaId,
+      academic_year_id: academicYearId,
+      kelas_id: kelasRow.id,
+      status,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'siswa_id,academic_year_id' },
+  );
+  if (error) throw error;
+}
+
+/**
+ * Tandai status siswa pada tahun ajaran berjalan.
+ *
+ * Terpisah dari `siswa.status` yang global: kolom itu menjawab "status sekarang",
+ * sedangkan yang ini menjawab "apa yang terjadi pada tahun ini". Keduanya perlu,
+ * dan hanya di sini keduanya ditulis bersamaan supaya tidak saling menyimpang.
+ */
+async function tandaiStatusPenempatan(
+  siswaId: string,
+  status: StatusPenempatan,
+): Promise<void> {
+  const academicYearId = await resolveAcademicYearId();
+  if (!academicYearId) return;
+
+  const { error } = await supabase
+    .from('siswa_kelas')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('siswa_id', siswaId)
+    .eq('academic_year_id', academicYearId);
+  if (error) throw error;
+}
+
+export async function addSiswa(input: {
+  nama: string;
+  kelas: string;
+  nis?: string;
+  status?: SiswaStatus;
+}): Promise<Siswa> {
+  const { data, error } = await supabase
+    .from('siswa')
+    .insert([
+      {
+        nama_siswa: input.nama.trim(),
+        nis: input.nis?.trim() || null,
+        status: input.status ?? 'AKTIF',
+      },
+    ])
     .select()
     .single();
   if (error) throw error;
-  return data;
+
+  await tempatkanSiswa(data.id, input.kelas, statusPenempatanDari(input.status));
+  return data as Siswa;
 }
 
-export async function updateSiswa(id: string, nama: string, kelas: string): Promise<void> {
-  const { error } = await supabase
-    .from('siswa')
-    .update({ nama_siswa: nama.trim(), kelas })
-    .eq('id', id);
+/**
+ * Perbarui identitas siswa, dan penempatan kelasnya kalau `kelas` diisi.
+ *
+ * `kelas` kosong berarti hanya identitas yang diubah — berguna saat siswa sudah
+ * lulus atau pindah, sehingga tidak punya penempatan di tahun ajaran berjalan.
+ */
+export async function updateSiswa(
+  id: string,
+  patch: { nama: string; kelas?: string; nis?: string | null; status?: SiswaStatus },
+): Promise<void> {
+  const row: Record<string, unknown> = { nama_siswa: patch.nama.trim() };
+  if (patch.nis !== undefined) row.nis = patch.nis?.trim() || null;
+  if (patch.status !== undefined) row.status = patch.status;
+
+  const { error } = await supabase.from('siswa').update(row).eq('id', id);
   if (error) throw error;
+
+  if (patch.kelas) {
+    await tempatkanSiswa(id, patch.kelas, statusPenempatanDari(patch.status));
+  } else if (patch.status !== undefined && patch.status !== 'LULUS') {
+    // Tanpa kelas pun status tahun berjalan tetap perlu diselaraskan, supaya
+    // siswa yang dinonaktifkan langsung hilang dari daftar absensi.
+    await tandaiStatusPenempatan(id, patch.status);
+  }
 }
 
 export async function deleteSiswa(id: string): Promise<void> {
@@ -110,20 +382,36 @@ export async function getDaftarMapel(): Promise<MataPelajaran[]> {
   }
 }
 
-export async function addMapel(namaMapel: string): Promise<MataPelajaran> {
+/**
+ * Warna kosong disimpan sebagai NULL, bukan string kosong.
+ *
+ * Keduanya sama-sama berarti "otomatis" bagi aplikasi, tapi NULL lebih jujur:
+ * satu nilai untuk satu makna, sehingga query `WHERE warna IS NULL` di masa
+ * depan tidak perlu tahu soal konvensi string kosong.
+ */
+function warnaOrNull(warna?: string | null): string | null {
+  const trimmed = (warna ?? '').trim().replace(/^#/, '').toUpperCase();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export async function addMapel(namaMapel: string, warna?: string | null): Promise<MataPelajaran> {
   const { data, error } = await supabase
     .from('mapel')
-    .insert([{ nama_mapel: namaMapel.trim() }])
+    .insert([{ nama_mapel: namaMapel.trim(), warna: warnaOrNull(warna) }])
     .select()
     .single();
   if (error) throw error;
   return data;
 }
 
-export async function updateMapel(id: string, namaMapel: string): Promise<void> {
+export async function updateMapel(
+  id: string,
+  namaMapel: string,
+  warna?: string | null,
+): Promise<void> {
   const { error } = await supabase
     .from('mapel')
-    .update({ nama_mapel: namaMapel.trim() })
+    .update({ nama_mapel: namaMapel.trim(), warna: warnaOrNull(warna) })
     .eq('id', id);
   if (error) throw error;
 }
@@ -163,7 +451,13 @@ export async function simpanAgenda(payload: SimpanAgendaPayload): Promise<{ id: 
 
   let currentAgendaId = agendaId;
 
-  const headerPayload: any = { sekolah, kelas, tanggal };
+  // Terjemahan label → kelas_id di luar try mana pun: kelas yang tidak ada di
+  // master data harus melempar, bukan tersimpan sebagai agenda tanpa kelas.
+  const headerPayload: any = {
+    sekolah,
+    kelas_id: await resolveKelasId(kelas),
+    tanggal,
+  };
   if (schedule_id !== undefined) headerPayload.schedule_id = schedule_id;
   if (actual_teacher_name !== undefined) headerPayload.actual_teacher_name = actual_teacher_name;
 
@@ -224,6 +518,7 @@ export async function simpanAgenda(payload: SimpanAgendaPayload): Promise<{ id: 
 /** Kolom + relasi agenda yang dibutuhkan untuk membangun `FullAgenda`. */
 const AGENDA_DETAIL_SELECT = `
       *,
+      kelas:kelas_id (label),
       agenda_kbm (*),
       agenda_absensi (
         *,
@@ -246,6 +541,7 @@ const AGENDA_DETAIL_SELECT = `
  */
 const AGENDA_DETAIL_SELECT_BY_TEACHER = `
       *,
+      kelas:kelas_id (label),
       agenda_kbm!inner (*),
       agenda_absensi (
         *,
@@ -265,7 +561,9 @@ function mapAgendaRow(item: any): FullAgenda {
     header: {
       id: item.id,
       sekolah: item.sekolah,
-      kelas: item.kelas,
+      // Database menyimpan `kelas_id`; `AgendaHeader.kelas` adalah labelnya.
+      // Semua layar, pencarian, dan filter laporan memakai label ini.
+      kelas: item.kelas?.label ?? '',
       tanggal: item.tanggal,
       schedule_id: item.schedule_id || null,
       actual_teacher_name: item.actual_teacher_name || null,
@@ -337,7 +635,10 @@ export async function getRekapAgenda(filters?: {
   }
 
   if (filters?.kelas && filters.kelas !== 'SEMUA') {
-    query = query.eq('kelas', filters.kelas);
+    const kelasId = await findKelasId(filters.kelas);
+    // Label yang tidak ada di master kelas berarti tidak ada agenda yang cocok.
+    if (!kelasId) return [];
+    query = query.eq('kelas_id', kelasId);
   }
   if (filters?.tanggal) {
     query = query.eq('tanggal', filters.tanggal);
