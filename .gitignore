@@ -39,3 +39,7 @@ scripts/measure-*.ts
 # dan hanya dipakai manual di lingkungan lokal, bukan untuk repo tim.
 supabase/legacy/wipe_all_app_data*.sql
 supabase/legacy/cleanup_*.sql
+
+# Keluaran antara generator jadwal — dihasilkan ulang dari Excel, tidak perlu
+# di repo (skripnya: parse-jadwal-excel.ts lalu build-seed-jadwal-sql.ts).
+jadwal-parsed.json
