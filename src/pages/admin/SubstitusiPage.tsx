@@ -18,6 +18,14 @@ interface SubstitusiPageProps {
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
 }
 
+/**
+ * Baris histori badal + jadwal yang di-join.
+ *
+ * `schedule.kelas` adalah LABEL (mis. '1A'), bukan objek `{ label }` — bentuk
+ * bersarang dari database sudah diratakan di `substitutionService`
+ * (`mapSubstitutionRow`). Jangan pernah menulis `{sch.kelas}` bila kontrak ini
+ * berubah: React akan melempar "Objects are not valid as a React child".
+ */
 interface SubWithSchedule extends Substitution {
   schedule?: {
     /** Label kelas, mis. '1A'. */

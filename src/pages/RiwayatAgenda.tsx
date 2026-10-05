@@ -1,12 +1,19 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useOutletContext } from 'react-router';
-import { useRiwayatFilterParams, useRiwayatOpenParam } from '../routes/useRiwayatQuery';
+import {
+  useRiwayatFilterParams,
+  useRiwayatOpenParam,
+  type RiwayatPreset,
+} from '../routes/useRiwayatQuery';
 import {
   localDateString,
   formatDayDate,
   formatDateLong,
+  formatDateCompact,
+  formatDateShort,
   formatDateTimeShort,
   formatMonthYear,
+  formatDateRange,
   monthRange,
   recentMonthKeys,
 } from '../utils/date';
@@ -27,6 +34,7 @@ import {
   ChevronDown,
   Lock,
   CalendarDays,
+  CalendarRange,
   UserX,
   Loader2,
 } from 'lucide-react';
@@ -64,6 +72,44 @@ const PAGE_SIZE = 20;
 
 /** Jumlah bulan yang selalu ditawarkan penyaring bulan (lihat `availableMonths`). */
 const MONTH_OPTIONS = 12;
+
+/**
+ * Batas atas hari yang dihitung ulang saat penyaring tanggal dipasang.
+ *
+ * Rentang bebas secara teori tak terhingga (`?dari=1990-01-01`), dan
+ * menghitung klasifikasi untuk rentang sedekade berarti puluhan ribu iterasi
+ * setiap kali penyaring disentuh. Lewat batas ini angkanya dilaporkan sebagai
+ * "±" — keterangan yang jujur, bukan angka yang diam-diam salah.
+ */
+const MAX_CLASSIFIED_DAYS = 400;
+
+/**
+ * Sebanyak apa tanggal kosong yang dirinci sebelum diringkas jadi
+ * "dan N hari lain". Satu baris sudah cukup memberi arah; daftar tiga puluh
+ * tanggal kosong justru mengubur hal yang perlu ditindak.
+ */
+const CLASSIFY_BUFFER = 6;
+
+/** Kelas dasar kepingan penyaring — satu sumber untuk kedua kepingan. */
+const chipBase =
+  'inline-flex items-center gap-1.5 min-h-10 rounded-full border text-xs font-semibold transition shrink-0';
+const chipIdle = 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100';
+const chipActive = 'bg-primary-600 border-primary-600 text-white';
+
+/**
+ * `select` yang dipakai sebagai kepingan: tampilannya disamakan dengan tombol
+ * di sebelahnya, jadi deretannya terbaca sebagai satu kelompok penyaring —
+ * bukan sebagai kotak formulir yang terselip di antara tombol.
+ *
+ * Padding-nya dihitung agar dua kepingan tetap muat satu baris di lebar isi
+ * kartu HP (294px): label terpanjang "Semua tanggal" + "s.d. 10 Sep 2026"
+ * berjumlah 298px pada padding awal (pl-8 pr-7), jadi 4px lebihnya membuat
+ * baris kedua muncul hanya demi empat piksel. Padding dikecilkan sedikit
+ * supaya semua keadaan muat — dan itu diukur, bukan diperkirakan.
+ */
+const countSelectBase =
+  'appearance-none pl-7 pr-6 min-h-10 rounded-full border text-xs font-semibold cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-600';
+
 
 interface ActivePhoto {
   url: string;
@@ -113,16 +159,58 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
   const { activeTeacherName, isAdmin } = useAuth();
   const { onOpenSchedule } = useTeacherShellContext();
 
-  // Filter bulan & pencarian hidup di URL (`?q=` / `?bulan=`), begitu pula
-  // kartu yang sedang terbuka (`?buka=`). Lihat `src/routes/useRiwayatQuery.ts`.
+  // Penyaring hidup di URL. Bentuknya rentang tanggal, dipilih lewat chip
+  // pintasan atau isian rentang bebas; kartu yang sedang terbuka juga di URL
+  // (`?buka=`). Lihat `src/routes/useRiwayatQuery.ts` untuk alasannya.
   const {
     search,
     setSearch,
-    monthFilter,
-    setMonthFilter,
+    preset,
+    setPreset,
+    rangeStart,
+    rangeEnd,
+    hasDateFilter,
+    setDateRange,
+    clearDateFilter,
     reset: resetUrlFilters,
   } = useRiwayatFilterParams();
   const { openIds, toggleOpen } = useRiwayatOpenParam();
+
+  /**
+   * Panel rentang tanggal.
+   *
+   * Sengaja TIDAK terbuka otomatis hanya karena `?dari=`/`?sampai=` ada di
+   * alamat. Membukanya otomatis berarti membuka Riwayat dari tautan bersama
+   * langsung menyajikan dua pemilih tanggal — padahal guru yang menerima
+   * tautan itu paling sering hanya ingin membaca hasilnya. Karena rentangnya
+   * sudah diringkas jadi label chip, panel bisa tetap tertutup: informasi
+   * rentang tetap terbaca, tanpa memakan satu baris penuh di atas daftar.
+   *
+   * Konsekuensinya kotak tanggal bisa kosong saat rentang sebenarnya aktif;
+   * itu ditangani dengan merancah nilainya saat panel dibuka, bukan dengan
+   * membuka panelnya lebih awal.
+   */
+  const [rangePanelOpen, setRangePanelOpen] = useState(false);
+  const isCustomRange = preset === null && rangeStart !== undefined;
+
+  /** Nilai kotak tanggal: rentang aktif bila ada, kalau tidak biarkan kosong. */
+  const [draftFrom, setDraftFrom] = useState(isCustomRange ? (rangeStart ?? '') : '');
+  const [draftTo, setDraftTo] = useState(isCustomRange ? (rangeEnd ?? '') : '');
+
+  const rangePanelRef = useRef<HTMLDivElement | null>(null);
+
+  /**
+   * Buka panel rentang, dan segarkan isiannya dari rentang yang sedang aktif.
+   *
+   * Tanpa penyegaran ini, guru yang sudah menyaring "7 hari" lalu membuka
+   * panel akan melihat dua kotak kosong — seolah tidak ada rentang yang
+   * berlaku, padahal chip di sebelahnya baru saja menyatakan sebaliknya.
+   */
+  const openRangePanel = useCallback(() => {
+    setDraftFrom(rangeStart ?? '');
+    setDraftTo(rangeEnd ?? '');
+    setRangePanelOpen(true);
+  }, [rangeStart, rangeEnd]);
 
   const [agendas, setAgendas] = useState<FullAgenda[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -139,12 +227,17 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
   const todayStr = localDateString();
 
   /**
-   * Rentang tanggal bulan terpilih — dikirim ke server, bukan disaring di
-   * browser. Menyaring di browser hanya benar selama seluruh riwayat sudah
-   * terunduh; begitu diambil per halaman, penyaring lokal akan berbohong.
+   * Rentang tanggal terakhir yang sudah dimuat, plus penandanya.
+   *
+   * Tanpa ini, membuka riwayat dengan `?masa=7D` membuat halaman itu TAMPAK
+   * seperti riwayat penuh: judul kelompok bulan tetap muncul, tetapi baru
+   * sebagian yang termuat, dan guru menyimpulkan datanya hilang. Sebelumnya
+   * gejala yang sama muncul dari paginasi; sekarang dari penyaring tanggal, dan
+   * obatnya tetap sama — keterangan yang menyebut rentangnya.
    */
-  const rangeStart = monthFilter !== 'ALL' ? monthRange(monthFilter).start : undefined;
-  const rangeEnd = monthFilter !== 'ALL' ? monthRange(monthFilter).end : undefined;
+  const rangeKey = rangeStart && rangeEnd ? `${rangeStart}~${rangeEnd}` : '';
+  const [loadedRanges, setLoadedRanges] = useState<Record<string, string[]>>({});
+  const loadedRange = rangeKey ? loadedRanges[rangeKey] : undefined;
 
   /**
    * Ambil satu halaman.
@@ -169,7 +262,25 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
     [activeTeacherName, rangeStart, rangeEnd]
   );
 
-  // Muat halaman pertama setiap kali cakupan berubah (guru atau bulan terpilih).
+  /**
+   * Catat hari-hari yang sudah termuat untuk rentang ini, supaya penyaring
+   * tanggal terbit/lama tahu hari mana yang masih kosong tanpa memuat semuanya.
+   * Digabung dengan `Set`, bukan ditimpa: `loadMore` dan `loadAll` menambahkan
+   * hari ke yang sudah ada.
+   */
+  const trackLoaded = useCallback(
+    (rows: FullAgenda[]) => {
+      if (!rangeKey) return;
+      setLoadedRanges((prev) => {
+        const merged = new Set(prev[rangeKey] ?? []);
+        for (const r of rows) merged.add(r.header.tanggal);
+        return { ...prev, [rangeKey]: Array.from(merged) };
+      });
+    },
+    [rangeKey]
+  );
+
+  // Muat halaman pertama setiap kali cakupan berubah (guru atau rentang tanggal).
   useEffect(() => {
     let alive = true;
     setIsLoading(true);
@@ -178,7 +289,9 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
 
     fetchPage(0)
       .then((page) => {
-        if (alive) setAgendas(page);
+        if (!alive) return;
+        setAgendas(page);
+        trackLoaded(page);
       })
       .catch((err) => {
         console.error(err);
@@ -193,7 +306,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
     return () => {
       alive = false;
     };
-  }, [fetchPage, showToast]);
+  }, [fetchPage, showToast, trackLoaded]);
 
   /** Muat ulang paksa — tombol "Segarkan" dan setelah sebuah agenda dihapus. */
   const refresh = useCallback(async () => {
@@ -201,7 +314,9 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
     setLoadError(false);
     setAllLoaded(false);
     try {
-      setAgendas(await fetchPage(0));
+      const page = await fetchPage(0);
+      setAgendas(page);
+      trackLoaded(page);
     } catch (err) {
       console.error(err);
       setLoadError(true);
@@ -209,7 +324,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
     } finally {
       setIsLoading(false);
     }
-  }, [fetchPage, showToast]);
+  }, [fetchPage, showToast, trackLoaded]);
 
   /** Halaman berikutnya, ditambahkan di bawah yang sudah ada. */
   const loadMore = useCallback(async () => {
@@ -217,13 +332,14 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
     try {
       const page = await fetchPage(agendas.length);
       setAgendas((prev) => [...prev, ...page]);
+      trackLoaded(page);
     } catch (err) {
       console.error(err);
       showToast('error', 'Gagal memuat agenda berikutnya.');
     } finally {
       setIsLoadingMore(false);
     }
-  }, [agendas.length, fetchPage, showToast]);
+  }, [agendas.length, fetchPage, showToast, trackLoaded]);
 
   /**
    * Muat seluruh baris dalam cakupan sekarang, sekaligus.
@@ -249,25 +365,21 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
       setAgendas(rows);
       setHasMore(false);
       setAllLoaded(true);
+      trackLoaded(rows);
     } catch (err) {
       console.error(err);
       showToast('error', 'Gagal memuat seluruh riwayat.');
     } finally {
       setIsLoadingMore(false);
     }
-  }, [activeTeacherName, rangeStart, rangeEnd, showToast]);
+  }, [activeTeacherName, rangeStart, rangeEnd, showToast, trackLoaded]);
 
   /**
-   * Pilihan bulan: dua belas bulan terakhir, ditambah bulan apa pun yang muncul
-   * di data yang sudah termuat (mis. saat guru memuat jauh ke belakang, atau
-   * membuka tautan lama).
+   * Bulan yang punya data menurut cap "hari terlama yang sudah dimuat".
    *
-   * Sebelumnya daftar ini dibangun dari seluruh data sehingga tidak pernah
-   * menawarkan bulan kosong. Sejak pengambilan per halaman, bulan yang punya
-   * data tidak lagi bisa diketahui seluruhnya tanpa mengunduh semuanya — jadi
-   * rentang yang pasti masuk akal dipakai sebagai dasar. Bulan kosong yang
-   * terpilih berakhir di keadaan kosong yang menjelaskan dirinya sendiri,
-   * bukan di layar bingung.
+   * Tidak lagi dibangun dari daftar hari di rentang cakupan: rentang bebas
+   * bisa mencakup tahun-tahun yang tidak pernah diisi guru, dan menawarkan dua
+   * belas bulan kosong hanya menambah pilihan yang tidak berguna.
    */
   const availableMonths = useMemo(() => {
     const keys = new Set(recentMonthKeys(MONTH_OPTIONS));
@@ -276,20 +388,100 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
   }, [agendas]);
 
   /**
-   * Bulan yang sedang tersaring tetapi tidak punya data (mis. tautan lama).
-   * Tetap ditampilkan sebagai satu pilihan supaya kotak pilihannya tidak tampil
-   * kosong tanpa keterangan.
+   * Bulan yang sedang dipilih, bila rentang aktif ternyata persis satu bulan
+   * penuh (`?bulan=` lama, atau pilihan dari kotak ini sendiri).
+   *
+   * `null` saat rentang aktif bukan satu bulan penuh — mis. "7 hari" atau
+   * rentang bebas. Kotak bulan lalu menampilkan "Pilih bulan…", bukan bulan
+   * yang kebetulan termuat dari data.
    */
-  const staleMonth =
-    monthFilter !== 'ALL' && !availableMonths.includes(monthFilter) ? monthFilter : null;
+  const selectedMonth = useMemo(() => {
+    if (!rangeStart || !rangeEnd) return null;
+    const key = monthKey(rangeStart);
+    const { start, end } = monthRange(key);
+    return rangeStart === start && rangeEnd === end ? key : null;
+  }, [rangeStart, rangeEnd]);
+
+  /**
+   * Klasifikasi setiap hari di rentang yang sedang dilihat.
+   *
+   * Inilah yang memberi arti pada penyaring tanggal. Sebelumnya rentang hanya
+   * menyembunyikan data di luar rentang, dan hasilnya kosong hanya bisa
+   * dijawab dengan "tidak ada agenda" — yang mudah disalahartikan sebagai
+   * "riwayat saya hilang". Padahal tiga sebabnya berbeda jauh:
+   *
+   *  - `FUTURE`    — hari yang belum terjadi. "Hari ini" di hari Minggu dan
+   *                  "7 hari terakhir" yang menyentuh ujung pekan masuk ke
+   *                  sini: rentangnya sah, isinya memang nol.
+   *  - `WEEKEND`   — Sabtu/Minggu. Tidak ada jadwal reguler, jadi nol.
+   *  - `EMPTY`     — hari sekolah yang benar-benar belum diisi.
+   *  - `FILLED`    — ada agenda.
+   *
+   * Batasnya dua: `MAX_CLASSIFIED_DAYS` menjaga loop tetap terbatas (rentang
+   * sepuluh tahun tidak akan dihitung 3.650 kali), dan `CLASSIFY_BUFFER`
+   * menjaga daftar "belum diisi" tetap sependek satu baris di layar. Yang
+   * dibutuhkan guru adalah arah, bukan laporan lengkap.
+   */
+  const daySummary = useMemo(() => {
+    if (!loadedRange) return null;
+    const filled = new Set(loadedRange);
+    const start = rangeStart!;
+    const end = rangeEnd!;
+    let hasMoreDays = false;
+
+    // Kalender: tanggal lahirnya, tanpa jam, supaya penjumlahan hari aman.
+    const p = (s: string) => {
+      const [y, m, d] = s.split('-').map(Number);
+      return new Date(y, m - 1, d);
+    };
+    const startD = p(start);
+    const endD = p(end);
+    const total = Math.min(Math.round((+endD - +startD) / 86_400_000) + 1, MAX_CLASSIFIED_DAYS);
+    if (Math.round((+endD - +startD) / 86_400_000) + 1 > MAX_CLASSIFIED_DAYS) hasMoreDays = true;
+
+    let filledCount = 0;
+    let schoolDays = 0;
+    let weekendDays = 0;
+    let lastFilled: string | null = null;
+    const emptyDays: string[] = [];
+    const pendingDays: string[] = [];
+
+    for (let i = 0; i < total; i += 1) {
+      const d = new Date(startD.getFullYear(), startD.getMonth(), startD.getDate() + i);
+      const ds = localDateString(d);
+      const dow = d.getDay();
+
+      if (filled.has(ds)) {
+        filledCount += 1;
+        lastFilled = ds;
+        continue;
+      }
+      // Batas atas "belum diisi" sengaja bukan cakupan tanggal, melainkan
+      // `todayStr`: guru tidak "tertinggal" mengisi agenda Jumat besok.
+      if (ds > todayStr) pendingDays.push(ds);
+      else if (dow === 0 || dow === 6) weekendDays += 1;
+      else {
+        schoolDays += 1;
+        if (emptyDays.length < CLASSIFY_BUFFER) emptyDays.push(ds);
+      }
+    }
+
+    return {
+      total,
+      filledCount,
+      schoolDays,
+      weekendDays,
+      emptyDays,
+      lastFilled,
+      pendingDays,
+      hasMoreDays,
+    };
+  }, [loadedRange, rangeStart, rangeEnd, todayStr]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    if (!q) return agendas;
     return agendas.filter((agenda) => {
-      if (monthFilter !== 'ALL' && monthKey(agenda.header.tanggal) !== monthFilter) {
-        return false;
-      }
-      if (!q) return true;
       return (
         agenda.header.kelas.toLowerCase().includes(q) ||
         agenda.header.tanggal.includes(q) ||
@@ -304,7 +496,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
         )
       );
     });
-  }, [agendas, search, monthFilter]);
+  }, [agendas, search]);
 
   /** Dikelompokkan per bulan supaya guru memindai posisi, bukan membaca satu per satu. */
   const grouped = useMemo(() => {
@@ -318,9 +510,41 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
     return Array.from(map.entries());
   }, [filtered]);
 
-  const hasFilter = search.trim() !== '' || monthFilter !== 'ALL';
+  const hasFilter = search.trim() !== '' || hasDateFilter;
 
   const resetFilters = () => resetUrlFilters();
+
+  /**
+   * Terapkan rentang dari isian, lalu buka lipatannya.
+   *
+   * Dijalankan saat `onChange` kedua kotak — bukan menunggu tombol "Terapkan".
+   * Memilih tanggal itu tindakan tunggal, dan tombol konfirmasi hanya menambah
+   * satu ketukan serta satu kesempatan lupa menekannya.
+   */
+  const commitRange = (from: string, to: string) => {
+    if (!from || !to) return;
+    setDateRange(from, to);
+  };
+
+  /**
+   * "Hari ini" (lokal) — sengaja dibekukan saat komponen dipasang.
+   *
+   * `useMemo` dengan daftar dependensi kosong, bukan `new Date()` di badan
+   * render: nilainya dipakai sebagai batas atas kalender dan sebagai pembagi
+   * "belum diisi" vs "belum tiba", dan `new Date()` yang dihitung ulang setiap
+   * render membuat keduanya ikut berubah tanpa sebab.
+   */
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
+  const todayIso = useMemo(() => localDateString(), []);
+
+  /**
+   * Preset yang berupa hitungan hari — nilai yang ditampilkan di kepingan
+   * "Terbaru". Preset bulan (`MONTH`) sengaja tidak ikut: ia punya kepingan
+   * sendiri di dalam panel tanggal, dan menampilkannya di sini akan membuat
+   * dua kontrol menyatakan hal yang sama.
+   */
+  const countPreset =
+    preset && (preset === '7D' || preset === '30D' || preset === '90D') ? preset : null;
 
   const confirmDelete = async () => {
     if (!pendingDelete) return;
@@ -355,7 +579,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
               Riwayat Agenda Saya
             </h1>
             <p className="text-xs text-slate-600 mt-0.5">
-              Daftar agenda yang diisi oleh{' '}
+              Agenda yang diisi{' '}
               <strong className="text-slate-800">{activeTeacherName}</strong>
             </p>
           </div>
@@ -397,50 +621,226 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
           </div>
         </div>
 
-        {/* Sebelumnya tidak ada kendali apa pun selain "Segarkan", sehingga
-            menemukan satu agenda lama berarti menggulir seluruh riwayat. */}
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative flex-1">
-            <Search
-              className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2"
-              aria-hidden="true"
-            />
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cari kelas, mapel, materi, atau catatan…"
-              aria-label="Cari riwayat agenda"
-              className="w-full pl-9 pr-3 py-2.5 min-h-10 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition"
-            />
-          </div>
+        {/* Pencarian teks. Tetap terpisah dari baris chip di bawahnya: kata
+            kunci dan rentang tanggal adalah dua pertanyaan berbeda, dan
+            menggabungkannya jadi satu baris membuat keduanya lebih sempit
+            tanpa menghemat apa pun. */}
+        <div className="relative">
+          <Search
+            className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2"
+            aria-hidden="true"
+          />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Cari kelas, mapel, materi, atau catatan…"
+            aria-label="Cari riwayat agenda"
+            className="w-full pl-9 pr-3 py-2.5 min-h-10 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition"
+          />
+        </div>
 
-          <div className="relative sm:w-56">
-            <CalendarDays
-              className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+        {/* Penyaring tanggal — DUA kepingan saja, satu penyaring aktif.
+            Bentuknya sengaja dirampingkan. Versi pertama rancangan ini menumpuk
+            lima chip ("Hari ini" / "7 hari" / "30 hari" / "Bulan ini" /
+            "Rentang…") plus pemilih bulan; di layar 360px itu berarti 3–4 baris
+            kepingan berjajar, dan yang terbaca bukan lagi penyaring melainkan
+            deretan tombol yang saling bersaing. Yang dipakai berulang kali cuma
+            dua: "lihat yang terbaru" dan "cari tanggal tertentu".
+
+            Yang tersisa:
+              · "Semua tanggal / N hari terakhir" — satu `select`. Inilah yang
+                benar-benar dicari guru ("pekan lalu"), dan satu ketukan cukup.
+              · "Tanggal" — membuka panel: rentang bebas + pemilih bulan.
+
+            Label "Periode" dan chip "Semua tanggal" dihapus: yang pertama
+            menghabiskan satu baris sendiri di lebar isi kartu 294px, yang kedua
+            mubazir karena melepas penyaring sudah bisa dari nilai kosong. */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {/* Rentang hari. Mengetuk nilai yang sedang aktif melepas
+              penyaringnya, jadi tidak perlu tombol "semua" tersendiri. */}
+          <div className="relative shrink-0">
+            <CalendarRange
+              className={`w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none ${
+                countPreset ? 'text-white/80' : 'text-slate-500'
+              }`}
               aria-hidden="true"
             />
             <select
-              value={monthFilter}
-              onChange={(e) => setMonthFilter(e.target.value)}
-              aria-label="Saring berdasarkan bulan"
-              className="w-full pl-9 pr-3 py-2.5 min-h-10 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition cursor-pointer"
+              value={countPreset ?? ''}
+              onChange={(e) => setPreset((e.target.value || 'ALL') as RiwayatPreset)}
+              aria-label="Saring berdasarkan jumlah hari terakhir"
+              className={`${countSelectBase} ${countPreset ? chipActive : chipIdle}`}
             >
-              <option value="ALL">Semua bulan</option>
-              {staleMonth && <option value={staleMonth}>{formatMonthYear(staleMonth)}</option>}
-              {availableMonths.map((key) => (
-                <option key={key} value={key}>
-                  {formatMonthYear(key)}
-                </option>
-              ))}
+              <option value="">Semua tanggal</option>
+              <option value="7D">7 hari terakhir</option>
+              <option value="30D">30 hari terakhir</option>
+              <option value="90D">90 hari terakhir</option>
             </select>
+            <ChevronDown
+              className={`w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none ${
+                countPreset ? 'text-white/80' : 'text-slate-500'
+              }`}
+              aria-hidden="true"
+            />
           </div>
+
+          {/* Tanggal tertentu, atau label rentang yang sedang aktif. Saat
+              rentang aktif, chip ini yang menampilkan rentangnya sekaligus
+              menjadi jalan untuk menggantinya — tidak ada teks status
+              tambahan yang perlu dibaca terpisah. */}
+          <button
+            type="button"
+            onClick={openRangePanel}
+            aria-pressed={isCustomRange}
+            aria-expanded={rangePanelOpen}
+            className={`${chipBase} px-3 min-w-0 flex-1 justify-center ${
+              isCustomRange ? chipActive : chipIdle
+            }`}
+          >
+            <CalendarDays className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            {/* Rentang bebas sengaja hanya menampilkan tanggal AKHIR, bukan
+                "4 Sep 2026 – 10 Sep 2026". Di lebar isi kartu 294px, label
+                lengkapnya selebar 187px dan memaksa kepingan ini turun ke baris
+                kedua. Tanggal akhir sudah cukup untuk mengingatkan rentang mana
+                yang sedang dilihat, dan rentang lengkapnya tetap terbaca di
+                baris "Menampilkan N agenda pada …" di bawah serta di kedua
+                kotak tanggal saat panelnya dibuka. */}
+            <span className="truncate">
+              {isCustomRange && rangeStart && rangeEnd
+                ? rangeStart === rangeEnd
+                  ? formatDateShort(rangeStart)
+                  : `s.d. ${formatDateShort(rangeEnd)}`
+                : 'Tanggal'}
+            </span>
+          </button>
         </div>
+
+        {/* Isian rentang bebas dan pemilih bulan. Muncul hanya saat chip
+            "Rentang…" dipakai, jadi ia tidak pernah ikut memakan lebar saat
+            guru memakai chip pintasan.
+            Pemilih bulan dulu berdiri sendiri di baris chip selebar 14rem;
+            di layar 360px kepingan itu sendirian menghabiskan satu baris
+            penuh, dan yang ditawarkannya justru bulan-bulan yang paling jarang
+            dicari (dua belas bulan terakhir, terbaru lebih dulu). Dipindah ke
+            sini ia muncul tepat saat guru memang sedang memilih periode
+            tertentu — tempat ia berguna, bukan sekadar tersedia. */}
+        {rangePanelOpen && (
+          <div
+            ref={rangePanelRef}
+            className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2"
+          >
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="flex-1 min-w-32">
+                <span className="block text-2xs font-bold uppercase tracking-wider text-slate-500 mb-1">
+                  Dari
+                </span>
+                <input
+                  type="date"
+                  value={draftFrom}
+                  max={todayIso}
+                  onChange={(e) => {
+                    setDraftFrom(e.target.value);
+                    commitRange(e.target.value, draftTo);
+                  }}
+                  className="w-full px-2.5 py-2 min-h-10 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition"
+                />
+              </label>
+
+              <label className="flex-1 min-w-32">
+                <span className="block text-2xs font-bold uppercase tracking-wider text-slate-500 mb-1">
+                  Sampai
+                </span>
+                <input
+                  type="date"
+                  value={draftTo}
+                  max={todayIso}
+                  onChange={(e) => {
+                    setDraftTo(e.target.value);
+                    commitRange(draftFrom, e.target.value);
+                  }}
+                  className="w-full px-2.5 py-2 min-h-10 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition"
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (isCustomRange) clearDateFilter();
+                  setDraftFrom('');
+                  setDraftTo('');
+                  setRangePanelOpen(false);
+                }}
+                className="px-3 py-2 min-h-10 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg transition"
+              >
+                Tutup
+              </button>
+            </div>
+
+            {/* Jalan pintas ke bulan tertentu. Menuliskan rentang penuh bulan
+                itu — sama seperti bentuk `?bulan=` dari desain lama, sehingga
+                tautan lama dan pilihan di sini berakhir pada rentang yang
+                persis sama. */}
+            <div className="flex items-center gap-2">
+              <label htmlFor="riwayat-bulan" className="text-2xs font-bold uppercase tracking-wider text-slate-500 shrink-0">
+                Atau bulan
+              </label>
+              <div className="relative flex-1">
+                <select
+                  id="riwayat-bulan"
+                  value={selectedMonth ?? ''}
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    const { start, end } = monthRange(e.target.value);
+                    setDraftFrom(start);
+                    setDraftTo(end);
+                    setDateRange(start, end);
+                  }}
+                  className="appearance-none w-full pl-3 pr-8 py-2 min-h-10 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition cursor-pointer"
+                >
+                  <option value="">Pilih bulan…</option>
+                  {availableMonths.map((key) => (
+                    <option key={key} value={key}>
+                      {formatMonthYear(key)}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                  aria-hidden="true"
+                />
+              </div>
+            </div>
+
+            <p className="text-2xs text-slate-500">
+              Rentang berlaku setelah kedua tanggal terisi. Kalender dibatasi sampai hari ini.
+            </p>
+          </div>
+        )}
 
         {!isLoading && !loadError && agendas.length > 0 && (
           <p className="text-xs text-slate-600" role="status" aria-live="polite">
             Menampilkan <strong className="text-slate-800">{filtered.length}</strong> agenda
+            {isCustomRange && rangeStart && rangeEnd && (
+              <>
+                {' pada '}
+                <strong className="text-slate-800">{formatDateRange(rangeStart, rangeEnd)}</strong>
+              </>
+            )}
             {searchScopeIsPartial && ' · masih ada agenda lama yang belum dimuat'}
+            {hasMore && !allLoaded && (
+              <>
+                {' · '}
+                <button
+                  type="button"
+                  onClick={loadAll}
+                  disabled={isLoadingMore}
+                  className="font-semibold text-primary-700 underline hover:text-primary-900 disabled:opacity-60"
+                >
+                  Muat semua
+                </button>
+              </>
+            )}
             {hasFilter && (
               <>
                 {' · '}
@@ -455,6 +855,61 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
             )}
           </p>
         )}
+
+        {/* Tanpa baris ini, guru yang memilih "7 hari" dan mendapat halaman
+            sepi tidak punya cara tahu bahwa rentangnya memang cuma sepekan,
+            atau hari mana yang bolong. Angka-angka di sini dihitung dari data
+            yang sudah dimuat, bukan dari seluruh arsip — dan itu dinyatakan
+            apa adanya. */}
+        {!isLoading && !loadError && daySummary && (
+          <p className="text-xs text-slate-600 border-t border-slate-200 pt-2.5">
+            {daySummary.total > 0 ? (
+              <>
+                <strong className="text-slate-800">{daySummary.filledCount}</strong> dari{' '}
+                {daySummary.hasMoreDays && '±'}
+                <strong className="text-slate-800">{daySummary.total}</strong> hari terisi
+              </>
+            ) : (
+              'Tidak ada hari dalam rentang ini'
+            )}
+            {daySummary.lastFilled && (
+              <> · Terakhir {formatDateCompact(daySummary.lastFilled)}</>
+            )}
+            {daySummary.schoolDays > 0 && (
+              <>
+                {' · '}
+                <span className="text-amber-700 font-medium">
+                  {daySummary.schoolDays} hari belum diisi
+                </span>
+              </>
+            )}
+            {daySummary.weekendDays > 0 && <> · {daySummary.weekendDays} akhir pekan</>}
+            {daySummary.pendingDays.length > 0 && (
+              <> · {daySummary.pendingDays.length} hari belum tiba</>
+            )}          </p>
+        )}
+
+        {/* "Tanggal A, B, C belum diisi" — menyebut hari yang bolong, bukan
+            hanya menghitungnya. Hanya saat penyaring tanggal dipakai, supaya
+            tampilan bawaan tetap sesederhana sebelumnya. */}
+        {!isLoading &&
+          !loadError &&
+          hasDateFilter &&
+          daySummary &&
+          daySummary.emptyDays.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+              <p className="text-xs text-amber-900">
+                <span className="font-bold">Belum ada agenda pada:</span>{' '}
+                {daySummary.emptyDays.map((d) => formatDateCompact(d)).join(', ')}
+                {daySummary.schoolDays > daySummary.emptyDays.length && (
+                  <>
+                    {' '}
+                    dan {daySummary.schoolDays - daySummary.emptyDays.length} hari lain
+                  </>
+                )}
+              </p>
+            </div>
+          )}
       </div>
 
       {/* Konten */}
@@ -474,7 +929,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
         <div className="bg-white border border-slate-300 rounded-xl">
           <ErrorState
             title="Gagal memuat riwayat"
-            message="Riwayat agenda tidak dapat diambil dari server. Periksa koneksi lalu coba lagi."
+            message="Riwayat agenda tidak bisa dimuat. Periksa koneksi lalu coba lagi."
             onRetry={refresh}
           />
         </div>
@@ -493,7 +948,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
               isFiltered
               onReset={resetFilters}
               title="Belum ditemukan di agenda terbaru"
-              description={`Pencarian baru menelusuri ${agendas.length} agenda yang sudah dimuat. Muat seluruh riwayat untuk menelusuri sampai ke belakang.`}
+              description={`Pencarian baru menelusuri ${agendas.length} agenda yang sudah dimuat. Muat semua untuk menelusuri lebih jauh.`}
               action={
                 <button
                   type="button"
@@ -511,19 +966,48 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
               }
             />
           ) : hasFilter ? (
-            <EmptyState
-              isFiltered
-              onReset={resetFilters}
-              description={
-                search.trim()
-                  ? `Tidak ada agenda yang cocok dengan pencarian "${search.trim()}".`
-                  : `Tidak ada agenda pada ${formatMonthYear(monthFilter)}.`
-              }
-            />
+            /* Empat sebab yang berbeda, empat pesan yang berbeda. Sebelumnya
+               "belum ada catatan agenda" juga muncul saat guru baru saja
+               menyaring ke bulan yang kebetulan kosong — pesannya menyalahkan
+               riwayat yang sebenarnya ada, dan menyarankan mulai mengisi
+               agenda padahal masalahnya cuma penyaring. */
+            daySummary && daySummary.schoolDays > 0 ? (
+              <EmptyState
+                isFiltered
+                onReset={resetFilters}
+                title="Belum ada agenda pada rentang ini"
+                description={`Tidak ada agenda pada ${formatDateRange(
+                  rangeStart!,
+                  rangeEnd!
+                )}. Rentang ini hanya memuat hari yang belum diisi.`}
+              />
+            ) : daySummary && daySummary.total > 0 && daySummary.schoolDays === 0 ? (
+              <EmptyState
+                isFiltered
+                onReset={resetFilters}
+                title="Rentang ini tidak memuat hari sekolah"
+                description={`${formatDateRange(
+                  rangeStart!,
+                  rangeEnd!
+                )} hanya memuat akhir pekan${
+                  daySummary.pendingDays.length > 0 ? ' dan hari yang belum tiba' : ''
+                }. Pilih rentang lain.`}
+              />
+            ) : (
+              <EmptyState
+                isFiltered
+                onReset={resetFilters}
+                description={
+                  search.trim()
+                    ? `Tidak ada agenda yang cocok dengan "${search.trim()}".`
+                    : 'Tidak ada agenda pada penyaring ini.'
+                }
+              />
+            )
           ) : (
             <EmptyState
-              title="Belum ada catatan agenda"
-              description="Agenda yang Anda isi akan muncul di sini. Mulai dari menu Isi Agenda."
+              title="Belum ada agenda"
+              description="Isi agenda melalui menu Isi Agenda."
             />
           )}
         </div>
@@ -597,7 +1081,7 @@ export const RiwayatAgenda: React.FC<RiwayatAgendaProps> = ({ onEditAgenda, show
           pendingDelete
             ? `Agenda ${pendingDelete.header.kelas} tanggal ${formatDateLong(
                 pendingDelete.header.tanggal
-              )} beserta materi, absensi, dan bukti fotonya akan dihapus permanen.`
+              )} beserta materi, absensi, dan foto akan dihapus permanen.`
             : ''
         }
         confirmText="Ya, hapus"
@@ -762,11 +1246,11 @@ const RiwayatCard: React.FC<RiwayatCardProps> = ({
                tanggal dan kelas keluar dari layar. */
             <span
               className="p-2 min-w-10 min-h-10 inline-flex items-center justify-center text-slate-500"
-              title="Hanya agenda hari yang sama yang bisa dikoreksi sendiri. Buka rincian untuk keterangan."
+              title="Hanya agenda hari ini yang bisa dikoreksi sendiri. Buka rincian untuk keterangan."
             >
               <Lock className="w-4 h-4" aria-hidden="true" />
               <span className="sr-only">
-                Terkunci — hanya agenda hari yang sama yang bisa dikoreksi sendiri
+                Terkunci — hanya agenda hari ini yang bisa dikoreksi sendiri
               </span>
             </span>
           )}
@@ -807,7 +1291,7 @@ const RiwayatCard: React.FC<RiwayatCardProps> = ({
             <p className="flex items-start gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
               <Lock className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" aria-hidden="true" />
               <span>
-                Hanya agenda hari yang sama yang bisa dikoreksi sendiri. Hubungi administrator
+                Hanya agenda hari ini yang bisa dikoreksi sendiri. Hubungi administrator
                 untuk hari lain.
               </span>
             </p>
@@ -952,7 +1436,7 @@ const RiwayatCard: React.FC<RiwayatCardProps> = ({
                       className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"
                       aria-hidden="true"
                     />
-                    <span>Bukti foto mengajar tersedia</span>
+                    <span>Bukti foto tersedia</span>
                   </p>
                   <p className="text-xs text-slate-600 mt-0.5">
                     Diunggah {formatDateTimeShort(evidence.uploaded_at)}
@@ -983,7 +1467,7 @@ const RiwayatCard: React.FC<RiwayatCardProps> = ({
             </div>
           ) : (
             <p className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900">
-              Bukti foto belum tersedia untuk agenda ini.
+              Belum ada bukti foto untuk agenda ini.
             </p>
           )}
         </div>

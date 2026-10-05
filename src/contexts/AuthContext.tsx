@@ -9,10 +9,19 @@ import { getAdminEmail, getAuthDomain } from '../services/userAdminService';
  * Yang berubah dibanding model PIN lama:
  *   - Verifikasi kode sekolah dilakukan SERVER (Supabase Auth), bukan di bundle.
  *   - Tidak ada lagi PIN yang tertanam di berkas JavaScript.
- *   - Peran admin/guru dibaca dari app_metadata JWT, yang hanya bisa ditulis
- *     lewat service_role (scripts/provision-auth-accounts.ts) sehingga tidak
- *     bisa dipalsukan dari browser.
+ *   - Peran dibaca dari app_metadata JWT, yang hanya bisa ditulis lewat
+ *     service_role (scripts/provision-auth-accounts.ts, Edge Function
+ *     `manage-users`) sehingga tidak bisa dipalsukan dari browser.
  *   - Sesi disimpan di perangkat dan diperbarui otomatis → guru masuk sekali.
+ *
+ * TIGA PERAN (lihat `ROLES` di bawah):
+ *   - `guru`       — beranda guru + riwayat agenda.
+ *   - `kurikulum`  — area admin TERBATAS: MASTER DATA + PENUGASAN.
+ *   - `admin`      — superadmin: seluruh menu, pengaturan sekolah, akun guru.
+ *
+ * Peran ini hanya menentukan APA YANG TERLIHAT. Batas sebenarnya ditegakkan
+ * RLS di database (`agenda.is_staff()` vs `agenda.is_admin()`); menyembunyikan
+ * menu tidak pernah dianggap sebagai pengamanan.
  *
  * UX untuk guru tetap sama: pilih nama, ketik kode sekolah, masuk.
  */
@@ -26,13 +35,30 @@ import { getAdminEmail, getAuthDomain } from '../services/userAdminService';
  */
 const emailForGuru = (guruId: string) => `guru-${guruId}@${getAuthDomain()}`;
 
+/** Peran yang sah. Di luar daftar ini, sesi langsung diputus. */
+export type UserRole = 'guru' | 'kurikulum' | 'admin';
+const ROLES: readonly string[] = ['guru', 'kurikulum', 'admin'];
+
 interface AuthContextType {
   activeTeacherName: string | null;
+  /** Nama akun staf (admin/kurikulum) untuk ditampilkan di header. */
+  activeStaffName: string | null;
+  /** Peran mentah dari JWT; `null` bila belum login / tidak dikenal. */
+  role: UserRole | null;
+  /** Superadmin: seluruh menu + pengaturan + kelola akun. */
   isAdmin: boolean;
+  /** Kurikulum: area MASTER DATA + PENUGASAN saja. */
+  isKurikulum: boolean;
+  /** Admin ATAU kurikulum — boleh masuk area `/admin`. */
+  isStaff: boolean;
   isDev: boolean;
   loading: boolean;
   loginAsTeacher: (guruId: string, kode: string) => Promise<{ success: boolean; message?: string }>;
   loginAsAdmin: (kode: string) => Promise<{ success: boolean; message?: string }>;
+  loginAsStaff: (
+    email: string,
+    kode: string
+  ) => Promise<{ success: boolean; message?: string }>;
   changePassword: (
     sandiLama: string,
     sandiBaru: string
@@ -42,9 +68,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function roleOf(user: User | null): string {
+function roleOf(user: User | null): UserRole | null {
   const meta = (user?.app_metadata ?? {}) as Record<string, unknown>;
-  return typeof meta.role === 'string' ? meta.role : '';
+  const raw = typeof meta.role === 'string' ? meta.role : '';
+  return ROLES.includes(raw) ? (raw as UserRole) : null;
 }
 
 function nameOf(user: User | null): string | null {
@@ -97,7 +124,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const user = session?.user ?? null;
   const role = roleOf(user);
-  const isValidMember = role === 'guru' || role === 'admin';
+  const isValidMember = role !== null;
+  // Nama akun staf: `guru_name` di app_metadata juga dipakai admin/kurikulum
+  // (diisi saat akun dibuat), jadi tidak perlu sumber kedua.
+  const displayName = role !== null && role !== 'guru' ? nameOf(user) : null;
+  const activeTeacherName = role === 'guru' ? nameOf(user) : null;
+
+  if (import.meta.env.DEV && session && !isValidMember) {
+    // Membantu diagnosis saat mengembangkan: JWT tanpa klaim role yang dikenal.
+    console.warn(
+      '[auth] Peran tidak dikenal di app_metadata; sesi akan diputus. role =',
+      (session.user?.app_metadata as Record<string, unknown>)?.role,
+    );
+  }
 
   // Akun yang tidak punya klaim peran yang sah tidak dianggap login.
   useEffect(() => {
@@ -106,8 +145,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [session, isValidMember]);
 
-  const activeTeacherName = isValidMember ? nameOf(user) : null;
   const isAdmin = role === 'admin';
+  const isKurikulum = role === 'kurikulum';
+  const isStaff = isAdmin || isKurikulum;
 
   const loginAsTeacher = async (
     guruId: string,
@@ -130,6 +170,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const { error } = await supabase.auth.signInWithPassword({
       email: getAdminEmail(),
+      password: kode.trim(),
+    });
+
+    if (error) return { success: false, message: pesanError(error.message) };
+    return { success: true };
+  };
+
+  /**
+   * Login staf (admin ATAU kurikulum) dengan email + sandi.
+   *
+   * Peran tidak dipilih di layar — server yang menentukannya dari
+   * `app_metadata`. Satu pintu untuk dua peran, supaya pemilik akun kurikulum
+   * tidak perlu tahu ia "bukan admin", dan supaya tidak ada petunjuk peran
+   * yang bocor ke halaman login.
+   */
+  const loginAsStaff = async (
+    email: string,
+    kode: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    if (!email || !email.trim()) return { success: false, message: 'Email belum diisi.' };
+    if (!kode || !kode.trim()) return { success: false, message: 'Sandi belum diisi.' };
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
       password: kode.trim(),
     });
 
@@ -174,11 +238,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider
       value={{
         activeTeacherName,
+        activeStaffName: displayName,
+        role,
         isAdmin,
-        isDev: isAdmin, // Dev mode is accessible when admin
+        isKurikulum,
+        isStaff,
+        // Dev mode hanya untuk superadmin — kurikulum tidak boleh menyentuh
+        // peralatan pengembangan.
+        isDev: isAdmin,
         loading,
         loginAsTeacher,
         loginAsAdmin,
+        loginAsStaff,
         changePassword,
         signOut,
       }}

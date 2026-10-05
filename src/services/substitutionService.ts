@@ -42,6 +42,29 @@ export async function getSubstitutionsForDate(
 // ---------------------------------------------------------------------------
 // Histori badal untuk admin (dengan filter)
 // ---------------------------------------------------------------------------
+
+/**
+ * Kelas disimpan di database sebagai `kelas_id` (referensi master kelas) dan
+ * di-join sebagai objek bersarang (`kelas:kelas_id (label)` → `{ label: '1A' }`),
+ * sementara seluruh layar bekerja dengan LABEL-nya.
+ *
+ * Normalisasi ini WAJIB dilakukan di sini, sama seperti `mapScheduleRow` di
+ * `scheduleService`. Kalau baris mentah diteruskan apa adanya, komponen yang
+ * menulis `{schedule.kelas}` akan merender OBJEK dan React melempar
+ * "Objects are not valid as a React child (found: object with keys {label})".
+ *
+ * Diekspor agar bisa diuji langsung (lihat `test_badal_kelas_label.ts`) tanpa
+ * perlu menyentuh Supabase.
+ */
+export function mapSubstitutionRow(row: any): Substitution {
+  return {
+    ...row,
+    schedule: row?.schedule
+      ? { ...row.schedule, kelas: row.schedule.kelas?.label ?? '' }
+      : row?.schedule,
+  } as Substitution;
+}
+
 export async function getSubstitutionHistory(filters?: {
   startDate?: string;
   endDate?: string;
@@ -65,7 +88,7 @@ export async function getSubstitutionHistory(filters?: {
 
   const { data, error } = await query;
   if (error) throw error;
-  return (data || []) as any;
+  return (data || []).map(mapSubstitutionRow);
 }
 
 // ---------------------------------------------------------------------------

@@ -1,22 +1,31 @@
-import React, { Suspense, useState } from 'react';
+import React, { Suspense, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import { ChevronLeft, ChevronRight, LogOut, Menu, X, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { LoadingState } from '../common';
 import {
-  ADMIN_NAV_GROUPS,
   adminPath,
   getAdminRouteByPath,
+  navGroupsForRole,
 } from '../../routes/adminRoutes';
 
 export type { AdminTab } from '../../routes/adminRoutes';
 
 export const AdminLayout: React.FC = () => {
-  const { signOut, activeTeacherName } = useAuth();
+  const { signOut, activeStaffName, activeTeacherName, role } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const location = useLocation();
+
+  /**
+   * Sidebar disaring per peran. Kurikulum hanya melihat MASTER DATA +
+   * PENUGASAN; superadmin melihat semuanya. Penyaringan di klien ini murni
+   * kosmetik — batas sebenarnya ditegakkan RLS di database.
+   */
+  const navGroups = useMemo(() => navGroupsForRole(role), [role]);
+
+  const staffLabel = activeStaffName || activeTeacherName || 'Administrator';
 
   // Tab aktif & judul breadcrumb diturunkan dari segmen URL (/admin/<segmen>),
   // sehingga deep-link, Back, dan Forward otomatis konsisten.
@@ -84,7 +93,7 @@ export const AdminLayout: React.FC = () => {
 
         {/* Nav groups */}
         <nav className="flex-1 p-3 space-y-5 overflow-y-auto min-h-0">
-          {ADMIN_NAV_GROUPS.map((grp) => (
+          {navGroups.map((grp) => (
             <div key={grp.group} className="space-y-1">
               {!isCollapsed && (
                 <p className="px-3 text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
@@ -127,10 +136,12 @@ export const AdminLayout: React.FC = () => {
                   <ShieldCheck className="w-4 h-4 text-slate-700" />
                 </div>
                 <div className="truncate">
-                  <p className="text-xs font-bold text-slate-800 truncate">
-                    {activeTeacherName || 'Administrator'}
+                  <p className="text-xs font-bold text-slate-800 truncate">{staffLabel}</p>
+                  {/* Label peran ikut peran sebenarnya — jangan tulis
+                      "Superuser" untuk akun kurikulum. */}
+                  <p className="text-xs text-slate-600">
+                    {role === 'kurikulum' ? 'Kurikulum' : 'Superuser'}
                   </p>
-                  <p className="text-xs text-slate-600">Superuser</p>
                 </div>
               </div>
 

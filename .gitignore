@@ -27,3 +27,15 @@ dist-ssr
 # Catatan kerja asisten AI (memori proyek, artefak) — bukan bagian dari kode
 # aplikasi, jangan ikut ke repo tim.
 .workbuddy-ai/
+
+# Skrip uji/ukur manual & berkas debug sekali pakai — sengaja TIDAK di repo.
+# Skrip-skrip ini dijalankan dengan `bun <berkas>.ts` untuk memeriksa perilaku
+# sesaat, bukan bagian dari build maupun test suite.
+test_*.ts
+tmp-*.test.ts
+scripts/measure-*.ts
+
+# Perintah destruktif sekali pakai (wipe/cleanup) — memuat DDL penghapus data
+# dan hanya dipakai manual di lingkungan lokal, bukan untuk repo tim.
+supabase/legacy/wipe_all_app_data*.sql
+supabase/legacy/cleanup_*.sql

@@ -332,8 +332,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
     setTugasPr(base.tugasPr);
     setAbsensiList(base.absensiList);
     setUraianKejadian(base.uraianKejadian);
-    showToast('info', 'Draf dibuang. Isian kembali ke versi tersimpan.');
-  };
+    showToast('info', 'Draf dibuang. Isian kembali ke versi tersimpan.');  };
 
   // Daftar siswa untuk absensi kelas ini.
   useEffect(() => {
@@ -406,7 +405,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
       return;
     }
     if (absensiList.length >= siswaKelas.length) {
-      showToast('info', 'Semua siswa sudah masuk dalam daftar tidak hadir.');
+      showToast('info', 'Semua siswa sudah ada di daftar tidak hadir.');
       return;
     }
     // Sengaja TIDAK menebak siswa maupun status: sebelumnya baris baru langsung
@@ -538,7 +537,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
       });
 
       setExistingEvidence(uploaded);
-      showToast('success', 'Foto dokumentasi berhasil disimpan.');
+      showToast('success', 'Foto dokumentasi tersimpan.');
     } catch (err: any) {
       console.error('Evidence upload error:', err);
       showToast('error', 'Gagal mengunggah foto: ' + (err?.message || 'Periksa koneksi internet'));
@@ -577,13 +576,13 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
     }
 
     if (!isPhotoReady) {
-      showToast('info', 'Ambil foto dokumentasi dulu sebelum menyimpan agenda.');
+      showToast('info', 'Ambil foto dokumentasi dulu sebelum menyimpan.');
       focusStep('foto');
       return;
     }
 
     if (!isAbsensiComplete) {
-      showToast('error', 'Lengkapi dulu nama dan status siswa yang tidak hadir.');
+      showToast('error', 'Lengkapi nama dan status siswa yang tidak hadir.');
       focusStep('absensi');
       return;
     }
@@ -622,8 +621,8 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
       showToast(
         'success',
         existingAgenda
-          ? `Perubahan agenda ${kelas} (${subjectName}) berhasil disimpan.`
-          : `Agenda ${kelas} (${subjectName}) berhasil diselesaikan.`
+          ? `Perubahan agenda ${kelas} (${subjectName}) tersimpan.`
+          : `Agenda ${kelas} (${subjectName}) selesai disimpan.`
       );
 
       // Navigasi setelah simpan diurus pemanggil (`onSuccessSave`), supaya bisa
@@ -659,7 +658,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
         <div className="flex items-center gap-3">
           <button
             type="button"
-            aria-label="Kembali ke daftar jadwal"
+            aria-label="Kembali ke jadwal"
             onClick={onBack}
             className="p-2.5 min-w-11 min-h-11 inline-flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition shrink-0"
             title="Kembali ke Jadwal"
@@ -668,7 +667,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
           </button>
           <div>
             <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-              {existingAgenda ? 'Lihat / Edit Agenda' : 'Isi Agenda Mengajar'}
+              {existingAgenda ? 'Koreksi Agenda' : 'Isi Agenda Mengajar'}
             </h1>
             <p className="text-xs text-slate-600 mt-0.5">
               {schoolName} &bull; {targetDate}
@@ -768,8 +767,8 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
             <div className="flex items-start gap-2.5">
               <RotateCcw className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" aria-hidden="true" />
               <p className="text-xs text-blue-900 leading-relaxed">
-                <strong>Isian sebelumnya dipulihkan</strong> (tersimpan otomatis{' '}
-                {formatTimeShort(draftRestoredAt)}). Periksa kembali sebelum menyimpan.
+                <strong>Isian sebelumnya dipulihkan</strong> ({formatTimeShort(draftRestoredAt)}).
+                Periksa kembali sebelum menyimpan.
               </p>
             </div>
             <button
@@ -786,7 +785,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
         <FormStep
           step={1}
           title="Foto Dokumentasi Mengajar"
-          hint="Ambil selfie Anda di ruang kelas. Ini bukti kehadiran mengajar dan wajib ada sebelum menyimpan."
+          hint="Ambil selfie di ruang kelas. Wajib ada sebelum menyimpan."
           icon={<Camera className="w-4 h-4" aria-hidden="true" />}
           done={isStepDone.foto}
           required
@@ -850,8 +849,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
               <div>
                 <p className="text-sm font-bold text-slate-800">Belum ada foto</p>
                 <p className="text-xs text-slate-600 mt-0.5 max-w-sm">
-                  Kamera depan akan terbuka. Pastikan wajah Anda terlihat dan ruang kelas jadi
-                  latar.
+                  Kamera depan akan terbuka. Pastikan wajah terlihat dan ruang kelas jadi latar.
                 </p>
               </div>
               <button
@@ -890,7 +888,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
         <FormStep
           step={2}
           title="Materi Pembelajaran"
-          hint={`Ringkas apa yang diajarkan hari ini, minimal ${MIN_MATERI_LENGTH} karakter. Isian ini ikut tercetak di rekap.`}
+          hint={`Ringkas materi hari ini, minimal ${MIN_MATERI_LENGTH} karakter. Ikut tercetak di rekap.`}
           icon={<BookOpen className="w-4 h-4" aria-hidden="true" />}
           done={isStepDone.materi}
           required
@@ -922,7 +920,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
               />
               <div className="flex items-start justify-between gap-3 mt-1.5">
                 <p id="agenda-materi-help" className="text-xs text-slate-600">
-                  Minimal {MIN_MATERI_LENGTH} karakter. Satu sampai dua kalimat sudah cukup.
+                  Minimal {MIN_MATERI_LENGTH} karakter. Satu–dua kalimat cukup.
                 </p>
                 <span
                   aria-hidden="true"
@@ -958,8 +956,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
         <FormStep
           step={3}
           title="Kehadiran Siswa"
-          hint="Semua siswa dianggap hadir. Catat hanya yang tidak masuk."
-          icon={<UserCheck className="w-4 h-4" aria-hidden="true" />}
+          hint="Semua siswa dianggap hadir. Catat hanya yang tidak masuk."          icon={<UserCheck className="w-4 h-4" aria-hidden="true" />}
           /* `done` HARUS memakai predikat yang sama dengan daftar periksa
              syarat simpan (`isAbsensiComplete`). Sebelumnya di sini ditambah
              syarat `absensiList.length > 0`, sehingga saat guru tidak mencatat
@@ -979,8 +976,8 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
             <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 text-xs text-amber-900 flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
               <span>
-                Belum ada data siswa untuk kelas {kelas}. Hubungi administrator bila daftar siswa
-                seharusnya sudah ada.
+                Belum ada data siswa untuk kelas {kelas}. Hubungi administrator bila seharusnya
+                sudah ada.
               </span>
             </div>
           ) : (
@@ -1090,7 +1087,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                   {!isAbsensiComplete && (
                     <p className="text-xs text-rose-700 font-semibold flex items-center gap-1.5">
                       <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                      Setiap baris perlu nama siswa dan status sebelum bisa disimpan.
+                      Setiap baris perlu nama siswa dan status sebelum disimpan.
                     </p>
                   )}
 
@@ -1122,7 +1119,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
         <FormStep
           step={4}
           title="Catatan Kejadian"
-          hint="Kendala kelas, kejadian khusus siswa, atau catatan evaluasi."
+          hint="Kendala kelas, kejadian khusus, atau catatan evaluasi."
           icon={<AlertCircle className="w-4 h-4" aria-hidden="true" />}
           done={isStepDone.catatan}
           optional
@@ -1163,7 +1160,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
           }}
           variant="warning"
           title="Ganti foto dokumentasi?"
-          message="Foto lama akan diganti dan waktu pengambilan baru tercatat. Lakukan hanya bila foto sebelumnya tidak layak (buram, gelap, atau salah orang)."
+          message="Foto lama akan diganti dan waktu pengambilan baru tercatat. Lakukan hanya bila foto sebelumnya tidak layak."
           confirmText="Ya, ambil ulang"
           cancelText="Batal"
         />
@@ -1206,8 +1203,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                   {formatTimeShort(draftSavedAt)}
                 </strong>
                 .
-              </span>
-            </p>
+              </span>            </p>
           )}
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">

@@ -559,22 +559,48 @@ AS $$
     SELECT COALESCE(auth.jwt() -> 'app_metadata', '{}'::jsonb);
 $$;
 
--- Anggota sekolah yang sudah login (peran 'guru' atau 'admin').
+-- Anggota sekolah yang sudah login (peran 'guru', 'admin', atau 'kurikulum').
 CREATE OR REPLACE FUNCTION agenda.is_member()
 RETURNS boolean
 LANGUAGE sql
 STABLE
 AS $$
     SELECT auth.uid() IS NOT NULL
-       AND COALESCE(agenda.jwt_meta() ->> 'role', '') IN ('guru', 'admin');
+       AND COALESCE(agenda.jwt_meta() ->> 'role', '') IN ('guru', 'admin', 'kurikulum');
 $$;
 
+-- Superadmin: mengelola SEMUANYA, termasuk pengaturan sekolah dan akun guru.
 CREATE OR REPLACE FUNCTION agenda.is_admin()
 RETURNS boolean
 LANGUAGE sql
 STABLE
 AS $$
     SELECT COALESCE(agenda.jwt_meta() ->> 'role', '') = 'admin';
+$$;
+
+-- Kurikulum: pengelola MASTER DATA + PENUGASAN (siswa, guru, mapel, kelas,
+-- slot waktu, jadwal, wali kelas, badal) — tetapi TIDAK menyentuh pengaturan
+-- sekolah, kotak saran, maupun hapus agenda milik guru.
+CREATE OR REPLACE FUNCTION agenda.is_kurikulum()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT COALESCE(agenda.jwt_meta() ->> 'role', '') = 'kurikulum';
+$$;
+
+-- Staf pengelola data (superadmin ATAU kurikulum).
+--
+-- Inilah fungsi yang dipakai policy tulis pada area MASTER DATA + PENUGASAN.
+-- Nama sengaja bukan "is_admin" supaya jelas bahwa ini BUKAN hak penuh:
+-- memakainya pada tabel pengaturan/akun akan memberi kurikulum wewenang yang
+-- tidak seharusnya.
+CREATE OR REPLACE FUNCTION agenda.is_staff()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT COALESCE(agenda.jwt_meta() ->> 'role', '') IN ('admin', 'kurikulum');
 $$;
 
 CREATE OR REPLACE FUNCTION agenda.current_guru_id()
@@ -749,68 +775,69 @@ CREATE POLICY guru_directory_read
     ON agenda.guru FOR SELECT TO anon
     USING (true);
 
--- --- Master data: baca untuk anggota, tulis hanya admin ----------------------
+-- --- Master data: baca untuk anggota, tulis untuk staf (admin + kurikulum) ---
+-- Peran kurikulum memegang area ini; lihat `agenda.is_staff()`.
 
 CREATE POLICY member_read_siswa ON agenda.siswa
     FOR SELECT TO authenticated USING (agenda.is_member());
 CREATE POLICY admin_write_siswa ON agenda.siswa
     FOR ALL TO authenticated
-    USING (agenda.is_admin()) WITH CHECK (agenda.is_admin());
+    USING (agenda.is_staff()) WITH CHECK (agenda.is_staff());
 
 CREATE POLICY member_read_guru ON agenda.guru
     FOR SELECT TO authenticated USING (agenda.is_member());
 CREATE POLICY admin_write_guru ON agenda.guru
     FOR ALL TO authenticated
-    USING (agenda.is_admin()) WITH CHECK (agenda.is_admin());
+    USING (agenda.is_staff()) WITH CHECK (agenda.is_staff());
 
 CREATE POLICY member_read_mapel ON agenda.mapel
     FOR SELECT TO authenticated USING (agenda.is_member());
 CREATE POLICY admin_write_mapel ON agenda.mapel
     FOR ALL TO authenticated
-    USING (agenda.is_admin()) WITH CHECK (agenda.is_admin());
+    USING (agenda.is_staff()) WITH CHECK (agenda.is_staff());
 
 CREATE POLICY member_read_kelas ON agenda.kelas
     FOR SELECT TO authenticated USING (agenda.is_member());
 CREATE POLICY admin_write_kelas ON agenda.kelas
     FOR ALL TO authenticated
-    USING (agenda.is_admin()) WITH CHECK (agenda.is_admin());
+    USING (agenda.is_staff()) WITH CHECK (agenda.is_staff());
 
 CREATE POLICY member_read_academic_year ON agenda.academic_year
     FOR SELECT TO authenticated USING (agenda.is_member());
 CREATE POLICY admin_write_academic_year ON agenda.academic_year
     FOR ALL TO authenticated
-    USING (agenda.is_admin()) WITH CHECK (agenda.is_admin());
+    USING (agenda.is_staff()) WITH CHECK (agenda.is_staff());
 
 CREATE POLICY member_read_period_templates ON agenda.period_templates
     FOR SELECT TO authenticated USING (agenda.is_member());
 CREATE POLICY admin_write_period_templates ON agenda.period_templates
     FOR ALL TO authenticated
-    USING (agenda.is_admin()) WITH CHECK (agenda.is_admin());
+    USING (agenda.is_staff()) WITH CHECK (agenda.is_staff());
 
 CREATE POLICY member_read_schedule ON agenda.schedule
     FOR SELECT TO authenticated USING (agenda.is_member());
 CREATE POLICY admin_write_schedule ON agenda.schedule
     FOR ALL TO authenticated
-    USING (agenda.is_admin()) WITH CHECK (agenda.is_admin());
+    USING (agenda.is_staff()) WITH CHECK (agenda.is_staff());
 
 CREATE POLICY member_read_homeroom_assignment ON agenda.homeroom_assignment
     FOR SELECT TO authenticated USING (agenda.is_member());
 CREATE POLICY admin_write_homeroom_assignment ON agenda.homeroom_assignment
     FOR ALL TO authenticated
-    USING (agenda.is_admin()) WITH CHECK (agenda.is_admin());
+    USING (agenda.is_staff()) WITH CHECK (agenda.is_staff());
 
 CREATE POLICY member_read_siswa_kelas ON agenda.siswa_kelas
     FOR SELECT TO authenticated USING (agenda.is_member());
 CREATE POLICY admin_write_siswa_kelas ON agenda.siswa_kelas
     FOR ALL TO authenticated
-    USING (agenda.is_admin()) WITH CHECK (agenda.is_admin());
+    USING (agenda.is_staff()) WITH CHECK (agenda.is_staff());
 
--- Jejak kenaikan kelas boleh dibaca anggota (transparan), diubah hanya admin.
+-- Jejak kenaikan kelas boleh dibaca anggota (transparan), diubah hanya staf.
 CREATE POLICY member_read_promotion_log ON agenda.promotion_log
     FOR SELECT TO authenticated USING (agenda.is_member());
 CREATE POLICY admin_write_promotion_log ON agenda.promotion_log
     FOR ALL TO authenticated
-    USING (agenda.is_admin()) WITH CHECK (agenda.is_admin());
+    USING (agenda.is_staff()) WITH CHECK (agenda.is_staff());
 
 -- --- Agenda: baca untuk anggota, tulis untuk pengampu slot / admin -----------
 
@@ -868,13 +895,13 @@ CREATE POLICY owner_write_agenda_evidence ON agenda.agenda_evidence
     USING (agenda.can_manage_agenda(agenda_id))
     WITH CHECK (agenda.can_manage_agenda(agenda_id));
 
--- --- Badal: dibaca anggota, dikelola admin -----------------------------------
+-- --- Badal: dibaca anggota, dikelola staf (admin + kurikulum) ---------------
 
 CREATE POLICY member_read_substitutions ON agenda.substitutions
     FOR SELECT TO authenticated USING (agenda.is_member());
 CREATE POLICY admin_write_substitutions ON agenda.substitutions
     FOR ALL TO authenticated
-    USING (agenda.is_admin()) WITH CHECK (agenda.is_admin());
+    USING (agenda.is_staff()) WITH CHECK (agenda.is_staff());
 
 -- --- Kotak saran: guru boleh kirim, hanya admin yang boleh membaca -----------
 

@@ -22,7 +22,7 @@ import { useSchoolName } from '../contexts/SettingsContext';
 import { useToast, type ShowToast } from '../contexts/ToastContext';
 import { ADMIN_TAB_IDS, adminPath, type AdminTab } from './adminRoutes';
 import type { ReportView } from './useReportQueryParam';
-import { AuthLoading, RequireAdmin, RequireAuth } from './guards';
+import { AuthLoading, RequireAdmin, RequireAuth, RequireTabAccess, staffHomePath } from './guards';
 import { useEditAgendaParam } from './useEditAgenda';
 import { isAgendaFormOpen } from './useAgendaQuery';
 
@@ -90,7 +90,7 @@ const LazyKotakSaranList = lazy(() =>
 /* -------------------------------------------------------------------------- */
 
 const PageFallback: React.FC<{ message?: string }> = ({
-  message = 'Memuat halaman...',
+  message = 'Memuat halaman…',
 }) => <LoadingState message={message} />;
 
 /**
@@ -133,23 +133,27 @@ function ScrollToTop() {
 /* Guard: admin tidak melihat tampilan guru (dan sebaliknya)                  */
 /* -------------------------------------------------------------------------- */
 
-/** Hanya untuk non-admin — admin yang membuka `/` dialihkan ke panel admin. */
+/** Hanya untuk non-staf — staf (admin/kurikulum) yang membuka `/` dialihkan. */
 function RequireNonAdmin() {
-  const { isAdmin } = useAuth();
-  if (isAdmin) return <Navigate to="/admin/overview" replace />;
+  const { isStaff, role } = useAuth();
+  // Kurikulum mengelola data; ia mendarat di MASTER DATA, bukan ringkasan,
+  // karena ringkasan bukan bagian wewenangnya.
+  if (isStaff) return <Navigate to={staffHomePath(role)} replace />;
   return <Outlet />;
 }
 
 /** `/login`: bila sudah login, langsung lempar ke tujuan yang benar. */
 function LoginRoute() {
-  const { activeTeacherName, isAdmin, loading } = useAuth();
+  const { activeTeacherName, isStaff, role, loading } = useAuth();
   const location = useLocation();
 
   if (loading) return <AuthLoading />;
 
-  if (activeTeacherName) {
+  if (activeTeacherName || isStaff) {
     const from = (location.state as { from?: string } | null)?.from;
-    return <Navigate to={from || (isAdmin ? '/admin/overview' : '/')} replace />;
+    // Staf tidak punya beranda guru, jadi tujuan cadangannya panel admin.
+    const fallback = isStaff ? staffHomePath(role) : '/';
+    return <Navigate to={from || fallback} replace />;
   }
 
   return <LoginPage />;
@@ -200,7 +204,7 @@ function AdminAgendaRoute() {
   const { editAgenda, isEditLoading, clearEdit } = useEditAgendaParam();
 
   // Tunggu fetch ?edit= selesai dulu, agar halaman mount dengan editData siap.
-  if (isEditLoading) return <PageFallback message="Memuat agenda untuk diedit..." />;
+  if (isEditLoading) return <PageFallback message="Memuat agenda…" />;
 
   return (
     <LazyAdminAgendaPage
@@ -230,7 +234,7 @@ function TeacherAgendaRoute() {
   const showToast = useToast();
   const { editAgenda, isEditLoading, clearEdit } = useEditAgendaParam();
 
-  if (isEditLoading) return <PageFallback message="Memuat agenda untuk diedit..." />;
+  if (isEditLoading) return <PageFallback message="Memuat agenda…" />;
 
   return (
     <LazyInputAgenda
@@ -348,8 +352,13 @@ export function AppRoutes() {
           </Route>
 
           {/* ---------------- SISI ADMIN ---------------- */}
+          {/* RequireAdmin  = boleh masuk area admin (admin ATAU kurikulum).
+              RequireTabAccess = tab-nya memang hak peran ini; kurikulum yang
+              mengetik /admin/pengaturan langsung akan dipulangkan. Keduanya
+              hanya lapis UI — RLS tetap penentu akhir. */}
           <Route element={<RequireAdmin />}>
-            <Route path="/admin" element={<AdminLayout />}>
+            <Route element={<RequireTabAccess />}>
+              <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<AdminIndexRedirect />} />
               <Route path="overview" element={<OverviewRoute />} />
               <Route path="agenda" element={<AdminAgendaRoute />} />
@@ -394,6 +403,7 @@ export function AppRoutes() {
               <Route path="saran" element={<ToastPage component={LazyKotakSaranList} />} />
               <Route path="pengaturan" element={<LazyPengaturanPage />} />
               <Route path="*" element={<NotFound />} />
+              </Route>
             </Route>
           </Route>
         </Route>

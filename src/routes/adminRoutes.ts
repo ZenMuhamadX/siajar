@@ -125,6 +125,14 @@ export const ADMIN_ROUTES: AdminRouteDef[] = [
     title: 'Data Kelas',
     icon: School,
   },
+  {
+    tab: 'slot_waktu',
+    path: 'slot_waktu',
+    group: 'MASTER DATA',
+    label: 'Slot Waktu (JP)',
+    title: 'Slot Waktu (JP)',
+    icon: Clock,
+  },
 
   // PENUGASAN
   {
@@ -142,14 +150,6 @@ export const ADMIN_ROUTES: AdminRouteDef[] = [
     label: 'Jadwal',
     title: 'Jadwal Pembelajaran',
     icon: CalendarClock,
-  },
-  {
-    tab: 'slot_waktu',
-    path: 'slot_waktu',
-    group: 'PENUGASAN',
-    label: 'Slot Waktu (JP)',
-    title: 'Slot Waktu (JP)',
-    icon: Clock,
   },
   {
     tab: 'badal',
@@ -207,6 +207,61 @@ export const ADMIN_ROUTES: AdminRouteDef[] = [
 
 /** Semua id tab yang valid — dipakai untuk validasi & back-compat `?tab=...`. */
 export const ADMIN_TAB_IDS: AdminTab[] = ADMIN_ROUTES.map((r) => r.tab);
+
+/**
+ * Area yang boleh dibuka oleh peran `kurikulum`.
+ *
+ * Sengaja didaftar sebagai TAB, bukan GROUP: grup hanya alat tampilan, sedangkan
+ * hak akses harus melekat pada halaman yang benar-benar ada. Kalau nanti sebuah
+ * halaman pindah grup, daftar ini tidak ikut salah.
+ *
+ * Cakupannya = MASTER DATA + PENUGASAN, sesuai keputusan pemilik produk.
+ * Sengaja TIDAK termasuk: Pusat Rekap, Agenda, Ekstrakurikuler, Pengaturan,
+ * Kenaikan Kelas, Kotak Saran. Batas sebenarnya ditegakkan RLS — daftar ini
+ * hanya menentukan apa yang terlihat, bukan pengamanan.
+ */
+export const KURIKULUM_TABS: readonly AdminTab[] = [
+  // MASTER DATA
+  'siswa',
+  'guru',
+  'mapel',
+  'kelas',
+  'slot_waktu',
+  // PENUGASAN
+  'wali_kelas',
+  'jadwal',
+  'badal',
+];
+
+/** Bolehkah peran ini membuka tab tsb.? `admin` selalu boleh. */
+export function canAccessTab(role: string | null, tab: AdminTab): boolean {
+  if (role === 'admin') return true;
+  if (role === 'kurikulum') return KURIKULUM_TABS.includes(tab);
+  return false;
+}
+
+/** Saring definisi rute agar hanya berisi tab yang boleh dilihat peran ini. */
+export function visibleRoutesForRole(role: string | null): AdminRouteDef[] {
+  return ADMIN_ROUTES.filter((r) => canAccessTab(role, r.tab));
+}
+
+/**
+ * Group sidebar untuk sebuah peran — hanya grup yang masih punya item.
+ *
+ * Kurikulum akan melihat MASTER DATA + PENUGASAN; superadmin melihat semuanya.
+ * Grup kosong dibuang supaya tidak ada judul grup menggantung tanpa isi.
+ */
+export function navGroupsForRole(role: string | null): { group: string; items: AdminRouteDef[] }[] {
+  return visibleRoutesForRole(role).reduce<{ group: string; items: AdminRouteDef[] }[]>(
+    (groups, route) => {
+      const existing = groups.find((g) => g.group === route.group);
+      if (existing) existing.items.push(route);
+      else groups.push({ group: route.group, items: [route] });
+      return groups;
+    },
+    [],
+  );
+}
 
 /** URL lengkap untuk sebuah tab admin (`/admin/jadwal`). */
 export const adminPath = (tab: AdminTab): string => `/admin/${tab}`;

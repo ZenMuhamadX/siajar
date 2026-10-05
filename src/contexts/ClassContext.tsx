@@ -47,9 +47,10 @@ const ClassContext = createContext<ClassContextValue | undefined>(undefined);
 const NO_CLASSES: Kelas[] = [];
 
 export const ClassProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { activeTeacherName, isAdmin } = useAuth();
-  // Admin tidak punya nama guru, jadi kehadiran nama saja tidak cukup.
-  const isLoggedIn = Boolean(activeTeacherName) || isAdmin;
+  const { activeTeacherName, isStaff } = useAuth();
+  // Staf (admin/kurikulum) tidak punya nama guru, jadi kehadiran nama saja
+  // tidak cukup untuk menyimpulkan sudah login.
+  const isLoggedIn = Boolean(activeTeacherName) || isStaff;
 
   const [loadedClasses, setLoadedClasses] = useState<Kelas[]>([]);
   const [loading, setLoading] = useState<boolean>(false);

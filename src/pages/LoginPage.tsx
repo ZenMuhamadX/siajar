@@ -19,14 +19,15 @@ import {
 type GuruOption = { id: string; nama_guru: string };
 
 export const LoginPage: React.FC = () => {
-  const { loginAsTeacher, loginAsAdmin } = useAuth();
+  const { loginAsTeacher, loginAsStaff } = useAuth();
   // Nama sekolah dari Pengaturan. Render pertama tetap memakai nilai bawaan
   // supaya halaman login tidak menunggu jaringan.
   const schoolName = useSchoolName();
-  const [mode, setMode] = useState<'teacher' | 'admin'>('teacher');
+  const [mode, setMode] = useState<'teacher' | 'staff'>('teacher');
   const [daftarGuru, setDaftarGuru] = useState<GuruOption[]>([]);
   const [selectedGuru, setSelectedGuru] = useState('');
   const [kode, setKode] = useState('');
+  const [staffEmail, setStaffEmail] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoadingGuru, setIsLoadingGuru] = useState(true);
@@ -73,10 +74,10 @@ export const LoginPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      if (mode === 'admin') {
-        const res = await loginAsAdmin(kode);
+      if (mode === 'staff') {
+        const res = await loginAsStaff(staffEmail, kode);
         if (!res.success) {
-          setErrorMsg(res.message || 'Login Admin gagal.');
+          setErrorMsg(res.message || 'Login staf gagal.');
         }
       } else {
         const res = await loginAsTeacher(selectedGuru, kode);
@@ -132,12 +133,12 @@ export const LoginPage: React.FC = () => {
             </p>
           </div>
 
-          {/* Mode Tabs (Guru vs Admin Superuser).
-              Sebelumnya kedua tab memakai warna aksen berbeda (emerald vs red)
-              sementara tombol kirim memakai `primary` — tiga warna untuk satu
-              halaman, dan merah pada tab admin terbaca sebagai "bahaya" padahal
-              itu sekadar pilihan peran. Sekarang penandanya bobot + ikon, dan
-              warna aksi tetap satu. */}
+          {/* Mode Tabs (Guru vs Staf).
+              Tab "Staf" melayani DUA peran sekaligus — superadmin dan
+              kurikulum — karena keduanya masuk dengan email + sandi dan peran
+              ditentukan server. Memecahnya jadi tab terpisah akan memberi tahu
+              pengunjung bahwa ada peran khusus, tanpa manfaat apa pun.
+              Aksen warna tetap satu (`primary`), penanda hanya bobot + ikon. */}
           <div
             role="group"
             aria-label="Pilih jenis akun"
@@ -161,19 +162,19 @@ export const LoginPage: React.FC = () => {
             </button>
             <button
               type="button"
-              aria-pressed={mode === 'admin'}
+              aria-pressed={mode === 'staff'}
               onClick={() => {
-                setMode('admin');
+                setMode('staff');
                 setErrorMsg('');
               }}
               className={`flex-1 py-2 rounded-lg transition flex items-center justify-center gap-1.5 ${
-                mode === 'admin'
+                mode === 'staff'
                   ? 'bg-white text-primary-700 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Shield className="w-4 h-4" aria-hidden="true" />
-              <span>Admin</span>
+              <span>Staf</span>
             </button>
           </div>
 
@@ -233,9 +234,29 @@ export const LoginPage: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="p-3 bg-primary-50 border border-primary-100 rounded-xl text-xs text-primary-800 flex items-center gap-2">
-                <Shield className="w-4 h-4 text-primary-600 shrink-0" />
-                <span>Login Admin untuk mengelola semua data </span>
+              <div>
+                <label
+                  htmlFor="login-email"
+                  className="block text-xs font-semibold text-slate-700 mb-1.5"
+                >
+                  Email
+                </label>
+                <div className="relative">
+                  <input
+                    id="login-email"
+                    type="email"
+                    required
+                    autoComplete="username"
+                    placeholder="nama@sekolah.sch.id"
+                    value={staffEmail}
+                    onChange={(e) => setStaffEmail(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-600 focus:bg-white transition"
+                  />
+                  <Shield className="w-4 h-4 text-slate-500 absolute left-3 top-3" aria-hidden="true" />
+                </div>
+                <p className="text-xs text-slate-500 mt-1.5">
+                  Akun staf kurikulum &amp; administrator.
+                </p>
               </div>
             )}
 
@@ -244,14 +265,15 @@ export const LoginPage: React.FC = () => {
                 htmlFor="login-sandi"
                 className="block text-xs font-semibold text-slate-700 mb-1.5"
               >
-                Kode Anda
+                {mode === 'teacher' ? 'Kode Anda' : 'Sandi'}
               </label>
               <div className="relative">
                 <input
                   id="login-sandi"
                   type={showPassword ? 'text' : 'password'}
                   required
-                  placeholder="Kode pribadi dari admin"
+                  autoComplete={mode === 'teacher' ? 'current-password' : 'current-password'}
+                  placeholder={mode === 'teacher' ? 'Kode pribadi dari admin' : 'Sandi akun Anda'}
                   value={kode}
                   onChange={(e) => setKode(e.target.value)}
                   className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-600 focus:bg-white transition"
@@ -286,7 +308,7 @@ export const LoginPage: React.FC = () => {
               ) : (
                 <>
                   <LogIn className="w-4 h-4" aria-hidden="true" />
-                  <span>{mode === 'admin' ? 'Masuk sebagai Admin' : 'Masuk sebagai Guru'}</span>
+                  <span>{mode === 'staff' ? 'Masuk sebagai Staf' : 'Masuk sebagai Guru'}</span>
                 </>
               )}
             </button>

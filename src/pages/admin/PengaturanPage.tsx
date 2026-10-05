@@ -14,6 +14,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useToast } from '../../contexts/ToastContext';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { StaffAccountCard } from '../../components/admin/StaffAccountCard';
 import { FormField, TextInput, SelectInput, formStyles } from '../../components/common';
 import {
   DEFAULT_SETTINGS,
@@ -857,6 +858,9 @@ export const PengaturanPage: React.FC = () => {
 
         {/* Keamanan akun: ganti sandi akun yang sedang login */}
         <ChangePasswordCard />
+
+        {/* Akun staf (superadmin & kurikulum) — hanya render untuk superadmin. */}
+        <StaffAccountCard />
       </div>
 
       {/* Bilah aksi melayang: Simpan hanya aktif saat ada perubahan. */}

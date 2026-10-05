@@ -135,3 +135,50 @@ export async function setTeacherCode(guruId: string, code: string): Promise<void
 export async function setTeacherActive(guruId: string, active: boolean): Promise<void> {
   await invoke({ action: 'set-teacher-active', guruId, active });
 }
+
+// ---------------------------------------------------------------------------
+// Akun staf (superadmin + kurikulum)
+// ---------------------------------------------------------------------------
+
+export interface StaffAccount {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  active: boolean;
+  last_sign_in_at: string | null;
+  /** Akun yang sedang dipakai sekarang — tombol hapus harus menyembunyikannya. */
+  is_self: boolean;
+}
+
+/** Daftar akun staf. Hanya bisa dipanggil oleh superadmin. */
+export async function listStaffAccounts(): Promise<StaffAccount[]> {
+  const res = await invoke<{ staff: StaffAccount[] }>({ action: 'list-staff' });
+  return res.staff ?? [];
+}
+
+/** Buat / perbarui akun staf (admin atau kurikulum). */
+export async function createStaffAccount(input: {
+  email: string;
+  password: string;
+  name: string;
+  role: 'admin' | 'kurikulum';
+}): Promise<void> {
+  await invoke({
+    action: 'create-staff',
+    email: input.email,
+    password: input.password,
+    name: input.name,
+    role: input.role,
+  });
+}
+
+/** Ganti sandi akun staf. */
+export async function setStaffPassword(email: string, password: string): Promise<void> {
+  await invoke({ action: 'set-staff-password', email, password });
+}
+
+/** Hapus akun staf. */
+export async function deleteStaffAccount(email: string): Promise<void> {
+  await invoke({ action: 'delete-staff', email });
+}

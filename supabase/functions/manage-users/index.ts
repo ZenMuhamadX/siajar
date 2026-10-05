@@ -18,6 +18,15 @@
  *   create-teacher     — admin. { guruId, code }
  *   set-teacher-code   — admin. { guruId, code }
  *   set-teacher-active — admin. { guruId, active }
+ *   list-staff         — admin. Akun staf (admin/kurikulum).
+ *   create-staff       — admin. { email, password, name, role }
+ *   set-staff-password — admin. { email, password }
+ *   delete-staff       — admin. { email } — tidak boleh menghapus admin terakhir.
+ *
+ * PERAN: 'guru' | 'kurikulum' | 'admin'. Hanya 'admin' (superadmin) yang boleh
+ * mengelola akun — 'kurikulum' memegang MASTER DATA + PENUGASAN saja dan tidak
+ * boleh menaikkan haknya sendiri. Batas ini ditegakkan di sini (requireAdmin),
+ * bukan di klien.
  *
  * Variabel lingkungan:
  *   SUPABASE_URL               — disuntik otomatis oleh Supabase (self-hosted:
@@ -296,6 +305,171 @@ async function handleSetTeacherActive(
 }
 
 // ---------------------------------------------------------------------------
+// Akun staf (superadmin + kurikulum)
+// ---------------------------------------------------------------------------
+/**
+ * Staf TIDAK diturunkan dari tabel `guru` — mereka bukan pengajar, jadi emailnya
+ * diisi manual (mis. `kurikulum@sekolah.sch.id`). Berbeda dengan akun guru yang
+ * emailnya sintetis (`guru-<uuid>@AUTH_DOMAIN`).
+ */
+const STAFF_ROLES = ['admin', 'kurikulum'] as const;
+type StaffRole = (typeof STAFF_ROLES)[number];
+
+function isStaffRole(value: unknown): value is StaffRole {
+  return typeof value === 'string' && (STAFF_ROLES as readonly string[]).includes(value);
+}
+
+function isStaffUser(user: User): boolean {
+  return isStaffRole(roleOf(user));
+}
+
+/** Aksi: daftar akun staf (admin + kurikulum). */
+async function handleListStaff(req: Request): Promise<Response> {
+  const caller = await requireAdmin(req);
+  if (!caller) return json({ error: 'Tidak berwenang.' }, 403);
+
+  const users = await listAllUsers();
+  const staff = users.filter(isStaffUser).map((u) => ({
+    id: u.id,
+    email: u.email ?? '',
+    name: (u.app_metadata as Record<string, unknown>)?.guru_name ?? '',
+    role: roleOf(u),
+    active: isActive(u),
+    last_sign_in_at: u.last_sign_in_at ?? null,
+    is_self: u.id === caller.id,
+  }));
+
+  return json({ staff });
+}
+
+/**
+ * Aksi: buat / perbarui akun staf.
+ *
+ * Dipakai untuk dua hal: membuat akun kurikulum baru, dan membuat admin
+ * tambahan. Sandi yang dikirim LANGSUNG dipakai — operator menyerahkannya
+ * sendiri ke pemilik akun.
+ */
+async function handleCreateStaff(body: Record<string, unknown>, req: Request): Promise<Response> {
+  const caller = await requireAdmin(req);
+  if (!caller) return json({ error: 'Tidak berwenang.' }, 403);
+
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  const role = body.role;
+
+  if (!email) return json({ error: 'Email wajib diisi.' }, 400);
+  const emailError = assertEmail(email, 'Email akun staf');
+  if (emailError) return json({ error: emailError }, 400);
+  if (!name) return json({ error: 'Nama wajib diisi.' }, 400);
+  if (!isStaffRole(role)) {
+    return json({ error: `Peran harus salah satu dari: ${STAFF_ROLES.join(', ')}.` }, 400);
+  }
+
+  const password = normalizeCode(body.password);
+  if (!password) return json({ error: `Sandi minimal ${MIN_CODE_LENGTH} karakter.` }, 400);
+
+  // Akun staf tidak boleh memakai domain email guru — kalau tidak, emailnya
+  // bisa bentrok dengan akun guru yang diturunkan otomatis.
+  if (email.endsWith(`@${AUTH_DOMAIN}`) && email.startsWith('guru-')) {
+    return json({ error: 'Email tidak boleh memakai format akun guru (guru-...).' }, 400);
+  }
+
+  const meta = { role, guru_name: name };
+  const users = await listAllUsers();
+  const existing = users.find((u) => u.email?.toLowerCase() === email);
+
+  if (existing) {
+    // Menurunkan admin terakhir akan mengunci instance dari pengelolaan akun.
+    if (roleOf(existing) === 'admin' && role !== 'admin') {
+      const admins = users.filter((u) => roleOf(u) === 'admin' && u.id !== existing.id);
+      if (admins.length === 0) {
+        return json({ error: 'Tidak bisa mengubah admin terakhir menjadi kurikulum.' }, 400);
+      }
+    }
+    const { error } = await admin.auth.admin.updateUserById(existing.id, {
+      password,
+      email_confirm: true,
+      app_metadata: meta,
+      ban_duration: 'none',
+    });
+    if (error) return json({ error: error.message }, 400);
+    return json({ ok: true, email, role, updated: true });
+  }
+
+  const { error } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    app_metadata: meta,
+  });
+  if (error) return json({ error: error.message }, 400);
+
+  return json({ ok: true, email, role, created: true });
+}
+
+/** Aksi: ganti sandi akun staf (tanpa membuat akun baru). */
+async function handleSetStaffPassword(
+  body: Record<string, unknown>,
+  req: Request
+): Promise<Response> {
+  const caller = await requireAdmin(req);
+  if (!caller) return json({ error: 'Tidak berwenang.' }, 403);
+
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+  if (!email) return json({ error: 'Email wajib diisi.' }, 400);
+
+  const password = normalizeCode(body.password);
+  if (!password) return json({ error: `Sandi minimal ${MIN_CODE_LENGTH} karakter.` }, 400);
+
+  const users = await listAllUsers();
+  const existing = users.find((u) => u.email?.toLowerCase() === email);
+  if (!existing) return json({ error: 'Akun staf tidak ditemukan.' }, 404);
+  if (!isStaffUser(existing)) {
+    return json({ error: 'Akun ini bukan akun staf.' }, 400);
+  }
+
+  const { error } = await admin.auth.admin.updateUserById(existing.id, { password });
+  if (error) return json({ error: error.message }, 400);
+
+  return json({ ok: true, email });
+}
+
+/**
+ * Aksi: hapus akun staf.
+ *
+ * Penjaga penting: instance tidak boleh kehilangan SEMAUA admin — kalau itu
+ * terjadi, tidak ada lagi yang bisa mengelola akun dan instance terkunci.
+ * Diri sendiri juga tidak boleh dihapus (mencegah salah klik yang fatal).
+ */
+async function handleDeleteStaff(body: Record<string, unknown>, req: Request): Promise<Response> {
+  const caller = await requireAdmin(req);
+  if (!caller) return json({ error: 'Tidak berwenang.' }, 403);
+
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+  if (!email) return json({ error: 'Email wajib diisi.' }, 400);
+
+  const users = await listAllUsers();
+  const target = users.find((u) => u.email?.toLowerCase() === email);
+  if (!target) return json({ error: 'Akun staf tidak ditemukan.' }, 404);
+  if (!isStaffUser(target)) return json({ error: 'Akun ini bukan akun staf.' }, 400);
+  if (target.id === caller.id) {
+    return json({ error: 'Tidak bisa menghapus akun sendiri.' }, 400);
+  }
+
+  if (roleOf(target) === 'admin') {
+    const otherAdmins = users.filter((u) => roleOf(u) === 'admin' && u.id !== target.id);
+    if (otherAdmins.length === 0) {
+      return json({ error: 'Tidak bisa menghapus admin terakhir.' }, 400);
+    }
+  }
+
+  const { error } = await admin.auth.admin.deleteUser(target.id);
+  if (error) return json({ error: error.message }, 400);
+
+  return json({ ok: true, email });
+}
+
+// ---------------------------------------------------------------------------
 // Entrypoint
 // ---------------------------------------------------------------------------
 
@@ -349,6 +523,14 @@ Deno.serve(async (req: Request) => {
         return await upsertTeacherAccount(req, body, true);
       case 'set-teacher-active':
         return await handleSetTeacherActive(req, body);
+      case 'list-staff':
+        return await handleListStaff(req);
+      case 'create-staff':
+        return await handleCreateStaff(body, req);
+      case 'set-staff-password':
+        return await handleSetStaffPassword(body, req);
+      case 'delete-staff':
+        return await handleDeleteStaff(body, req);
       default:
         return json({ error: `Aksi tidak dikenal: "${action}".` }, 400);
     }

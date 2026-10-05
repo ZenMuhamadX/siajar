@@ -48,7 +48,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
       setCameraError(null);
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setCameraError('Browser tidak mendukung akses kamera perangkat.');
+        setCameraError('Browser ini tidak mendukung akses kamera.');
         setIsLoadingCamera(false);
         return;
       }
@@ -79,12 +79,12 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
         setIsLoadingCamera(false);
         if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
           setCameraError(
-            'Kamera tidak dapat digunakan. Izinkan akses kamera pada browser/perangkat untuk mengambil dokumentasi.'
+            'Kamera tidak bisa dibuka. Izinkan akses kamera pada browser/perangkat.'
           );
         } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-          setCameraError('Kamera perangkat tidak ditemukan atau tidak tersedia.');
+          setCameraError('Kamera perangkat tidak ditemukan.');
         } else {
-          setCameraError('Gagal membuka kamera perangkat: ' + (err.message || 'Error tidak diketahui'));
+          setCameraError('Gagal membuka kamera: ' + (err.message || 'Error tidak diketahui'));
         }
       }
     },

@@ -123,7 +123,7 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
         ) : (
           <div className="text-center p-6 text-slate-300 text-xs flex flex-col items-center gap-2">
             <AlertCircle className="w-8 h-8 text-slate-400" aria-hidden="true" />
-            <span>Foto tidak dapat dimuat atau sudah dihapus dari server.</span>
+            <span>Foto tidak bisa dimuat atau sudah dihapus dari server.</span>
           </div>
         )}
       </div>

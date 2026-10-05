@@ -176,6 +176,50 @@ export function recentMonthKeys(count: number, from: Date = new Date()): string[
 }
 
 /**
+ * Rentang `days` hari terakhir sampai hari ini, inklusif di kedua ujung
+ * (`days = 7` → hari ini dan enam hari sebelumnya, bukan tujuh hari ke belakang).
+ *
+ * Inklusif dipilih karena begitulah orang menghitung: "7 hari terakhir" yang
+ * dimaksud guru adalah pekan ini termasuk hari ini, bukan rentang yang gagal
+ * memuat agenda pagi tadi. Selisih satu hari di ujung akhir justru yang paling
+ * terasa — agenda hari ini adalah yang paling sering dicari.
+ *
+ * Batasnya dihitung dari tengah malam lokal (`new Date(y, m - 1, d)`), tidak
+ * lewat `toISOString()`, supaya pergeseran zona tidak memotong satu hari di
+ * subuh WIB (lihat catatan di kepala berkas ini).
+ */
+export function lastNDaysRange(days: number, from: Date = new Date()): { start: string; end: string } {
+  const end = localDateString(from);
+  return { start: addDays(end, -(days - 1)), end };
+}
+
+/**
+ * Rentang bulan berjalan: dari tanggal 1 sampai hari ini.
+ *
+ * Sengaja TIDAK memakai `monthRange()` yang berakhir di hari terakhir bulan.
+ * Untuk "bulan ini" hari-hari setelah hari ini tidak mungkin punya agenda, dan
+ * mencantumkannya di rentang membuat label kutipannya berbohong — misalnya
+ * "1 Sep – 30 Sep" saat ini baru tanggal 10. Yang benar adalah apa yang benar-
+ * benar diminta: dari awal bulan sampai sekarang.
+ */
+export function currentMonthRange(from: Date = new Date()): { start: string; end: string } {
+  const end = localDateString(from);
+  return { start: `${end.slice(0, 7)}-01`, end };
+}
+
+/**
+ * "1 Sep 2026 – 10 Sep 2026", atau tanggal tunggal bila rentangnya satu hari.
+ *
+ * Dipakai kutipan penyaring aktif. Rentang satu hari kerap muncul dari chip
+ * "Hari ini", dan menuliskannya sebagai "10 Sep 2026 – 10 Sep 2026" menyiratkan
+ * rentang yang lebih lebar daripada kenyataannya.
+ */
+export function formatDateRange(start: string, end: string): string {
+  if (start === end) return formatDateShort(start);
+  return `${formatDateShort(start)} – ${formatDateShort(end)}`;
+}
+
+/**
  * "09.30" — jam saja, tanpa tanggal.
  *
  * Untuk cap waktu yang maknanya "kapan barusan", bukan "tanggal berapa":

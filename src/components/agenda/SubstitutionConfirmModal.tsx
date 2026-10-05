@@ -41,8 +41,7 @@ export const SubstitutionConfirmModal: React.FC<SubstitutionConfirmModalProps> =
       isOpen
       onClose={onCancel}
       title="Konfirmasi Guru Pengganti"
-      subtitle="Badal / Penggantian Guru"
-      onSubmit={handleSubmit}
+      subtitle="Badal / Penggantian Guru"      onSubmit={handleSubmit}
       busy={isLoading}
       footer={(formId) => (
         <>
@@ -62,8 +61,7 @@ export const SubstitutionConfirmModal: React.FC<SubstitutionConfirmModalProps> =
               disabled={isLoading || (reason === 'Lainnya' && !reasonDetail.trim())}
               className={formStyles.primaryBtn}
             >
-              {isLoading ? 'Memproses...' : 'Ya, saya guru pengganti'}
-            </button>
+              {isLoading ? 'Memproses...' : 'Ya, saya guru pengganti'}            </button>
           </div>
         </>
       )}
@@ -118,7 +116,7 @@ export const SubstitutionConfirmModal: React.FC<SubstitutionConfirmModalProps> =
 
         <p className="text-xs text-slate-600 leading-relaxed">
           Anda akan tercatat sebagai <strong>guru pengganti</strong> untuk{' '}
-          <strong>{schedule.teacher_name}</strong>. Jadwal asli tidak akan berubah.
+          <strong>{schedule.teacher_name}</strong>. Jadwal asli tidak berubah.
         </p>
 
         {/* Alasan */}

@@ -36,7 +36,6 @@ export const KotakSaranModal: React.FC<KotakSaranModalProps> = ({
       showToast('error', 'Isi saran tidak boleh kosong.');
       return;
     }
-
     setIsSubmitting(true);
     try {
       await kirimKotakSaran({
@@ -46,7 +45,7 @@ export const KotakSaranModal: React.FC<KotakSaranModalProps> = ({
         is_anonim: isAnonim,
       });
 
-      showToast('success', 'Saran berhasil dikirim. Terima kasih atas masukan Anda!');
+      showToast('success', 'Saran terkirim. Terima kasih atas masukannya.');
       setIsSaran('');
       setIsAnonim(false);
       setKategori('Fasilitas');
@@ -64,7 +63,7 @@ export const KotakSaranModal: React.FC<KotakSaranModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title="Kotak Saran Guru"
-      subtitle="Kirim feedback & masukan pengembangan"
+      subtitle="Kirim masukan & saran pengembangan"
       tone="emerald"
       onSubmit={handleSubmit}
       busy={isSubmitting}
@@ -131,7 +130,7 @@ export const KotakSaranModal: React.FC<KotakSaranModalProps> = ({
             rows={5}
             value={isiSaran}
             onChange={(e) => setIsSaran(e.target.value)}
-            placeholder="Tuliskan saran atau kendala yang Anda alami secara jelas..."
+            placeholder="Tulis saran atau kendala Anda dengan jelas..."
           />
         </FormField>
       </div>

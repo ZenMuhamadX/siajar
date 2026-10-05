@@ -155,7 +155,7 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
         {isLoading ? (
           <div className="py-12 text-center space-y-2" role="status" aria-live="polite">
             <Loader2 className="w-6 h-6 text-primary-600 animate-spin mx-auto" aria-hidden="true" />
-            <p className="text-xs text-slate-600">Memuat jadwal mengajar...</p>
+            <p className="text-xs text-slate-600">Memuat jadwal…</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="py-12 px-4 text-center text-slate-600 italic space-y-1">
@@ -163,7 +163,7 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
               Tidak ada jadwal mengajar pada hari {selectedDayLabel}.
             </p>
             <p className="text-xs">
-              Pilih hari lain di atas, atau hubungi Administrator bila jadwal belum diatur.
+              Pilih hari lain, atau hubungi administrator bila jadwal belum diatur.
             </p>
           </div>
         ) : (

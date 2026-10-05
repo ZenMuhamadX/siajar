@@ -11,7 +11,7 @@ interface ErrorStateProps {
 
 export const ErrorState: React.FC<ErrorStateProps> = ({
   title = 'Gagal memuat data',
-  message = 'Terjadi kendala saat mengambil data dari sistem. Silakan coba beberapa saat lagi.',
+  message = 'Data tidak bisa diambil dari sistem. Coba beberapa saat lagi.',
   onRetry,
   retryText = 'Coba Lagi',
   className = '',

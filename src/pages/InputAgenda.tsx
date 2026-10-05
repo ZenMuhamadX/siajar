@@ -159,7 +159,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
     if (!timelineSettled || canOpenSlot) return;
     if (strippedSlotRef.current === slotId) return;
     strippedSlotRef.current = slotId;
-    showToast('info', 'Slot jadwal tidak ditemukan pada tanggal ini (tautan mungkin sudah kedaluwarsa).');
+    showToast('info', 'Slot jadwal tidak ditemukan pada tanggal ini. Tautan mungkin sudah kedaluwarsa.');
     closeSlot();
   }, [slotId, editData, timelineSettled, canOpenSlot, showToast, closeSlot]);
 
@@ -176,7 +176,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
       setTimelineData(result);
     } catch (err) {
       console.error('Error fetching teacher timeline:', err);
-      showToast('error', 'Gagal memuat timeline jadwal mengajar.');
+      showToast('error', 'Gagal memuat jadwal mengajar.');
     } finally {
       setIsLoading(false);
       setLoadedDate(selectedDate);
@@ -389,7 +389,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
         [substitutionTarget.schedule.id]: sub,
       }));
     } catch (err: any) {
-      setSubstitutionError(err?.message || 'Gagal membuat data guru pengganti.');
+      setSubstitutionError(err?.message || 'Gagal membuat data guru pengganti. Coba lagi.');
     } finally {
       setSubstitutionLoading(false);
     }
@@ -405,7 +405,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
             <div className="flex items-center gap-2">
               <RotateCcw className="w-4 h-4 text-amber-700 shrink-0" />
               <span>
-                Mode <strong>Koreksi / Edit Agenda</strong> ({editData.header.kelas} &bull;{' '}
+                Mode <strong>Koreksi Agenda</strong> ({editData.header.kelas} &bull;{' '}
                 {editData.header.tanggal})
               </span>
             </div>
@@ -528,7 +528,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                 Isi Agenda
               </h1>
               <p className="hidden sm:block text-xs text-slate-600 mt-0.5">
-                Guru: <strong className="text-slate-700">{activeTeacherName || 'Guru'}</strong>
+                {activeTeacherName || 'Guru'}
               </p>
             </div>
 
@@ -630,8 +630,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
               <>
                 <div className="grid grid-cols-3 gap-1.5">
                   <div className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center">
-                    <span className="block text-2xs text-slate-600">JP hari ini</span>
-                    <span className="block text-sm font-bold text-slate-900 tabular-nums">
+                    <span className="block text-2xs text-slate-600">JP hari ini</span>                    <span className="block text-sm font-bold text-slate-900 tabular-nums">
                       {totalSlotsCount}
                     </span>
                   </div>
@@ -695,7 +694,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
               aria-live="polite"
             >
               <Loader2 className="w-6 h-6 animate-spin text-emerald-600" aria-hidden="true" />
-              <span>Memuat timeline jadwal mengajar...</span>
+              <span>Memuat jadwal mengajar…</span>
             </div>
           ) : timelineData?.conflictDetected ? (
             /* CASE: Conflict Detected — status darurat dibuat sengaja berbeda
@@ -711,11 +710,11 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-rose-900">
-                    Jadwal Bertabrakan (Konflik)
+                    Jadwal Bertabrakan
                   </h3>
                   <p className="text-xs text-rose-800 mt-1 leading-relaxed">
                     {timelineData.conflictMessage ||
-                      'Terdapat jadwal yang bertabrakan pada waktu ini. Hubungi administrator.'}
+                      'Ada jadwal yang bertabrakan pada waktu ini. Hubungi administrator.'}
                   </p>
                 </div>
               </div>
@@ -727,10 +726,10 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                 <Coffee className="w-6 h-6" />
               </div>
               <h3 className="text-sm font-bold text-slate-800">
-                Akhir Pekan (Sabtu / Minggu)
+                Akhir Pekan
               </h3>
               <p className="text-xs text-slate-600 max-w-sm mx-auto">
-                Tidak ada jadwal pembelajaran reguler pada hari akhir pekan.
+                Tidak ada jadwal pembelajaran pada Sabtu/Minggu.
               </p>
             </div>
           ) : timelineData?.reason === 'NO_ACTIVE_ACADEMIC_YEAR' ? (
@@ -740,10 +739,10 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                 <AlertTriangle className="w-6 h-6" />
               </div>
               <h3 className="text-sm font-bold text-slate-800">
-                Tidak Ada Tahun Ajaran Aktif
+                Belum Ada Tahun Ajaran Aktif
               </h3>
               <p className="text-xs text-slate-600 max-w-sm mx-auto">
-                Tahun ajaran belum diaktifkan oleh administrator.
+                Tahun ajaran belum diaktifkan administrator.
               </p>
             </div>
           ) : !timelineData || timelineData.slots.length === 0 ? (
@@ -756,7 +755,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                 Tidak Ada Jadwal Mengajar
               </h3>
               <p className="text-xs text-slate-600 max-w-sm mx-auto">
-                Anda tidak memiliki jadwal mengajar pada tanggal {formatDateLong(selectedDate)}.
+                Tidak ada jadwal mengajar pada {formatDateLong(selectedDate)}.
               </p>
             </div>
           ) : (
@@ -783,7 +782,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                   </h2>
 
                   <span className="text-xs text-slate-600">
-                    {timelineData.slots.length} Slot Pembelajaran
+                    {timelineData.slots.length} JP
                   </span>
                 </div>
 
@@ -829,19 +828,19 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                     disabled={!hasBadalCandidates}
                     title={
                       hasBadalCandidates
-                        ? 'Lihat jadwal yang dapat dibadal'
-                        : 'Tidak ada jadwal yang tersedia untuk badal saat ini'
+                        ? 'Lihat jadwal yang bisa dibadal'
+                        : 'Tidak ada jadwal yang bisa dibadal saat ini'
                     }
                   >
                     <Users className="w-4 h-4" aria-hidden="true" />
                     {hasBadalCandidates
-                      ? `Menjadi Guru Pengganti (${availableOtherSlots.length} slot tersedia)`
+                      ? `Menjadi Guru Pengganti (${availableOtherSlots.length} slot)`
                       : 'Tidak ada jadwal yang bisa dibadal saat ini'}
                   </button>
                   <p className="text-xs text-slate-600 text-center max-w-md">
                     {hasBadalCandidates
-                      ? 'Untuk jam yang sedang berlangsung dan belum ada penggantinya. Jadwal asli tidak berubah — Anda hanya tercatat sebagai pelaksana.'
-                      : 'Hanya jam pelajaran yang sedang berlangsung dan belum punya pengganti yang bisa dibadal.'}
+                      ? 'Untuk jam yang sedang berlangsung dan belum ada penggantinya. Jadwal asli tidak berubah.'
+                      : 'Hanya jam yang sedang berlangsung dan belum ada penggantinya yang bisa dibadal.'}
                   </p>
                 </div>
               ) : (
@@ -853,10 +852,10 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                       <Users className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
                       <div>
                         <h2 className="text-sm font-bold text-amber-900">
-                          Jadwal yang Tersedia untuk Badal
+                          Jadwal untuk Dibadal
                         </h2>
                         <p className="text-xs text-amber-800">
-                          Pilih jadwal yang akan Anda gantikan sekarang.
+                          Pilih jadwal yang akan Anda gantikan.
                         </p>
                       </div>
                     </div>
@@ -881,7 +880,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                       </div>
                     ) : availableOtherSlots.length === 0 ? (
                       <p className="py-4 text-center text-xs text-slate-600">
-                        Tidak ada jadwal yang tersedia untuk dibadal saat ini.
+                        Tidak ada jadwal yang bisa dibadal saat ini.
                       </p>
                     ) : (
                       availableOtherSlots.map((slot) => (

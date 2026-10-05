@@ -24,8 +24,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 }) => {
   const defaultTitle = isFiltered ? 'Data tidak ditemukan' : 'Belum ada data';
   const defaultDesc = isFiltered
-    ? 'Tidak ada record yang sesuai dengan kata kunci atau filter yang dipilih.'
-    : 'Belum ada rekaman data pada tabel ini.';
+    ? 'Tidak ada data yang cocok dengan pencarian atau filter.'
+    : 'Belum ada data pada tabel ini.';
 
   return (
     <div
