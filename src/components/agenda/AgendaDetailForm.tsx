@@ -3,6 +3,7 @@ import type { TimelineSlot } from '../../services/scheduleDetectionService';
 import type { SiswaTerdaftar, AgendaEvidence, FullAgenda, Substitution } from '../../types';
 import {
   getDaftarSiswa,
+  getSiswaHalaqoh,
   resolveAcademicYearIdForDate,
   simpanAgenda,
 } from '../../services/agendaService';
@@ -26,6 +27,7 @@ import {
   CheckCircle2,
   RefreshCw,
   RotateCcw,
+  Users,
 } from 'lucide-react';
 
 /**
@@ -131,6 +133,22 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   // kalau keduanya kosong lebih baik gagal jelas daripada menyimpan kelas salah.
   const kelas = schedule?.kelas || existingAgenda?.header.kelas || '';
   const subjectName = schedule?.subject_name || existingAgenda?.kbm?.[0]?.mapel || '-';
+  /**
+   * Nama kelompok yang sedang diisi, bila baris ini menunjuk sebuah halaqoh.
+   *
+   * Sumbernya baris jadwal (yang punya nama hasil join). Untuk agenda lama
+   * tanpa `schedule_id`, nama diambil dari baris jurnalnya — supaya membuka
+   * riwayat agenda Ummi tetap memperlihatkan kelompoknya.
+   */
+  const halaqohNama =
+    schedule?.halaqoh || existingAgenda?.kbm?.[0]?.halaqoh || '';
+  /**
+   * Id kelompok yang dicatat baris jurnal ini. Disalurkan apa adanya ke
+   * `agenda_kbm` sehingga dua guru Ummi di jam yang sama menghasilkan dua baris
+   * yang bisa dibedakan — tanpa ini, catatan keduanya tidak terpisah.
+   */
+  const halaqohId =
+    schedule?.halaqoh_id ?? existingAgenda?.kbm?.[0]?.halaqoh_id ?? null;
   // scheduledTeacherName = guru yang tercatat di jadwal (tidak berubah)
   const scheduledTeacherName = schedule?.teacher_name || activeTeacherName || '-';
   // teacherName = untuk KBM row nama_guru: jika badal → guru pengganti, else → guru terjadwal
@@ -341,18 +359,29 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
       if (!kelas) return;
       setIsLoadingSiswa(true);
       try {
-        // Dua hal yang harus benar di sini:
+        // Tiga hal yang harus benar di sini:
         //   1. Tahun ajaran mengikuti TANGGAL AGENDANYA, bukan tahun yang sedang
         //      aktif — kalau tidak, membuka agenda tahun lalu menampilkan roster
         //      tahun ini.
         //   2. Hanya siswa yang masih aktif pada tahun itu. Yang sudah pindah
         //      atau dinonaktifkan tidak lagi muncul sebagai pilihan kehadiran.
+        //   3. Kalau baris jadwal ini menunjuk sebuah halaqoh (mapel berkelompok),
+        //      absensi dibatasi ke ANGGOTA KELOMPOK ITU. Guru Ummi hanya
+        //      bertanggung jawab atas kelompoknya; menampilkan seluruh kelas
+        //      membuat absensi kelas penuh bolong, karena setiap guru mengisi
+        //      bagian yang berbeda pada jam yang sama.
         const academicYearId = await resolveAcademicYearIdForDate(targetDate);
-        const list = await getDaftarSiswa({
-          kelas,
-          academicYearId: academicYearId ?? undefined,
-          hanyaAktif: true,
-        });
+        const halaqohId = slot?.schedule?.halaqoh_id ?? null;
+        const list = halaqohId
+          ? await getSiswaHalaqoh(halaqohId, {
+              academicYearId: academicYearId ?? undefined,
+              hanyaAktif: true,
+            })
+          : await getDaftarSiswa({
+              kelas,
+              academicYearId: academicYearId ?? undefined,
+              hanyaAktif: true,
+            });
         if (isMounted) setSiswaKelas(list);
       } catch (err) {
         console.warn('Gagal memuat data siswa:', err);
@@ -364,7 +393,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [kelas, targetDate]);
+  }, [kelas, targetDate, slot?.schedule?.halaqoh_id]);
 
   /**
    * Muat URL tampil untuk foto yang sedang ditampilkan.
@@ -517,6 +546,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
               materi: materi.trim() || 'Draft Pembelajaran',
               tugas_pr: tugasPr.trim() || undefined,
               is_badal: isSubstitute,
+              halaqoh_id: halaqohId,
             },
           ],
           absensi: completeAbsensi,
@@ -610,6 +640,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
             materi: materi.trim(),
             tugas_pr: tugasPr.trim() || undefined,
             is_badal: isSubstitute,
+            halaqoh_id: halaqohId,
           },
         ],
         absensi: completeAbsensi,
@@ -720,6 +751,17 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
                 Kelas
               </span>
               <span className="text-base font-bold text-slate-900">{kelas}</span>
+              {/*
+                Penanda kelompok. Hanya muncul untuk mapel berkelompok: guru
+                perlu tahu ia mengisi bagian SATU kelompok, bukan seluruh kelas
+                — dan absennya pun hanya berisi anak kelompok itu.
+              */}
+              {halaqohNama && (
+                <span className="mt-1 inline-flex items-center gap-1 rounded bg-primary-50 px-1.5 py-0.5 text-2xs font-bold uppercase tracking-wide text-primary-700">
+                  <Users className="w-2.5 h-2.5" />
+                  {halaqohNama}
+                </span>
+              )}
             </div>
             <div
               className={`p-3 bg-white border rounded-xl shadow-2xs ${

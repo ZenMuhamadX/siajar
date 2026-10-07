@@ -52,6 +52,19 @@ export interface ScheduleItem {
   subject_name: string;
   teacher_id?: string | null;
   teacher_name: string;
+  /**
+   * Halaqoh yang diajar baris ini — hanya untuk mapel berkelompok (Ummi).
+   *
+   * `null` berarti baris berlaku untuk SELURUH kelas (semua mapel biasa).
+   * Terisi berarti baris ini hanya untuk satu kelompok, dan kelompok lain
+   * punya barisnya sendiri pada jam yang sama dengan guru berbeda.
+   *
+   * Inilah yang membuat dua baris di kelas yang sama pada jam yang sama menjadi
+   * SAH: aturan bentrok membandingkan `halaqoh_id`, bukan `kelas_id`.
+   */
+  halaqoh_id?: string | null;
+  /** Nama halaqoh untuk tampilan (diturunkan saat membaca, bukan disimpan). */
+  halaqoh?: string;
   activity_type?: ActivityType;
   status: ScheduleStatus;
   period_template_id?: string | null; // Stage 2.3: soft reference to period_templates
@@ -61,7 +74,7 @@ export interface ScheduleItem {
 
 export interface ScheduleConflictCheckResult {
   hasConflict: boolean;
-  type?: 'TEACHER_CONFLICT' | 'CLASS_CONFLICT';
+  type?: 'TEACHER_CONFLICT' | 'CLASS_CONFLICT' | 'HALAQOH_CONFLICT';
   message?: string;
   conflictingItem?: ScheduleItem;
 }

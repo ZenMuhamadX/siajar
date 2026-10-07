@@ -203,14 +203,18 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
         academicYearName: activeAYName,
         columns: [
           { key: 'no', header: 'No', align: 'center', ptWidth: 20 },
-          { key: 'waktu', header: 'Waktu', align: 'center', ptWidth: 60 },
-          { key: 'kelas', header: 'Kelas', align: 'center', ptWidth: 40 },
+          { key: 'waktu', header: 'Waktu', align: 'center', ptWidth: 58 },
+          { key: 'kelas', header: 'Kelas', align: 'center', ptWidth: 34 },
+          // Kelompok: pembeda WAJIB untuk mapel berkelompok — tanpa kolom ini,
+          // dua guru Ummi pada kelas & jam yang sama tercetak sebagai baris
+          // yang tampak sama persis.
+          { key: 'kelompok', header: 'Kelompok', align: 'center', ptWidth: 56 },
           // Mata Pelajaran menyerap sisa lebar — termasuk ruang yang dulu dipakai
           // kolom Dokumentasi, sehingga nama mapel panjang membungkus penuh.
           { key: 'mapel', header: 'Mata Pelajaran', align: 'left' },
-          { key: 'guruTerjadwal', header: 'Guru Terjadwal', align: 'left', ptWidth: 86 },
-          { key: 'guruAktual', header: 'Guru Aktual', align: 'left', ptWidth: 86 },
-          { key: 'status', header: 'Status', align: 'center', ptWidth: 52 },
+          { key: 'guruTerjadwal', header: 'Guru Terjadwal', align: 'left', ptWidth: 82 },
+          { key: 'guruAktual', header: 'Guru Aktual', align: 'left', ptWidth: 82 },
+          { key: 'status', header: 'Status', align: 'center', ptWidth: 50 },
         ],
         summary: [
           { label: 'Total Jadwal', value: `${cellText(totalSlots)} JP` },
@@ -225,6 +229,7 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
               ? `${r.startTime}\u2013${r.endTime} (${r.durationMinutes}m)`
               : '\u2014',
           kelas: cellText(r.classId),
+          kelompok: cellText(r.kelompok),
           mapel: cellText(r.subjectName),
           guruTerjadwal: cellText(r.scheduledTeacherName),
           guruAktual: `${cellText(r.actualTeacherName)}${r.isBadal ? ' (Badal)' : ''}`,
@@ -287,6 +292,16 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
           <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-bold whitespace-nowrap">
             {item.classId}
           </span>
+          {/*
+            Kelompok ditulis sebagai baris terpisah, bukan disambung ke label
+            kelas: lencana kelas sudah punya latar, dan menyambungnya membuat
+            labelnya panjang lalu terpotong di kolom selebar 130px.
+          */}
+          {item.kelompok && (
+            <span className="block text-2xs font-semibold text-primary-700 mt-0.5">
+              {item.kelompok}
+            </span>
+          )}
           {item.isUnscheduledAgenda && (
             <span className="block text-xs text-amber-600 font-normal mt-0.5">
               Tanpa Jadwal

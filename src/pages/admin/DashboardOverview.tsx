@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { localDateString } from '../../utils/date';
+import { labelKelasKelompok } from '../../utils/halaqohLabel';
 import {
   getDaftarGuru,
   getDaftarSiswa,
@@ -348,7 +349,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       </div>
                       <p className="text-sm font-bold text-slate-900">{slot.subject_name}</p>
                       <p className="text-xs text-slate-600">
-                        {slot.kelas} • {slot.teacher_name}
+                        {labelKelasKelompok(slot.kelas, slot.halaqoh)} • {slot.teacher_name}
                       </p>
                     </div>
                   ))}
@@ -366,7 +367,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                         {jadwalBerikutnya.subject_name}
                       </p>
                       <p className="text-xs text-slate-600">
-                        {jadwalBerikutnya.kelas} • {jadwalBerikutnya.teacher_name}
+                        {labelKelasKelompok(jadwalBerikutnya.kelas, jadwalBerikutnya.halaqoh)} •{' '}
+                        {jadwalBerikutnya.teacher_name}
                       </p>
                     </div>
                   )}
@@ -525,7 +527,12 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-bold text-slate-900 text-sm">
-                        {agenda.header.kelas}
+                        {labelKelasKelompok(
+                          agenda.header.kelas,
+                          // Agenda terbaru dibaca dari `FullAgenda`, jadi nama
+                          // kelompoknya ada di baris KBM — bukan di header.
+                          agenda.kbm?.find((k) => (k.halaqoh || '').trim().length > 0)?.halaqoh
+                        )}
                       </span>
                       <span className="text-xs text-slate-600 font-mono">
                         {formatDateIndo(agenda.header.tanggal)}

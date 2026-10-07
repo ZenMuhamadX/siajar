@@ -60,6 +60,9 @@ const LazyDataMapel = lazy(() =>
 const LazyDataKelasPage = lazy(() =>
   import('../pages/admin/DataKelasPage').then((m) => ({ default: m.DataKelasPage }))
 );
+const LazyHalaqohPage = lazy(() =>
+  import('../pages/admin/HalaqohPage').then((m) => ({ default: m.HalaqohPage }))
+);
 const LazyKenaikanKelasPage = lazy(() =>
   import('../pages/admin/KenaikanKelasPage').then((m) => ({ default: m.KenaikanKelasPage }))
 );
@@ -379,6 +382,7 @@ export function AppRoutes() {
               <Route path="guru" element={<ToastPage component={LazyDataGuru} />} />
               <Route path="mapel" element={<ToastPage component={LazyDataMapel} />} />
               <Route path="kelas" element={<ToastPage component={LazyDataKelasPage} />} />
+              <Route path="halaqoh" element={<ToastPage component={LazyHalaqohPage} />} />
               <Route
                 path="wali_kelas"
                 element={<ToastPage component={LazyHomeroomManagement} />}

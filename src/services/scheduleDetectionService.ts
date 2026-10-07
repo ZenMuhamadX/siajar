@@ -246,21 +246,38 @@ export async function getTeacherDailyTimeline(
   // Map each schedule to TimelineSlot
   const rawSlots: TimelineSlot[] = teacherSchedules.map((sch) => {
     // Find matching agenda.
-    // Primary: exact schedule_id match (created after Stage 2 integration).
-    // Fallback: kelas+tanggal+guru+mapel — only for legacy agendas that have
-    //   no schedule_id, so two JP with the same mapel/teacher don't cross-match.
-    const foundAgenda = agendasOnDate.find(
-      (a) =>
-        a.header.schedule_id === sch.id ||
-        (!a.header.schedule_id &&
+    //
+    // 1. Kunci utama: `schedule_id` persis. Ini satu-satunya kunci yang benar
+    //    untuk mapel berkelompok, karena dua guru Ummi punya kelas + mapel +
+    //    tanggal yang SAMA dan hanya `schedule_id` yang membedakan.
+    //
+    // 2. Cadangan (hanya agenda lama tanpa `schedule_id`): kelas + tanggal +
+    //    guru + mapel + halaqoh. Cadangan ini WAJIB membandingkan halaqoh,
+    //    kalau tidak dua halaqoh pada jam yang sama akan saling mengklaim
+    //    agenda yang sama — guru kedua melihat (lalu menimpa) catatan guru
+    //    pertama.
+    //
+    // Urutannya penting: kunci utama DIPERIKSA LEBIH DULU lewat pencarian
+    // terpisah. Kalau keduanya digabung dalam satu `find`, agenda lama bisa
+    // muncul lebih dulu di array dan menang — guru disodorkan catatan usang
+    // padahal catatan barunya ada.
+    const byId = agendasOnDate.find((a) => a.header.schedule_id === sch.id);
+
+    const foundAgenda =
+      byId ??
+      agendasOnDate.find(
+        (a) =>
+          !a.header.schedule_id &&
           a.header.kelas === sch.kelas &&
           a.header.tanggal === targetDateStr &&
           a.kbm.some(
             (k) =>
               k.nama_guru.trim().toLowerCase() === teacherName.trim().toLowerCase() &&
-              k.mapel.trim().toLowerCase() === sch.subject_name.trim().toLowerCase()
-          ))
-    ) || null;
+              k.mapel.trim().toLowerCase() === sch.subject_name.trim().toLowerCase() &&
+              (k.halaqoh_id ?? null) === (sch.halaqoh_id ?? null)
+          )
+      ) ??
+      null;
 
     const status = computeSlotStatus(sch, foundAgenda, targetDateStr, now);
 

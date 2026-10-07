@@ -30,6 +30,12 @@ export interface SlotRow {
   agendaId: string | null;
   classId: string;
   subjectName: string;
+  /**
+   * Nama halaqoh (kelompok) bila baris ini bagian dari mapel berkelompok.
+   * `null` = seluruh kelas. Ikut sejak Fase 4b: tanpa ini, dua guru Ummi pada
+   * kelas & jam yang sama menghasilkan dua baris rekap yang identik.
+   */
+  kelompok: string | null;
   scheduledTeacherName: string;
   actualTeacherName: string;
   isBadal: boolean;
@@ -99,10 +105,28 @@ function findAgenda(
       a.header.kelas === schedule.kelas &&
       a.header.tanggal === date &&
       (a.kbm || []).some(
-        (k) => norm(k.nama_guru) === norm(schedule.teacher_name) && norm(k.mapel) === norm(schedule.subject_name)
+        (k) =>
+          norm(k.nama_guru) === norm(schedule.teacher_name) &&
+          norm(k.mapel) === norm(schedule.subject_name) &&
+          // WAJIB: dua halaqoh pada kelas & jam yang sama akan saling mengklaim
+          // agenda yang sama tanpa perbandingan ini — satu agenda tampil dua
+          // kali di rekap dan gurunya tertukar.
+          (k.halaqoh_id ?? null) === (schedule.halaqoh_id ?? null)
       )
   );
   return legacy || null;
+}
+
+/**
+ * Nama halaqoh dari baris KBM agenda — cadangan untuk agenda lama yang dibuat
+ * sebelum `halaqoh_id` dipakai (baris jadwal saat itu belum berkelompok).
+ *
+ * Mencari baris yang benar-benar punya nama; satu agenda bisa punya beberapa
+ * baris KBM dan hanya sebagiannya berkelompok.
+ */
+function findKbmHalaqoh(agenda: FullAgenda | null): string | null {
+  const baris = (agenda?.kbm || []).find((k) => (k.halaqoh || '').trim().length > 0);
+  return baris?.halaqoh ?? null;
 }
 
 /**
@@ -201,6 +225,10 @@ export function buildSlotRows(input: BuildSlotRowsInput): SlotRow[] {
         agendaId: agenda?.header.id || null,
         classId: schedule.kelas,
         subjectName: schedule.subject_name,
+        // Baris jadwal adalah sumber utama: guru ditentukan di baris ini, jadi
+        // halaqoh-nya pun pasti. Cadangan ke KBM hanya untuk agenda lama yang
+        // dibuat sebelum kolom `halaqoh_id` dipakai.
+        kelompok: schedule.halaqoh || findKbmHalaqoh(agenda) || null,
         scheduledTeacherName: schedule.teacher_name,
         actualTeacherName,
         isBadal,
@@ -232,6 +260,8 @@ export function buildSlotRows(input: BuildSlotRowsInput): SlotRow[] {
       agendaId: agenda.header.id,
       classId: agenda.header.kelas,
       subjectName: kbmFirst?.mapel || 'Pembelajaran',
+      // Agenda tanpa slot: satu-satunya sumber halaqoh adalah baris KBM-nya.
+      kelompok: kbmFirst?.halaqoh || null,
       scheduledTeacherName:
         agenda.header.actual_teacher_name || kbmFirst?.nama_guru || 'Guru',
       actualTeacherName: agenda.header.actual_teacher_name || kbmFirst?.nama_guru || 'Guru',

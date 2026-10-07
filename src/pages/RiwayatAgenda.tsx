@@ -17,6 +17,7 @@ import {
   monthRange,
   recentMonthKeys,
 } from '../utils/date';
+import { labelKelasKelompok } from '../utils/halaqohLabel';
 import { useAuth } from '../contexts/AuthContext';
 import { getRekapAgenda, deleteAgenda } from '../services/agendaService';
 import { getEvidenceDisplayUrl } from '../services/evidenceService';
@@ -1177,6 +1178,14 @@ const RiwayatCard: React.FC<RiwayatCardProps> = ({
   const absentCount = absensi?.length || 0;
   const hasPhoto = Boolean(evidence?.storage_path);
 
+  /**
+   * Nama kelompok untuk lencana ringkas. Dipakai HANYA bila agenda ini benar-
+   * benar berkelompok (mapel Ummi), yang bisa diketahui dari baris KBM-nya.
+   * Pengulangan nama kelas dibuang lewat `labelKelasKelompok`.
+   */
+  const namaKelompok = lessons.find((k) => (k.halaqoh || '').trim().length > 0)?.halaqoh;
+  const labelKelas = labelKelasKelompok(header.kelas, namaKelompok);
+
   return (
     <article
       style={{ animationDelay: `${60 + Math.min(index, 6) * 30}ms` }}
@@ -1196,7 +1205,7 @@ const RiwayatCard: React.FC<RiwayatCardProps> = ({
               {formatDayDate(header.tanggal)}
             </span>
             <span className="text-2xs font-semibold px-1.5 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded">
-              {header.kelas}
+              {labelKelas}
             </span>
             {isToday && (
               <span className="text-2xs font-bold px-1.5 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded">
@@ -1316,6 +1325,9 @@ const RiwayatCard: React.FC<RiwayatCardProps> = ({
                     <th scope="col" className="py-2 px-3 w-36 border-r border-slate-200">
                       Mapel
                     </th>
+                    <th scope="col" className="py-2 px-3 w-28 border-r border-slate-200">
+                      Kelompok
+                    </th>
                     <th scope="col" className="py-2 px-3 border-r border-slate-200">
                       Materi
                     </th>
@@ -1353,6 +1365,16 @@ const RiwayatCard: React.FC<RiwayatCardProps> = ({
                           className="py-2 px-3 border-r border-slate-200 font-semibold text-slate-800"
                         >
                           {k.mapel}
+                        </td>
+                        {/*
+                          Kelompok: tanpa kolom ini, dua halaqoh pada kelas &
+                          jam yang sama tampil sebagai baris yang identik.
+                        */}
+                        <td
+                          data-label="Kelompok"
+                          className="py-2 px-3 border-r border-slate-200 text-slate-600 font-medium"
+                        >
+                          {k.halaqoh || <span className="text-slate-400">—</span>}
                         </td>
                         <td
                           data-label="Materi"

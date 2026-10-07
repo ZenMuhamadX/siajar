@@ -10,6 +10,7 @@ import {
   FileSpreadsheet,
   GraduationCap,
   LayoutDashboard,
+  Layers,
   MessageSquare,
   School,
   Settings,
@@ -38,6 +39,7 @@ export type AdminTab =
   | 'guru'
   | 'mapel'
   | 'kelas'
+  | 'halaqoh'
   | 'wali_kelas'
   | 'slot_waktu'
   | 'ekskul'
@@ -133,6 +135,17 @@ export const ADMIN_ROUTES: AdminRouteDef[] = [
     title: 'Slot Waktu (JP)',
     icon: Clock,
   },
+  // Halaqoh ditempatkan di MASTER DATA, bukan PENUGASAN, karena yang diatur di
+  // sini adalah PEMBAGIAN SISWA di dalam kelas — bukan penugasan guru. Gurunya
+  // sendiri ditentukan di baris jadwal, bukan di master halaqoh.
+  {
+    tab: 'halaqoh',
+    path: 'halaqoh',
+    group: 'MASTER DATA',
+    label: 'Halaqoh',
+    title: 'Halaqoh Ummi',
+    icon: Layers,
+  },
 
   // PENUGASAN
   {
@@ -227,6 +240,7 @@ export const KURIKULUM_TABS: readonly AdminTab[] = [
   'mapel',
   'kelas',
   'slot_waktu',
+  'halaqoh',
   // PENUGASAN
   'wali_kelas',
   'jadwal',

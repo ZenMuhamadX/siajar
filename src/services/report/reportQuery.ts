@@ -51,6 +51,14 @@ export interface JournalRow {
      */
     materi?: string | null;
     is_badal?: boolean;
+    /**
+     * Halaqoh (kelompok) yang diisi baris KBM ini — hanya terisi untuk mapel
+     * berkelompok. `null` = seluruh kelas. Ditampilkan di rekap supaya dua
+     * kelompok pada kelas & jam yang sama tidak tampak identik.
+     */
+    halaqoh_id?: string | null;
+    /** Nama halaqoh untuk tampilan (hasil join, diratakan di `mapJournalRow`). */
+    halaqoh?: string | null;
   }[];
   absensi: { id?: string; siswa_id: string; status: 'S' | 'I' | 'A' }[];
   evidence: {
@@ -71,7 +79,7 @@ export const JOURNAL_LIST_SELECT = `
   schedule_id,
   actual_teacher_name,
   created_at,
-  agenda_kbm (id, jam_ke, nama_guru, mapel, materi, is_badal),
+  agenda_kbm (id, jam_ke, nama_guru, mapel, materi, is_badal, halaqoh_id, halaqoh:halaqoh_id (nama)),
   agenda_absensi (id, siswa_id, status),
   agenda_evidence (id, storage_path, captured_at, uploaded_at, actual_teacher_name)
 `;
@@ -256,7 +264,13 @@ export function mapJournalRow(item: any): JournalRow {
     scheduleId: item.schedule_id ?? null,
     actualTeacherName: item.actual_teacher_name ?? null,
     createdAt: item.created_at ?? null,
-    kbm: item.agenda_kbm || [],
+    kbm: (item.agenda_kbm || []).map((k: any) => ({
+      ...k,
+      // `halaqoh:halaqoh_id (nama)` mengembalikan OBJEK BERSARANG, bukan string.
+      // Tanpa perataan ini, objeknya bocor ke React → "Objects are not valid as
+      // a React child". Pola yang sama dipakai `mapAgendaRow`/`mapScheduleRow`.
+      halaqoh: k?.halaqoh?.nama ?? null,
+    })),
     absensi: item.agenda_absensi || [],
     evidence: rawEvidence
       ? {

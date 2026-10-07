@@ -218,6 +218,16 @@ export const DailyReportDetailModal: React.FC<DailyReportDetailModalProps> = ({
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-slate-800">
                         {k.mapel} {k.jam_ke ? `(Jam ${k.jam_ke})` : ''}
+                        {/*
+                          Kelompok ditulis di baris judul, bukan di kolom kanan
+                          yang sudah dipakai "Pengampu": menyisipkannya di sana
+                          membuat keduanya sempit dan terpotong.
+                        */}
+                        {k.halaqoh && (
+                          <span className="ml-1.5 px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-semibold text-2xs align-middle">
+                            {k.halaqoh}
+                          </span>
+                        )}
                       </span>
                       <span className="text-xs text-slate-600 font-medium">
                         Pengampu: {k.nama_guru}

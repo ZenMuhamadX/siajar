@@ -21,8 +21,13 @@ import type {
  * Prioritas: yang berstatus ACTIVE. Kalau belum ada yang diaktifkan, dipakai
  * yang `start_date`-nya paling akhir — supaya aplikasi tetap jalan di sekolah
  * yang belum menandai tahun ajarannya sebagai aktif.
+ *
+ * Diekspor karena keanggotaan halaqoh juga per tahun ajaran dan harus memakai
+ * tahun yang SAMA dengan penempatan kelas. Kalau keduanya punya logika sendiri,
+ * suatu saat keduanya bisa menjawab berbeda — dan pembagian halaqoh akan
+ * menempel di tahun yang salah tanpa error apa pun.
  */
-async function resolveAcademicYearId(): Promise<string | null> {
+export async function resolveAcademicYearId(): Promise<string | null> {
   const { data, error } = await supabase
     .from('academic_year')
     .select('id, status, start_date')
@@ -171,9 +176,71 @@ export async function getDaftarSiswa(options?: {
 }
 
 /**
- * Tempatkan siswa di sebuah kelas pada tahun ajaran yang sedang berlaku.
- * Dipakai `addSiswa` dan `updateSiswa` supaya keduanya lewat jalur yang sama.
+ * Anggota satu halaqoh, dalam bentuk yang SAMA dengan `getDaftarSiswa`.
+ *
+ * Dibuat seragam dengan sengaja: layar absensi tidak perlu tahu apakah yang
+ * ditampilkan itu seluruh kelas atau satu kelompok. Ia meminta "daftar siswa
+ * untuk penempatan ini" dan mendapatkannya — perbedaan halaqoh selesai di
+ * batas service ini.
+ *
+ * Dipakai saat baris jadwal menunjuk sebuah halaqoh: guru Ummi hanya boleh
+ * mengabsen kelompoknya sendiri. Menampilkan seluruh kelas akan membuat guru
+ * menandai anak yang bukan tanggung jawabnya, dan absensi kelas penuh jadi
+ * bolong karena setiap guru mengisi bagian yang berbeda.
  */
+export async function getSiswaHalaqoh(
+  halaqohId: string,
+  options?: { kelas?: string; academicYearId?: string; hanyaAktif?: boolean },
+): Promise<SiswaTerdaftar[]> {
+  const academicYearId = options?.academicYearId ?? (await resolveAcademicYearId());
+  if (!academicYearId) return [];
+
+  const { data, error } = await supabase
+    .from('siswa_halaqoh')
+    .select(
+      'siswa_id, ' +
+        'siswa:siswa_id (id, nama_siswa, nis, status), ' +
+        'halaqoh:halaqoh_id (kelas_id, kelas:kelas_id (label))',
+    )
+    .eq('halaqoh_id', halaqohId)
+    .eq('academic_year_id', academicYearId);
+  if (error) throw error;
+
+  type Row = {
+    siswa_id: string;
+    siswa?: {
+      id?: string;
+      nama_siswa?: string;
+      nis?: string | null;
+      status?: string;
+    } | null;
+    halaqoh?: { kelas_id?: string; kelas?: { label?: string } | null } | null;
+  };
+
+  const hasil: SiswaTerdaftar[] = [];
+  for (const row of (data ?? []) as unknown as Row[]) {
+    const s = row.siswa;
+    if (!s?.id) continue;
+    hasil.push({
+      id: s.id,
+      nama_siswa: s.nama_siswa ?? '',
+      nis: s.nis ?? null,
+      status: (s.status ?? 'AKTIF') as SiswaTerdaftar['status'],
+      kelas: row.halaqoh?.kelas?.label ?? '',
+      kelas_id: row.halaqoh?.kelas_id ?? '',
+      academic_year_id: academicYearId,
+    });
+  }
+
+  const tersaring = options?.kelas ? hasil.filter((s) => s.kelas === options.kelas) : hasil;
+  const akhir = options?.hanyaAktif
+    ? tersaring.filter((s) => s.status === 'AKTIF')
+    : tersaring;
+
+  akhir.sort((a, b) => a.nama_siswa.localeCompare(b.nama_siswa, 'id'));
+  return akhir;
+}
+
 /**
  * Status yang ditampilkan untuk seorang siswa pada satu tahun ajaran.
  *
@@ -394,10 +461,28 @@ function warnaOrNull(warna?: string | null): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-export async function addMapel(namaMapel: string, warna?: string | null): Promise<MataPelajaran> {
+/**
+ * `is_halaqoh` menentukan apakah mapel diajarkan berkelompok (halaqoh).
+ *
+ * Sengaja ikut dikirim eksplisit (bukan hanya saat nilainya `true`) supaya
+ * mematikan penanda juga bisa dilakukan dari formulir yang sama. Kalau
+ * parameternya opsional dan hanya ditulis saat bernilai benar, tidak akan ada
+ * cara untuk membatalkan penanda selain lewat SQL langsung.
+ */
+export async function addMapel(
+  namaMapel: string,
+  warna?: string | null,
+  isHalaqoh?: boolean,
+): Promise<MataPelajaran> {
   const { data, error } = await supabase
     .from('mapel')
-    .insert([{ nama_mapel: namaMapel.trim(), warna: warnaOrNull(warna) }])
+    .insert([
+      {
+        nama_mapel: namaMapel.trim(),
+        warna: warnaOrNull(warna),
+        is_halaqoh: Boolean(isHalaqoh),
+      },
+    ])
     .select()
     .single();
   if (error) throw error;
@@ -408,10 +493,15 @@ export async function updateMapel(
   id: string,
   namaMapel: string,
   warna?: string | null,
+  isHalaqoh?: boolean,
 ): Promise<void> {
   const { error } = await supabase
     .from('mapel')
-    .update({ nama_mapel: namaMapel.trim(), warna: warnaOrNull(warna) })
+    .update({
+      nama_mapel: namaMapel.trim(),
+      warna: warnaOrNull(warna),
+      is_halaqoh: Boolean(isHalaqoh),
+    })
     .eq('id', id);
   if (error) throw error;
 }
@@ -490,6 +580,10 @@ export async function simpanAgenda(payload: SimpanAgendaPayload): Promise<{ id: 
       materi: item.materi,
       tugas_pr: item.tugas_pr || null,
       is_badal: Boolean(item.is_badal),
+      // Mapel biasa → NULL (berlaku seluruh kelas). Disalurkan apa adanya,
+      // bukan disimpulkan dari nama mapel: hanya baris jadwal yang tahu
+      // kelompok mana yang diajar.
+      halaqoh_id: item.halaqoh_id ?? null,
     }));
     const { error: kbmErr } = await supabase.from('agenda_kbm').insert(kbmRows);
     if (kbmErr) throw kbmErr;
@@ -519,7 +613,7 @@ export async function simpanAgenda(payload: SimpanAgendaPayload): Promise<{ id: 
 const AGENDA_DETAIL_SELECT = `
       *,
       kelas:kelas_id (label),
-      agenda_kbm (*),
+      agenda_kbm (*, halaqoh:halaqoh_id (nama)),
       agenda_absensi (
         *,
         siswa:siswa_id (*)
@@ -542,7 +636,7 @@ const AGENDA_DETAIL_SELECT = `
 const AGENDA_DETAIL_SELECT_BY_TEACHER = `
       *,
       kelas:kelas_id (label),
-      agenda_kbm!inner (*),
+      agenda_kbm!inner (*, halaqoh:halaqoh_id (nama)),
       agenda_absensi (
         *,
         siswa:siswa_id (*)
@@ -569,9 +663,18 @@ function mapAgendaRow(item: any): FullAgenda {
       actual_teacher_name: item.actual_teacher_name || null,
       created_at: item.created_at,
     },
-    kbm: (item.agenda_kbm || []).sort((a: any, b: any) =>
-      a.jam_ke.localeCompare(b.jam_ke, undefined, { numeric: true })
-    ),
+    kbm: (item.agenda_kbm || [])
+      .map((k: any) => ({
+        ...k,
+        // `halaqoh:halaqoh_id (nama)` mengembalikan OBJEK BERSARANG, bukan
+        // string. Kalau objeknya bocor ke komponen, React melempar
+        // "Objects are not valid as a React child". Perataan WAJIB di sini,
+        // sama seperti pola `kelas:kelas_id (label)`.
+        halaqoh: k?.halaqoh?.nama ?? undefined,
+      }))
+      .sort((a: any, b: any) =>
+        a.jam_ke.localeCompare(b.jam_ke, undefined, { numeric: true })
+      ),
     absensi: (item.agenda_absensi || []).map((ab: any) => ({
       id: ab.id,
       agenda_id: ab.agenda_id,

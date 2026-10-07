@@ -65,6 +65,12 @@ export interface DailyReportItem {
   durationMinutes: number | null;
   classId: string;
   subjectName: string;
+  /**
+   * Nama halaqoh (kelompok) untuk mapel berkelompok; `null` = seluruh kelas.
+   * Diteruskan dari `SlotRow.kelompok` supaya rekap harian & cetaknya bisa
+   * membedakan dua guru Ummi pada kelas + jam yang sama.
+   */
+  kelompok: string | null;
   scheduledTeacherName: string;
   scheduledTeacherId?: string | null;
   actualTeacherName: string;
@@ -264,6 +270,7 @@ export async function getDailyReport(options: {
       durationMinutes: row.durationMinutes,
       classId: row.classId,
       subjectName: row.subjectName,
+      kelompok: row.kelompok,
       scheduledTeacherName: row.scheduledTeacherName,
       scheduledTeacherId: schedule?.teacher_id ?? null,
       actualTeacherName: row.actualTeacherName,

@@ -14,11 +14,19 @@ import { findKelasId, resolveKelasId } from './classService';
  * tetapi seluruh layar, validasi bentrok, dan export bekerja dengan LABEL-nya
  * (mis. '1A'). Terjemahannya dikurung di dua helper di bawah supaya pemakai
  * tidak perlu tahu soal `kelas_id` sama sekali.
+ *
+ * Halaqoh ikut dibaca bersama jadwal supaya daftar bisa menyebut NAMA kelompok
+ * ('Halaqoh 1'), bukan sekadar id-nya. Sama seperti `kelas`, bentuk bersarang
+ * dari join diratakan di `mapScheduleRow` dan TIDAK boleh ikut ditulis kembali.
  */
-const SCHEDULE_SELECT = '*, kelas:kelas_id (label)';
+const SCHEDULE_SELECT = '*, kelas:kelas_id (label), halaqoh_ref:halaqoh_id (nama)';
 
 function mapScheduleRow(row: any): ScheduleItem {
-  return { ...row, kelas: row?.kelas?.label ?? '' } as ScheduleItem;
+  return {
+    ...row,
+    kelas: row?.kelas?.label ?? '',
+    halaqoh: row?.halaqoh_ref?.nama ?? undefined,
+  } as ScheduleItem;
 }
 
 /** Susun baris database dari `ScheduleItem` — label diterjemahkan ke `kelas_id`. */
@@ -27,6 +35,9 @@ async function toScheduleRow(
 ): Promise<Record<string, unknown>> {
   const row: Record<string, unknown> = { ...item };
   delete row.kelas;
+  // `halaqoh` adalah nama hasil join, bukan kolom. Mengirimnya akan ditolak
+  // database karena kolomnya tidak ada.
+  delete row.halaqoh;
   if (item.kelas !== undefined) {
     row.kelas_id = await resolveKelasId(item.kelas);
   }

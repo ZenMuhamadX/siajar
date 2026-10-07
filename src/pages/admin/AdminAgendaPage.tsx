@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { localDateString } from '../../utils/date';
+import { labelKelasKelompok } from '../../utils/halaqohLabel';
 import { useAgendaDateParam, useAgendaSlotParam } from '../../routes/useAgendaQuery';
 import { type FullAgenda, type Guru } from '../../types';
 import { useClassLabels } from '../../contexts/ClassContext';
@@ -246,8 +247,10 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
       header: 'Kelas',
       align: 'left',
       accessor: (slot) => (
+        // Kelompok ikut disebut: dua guru Ummi pada kelas & jam yang sama
+        // menghasilkan baris yang tampak identik tanpa itu.
         <span className="font-semibold text-slate-900 whitespace-nowrap">
-          {slot.schedule.kelas}
+          {labelKelasKelompok(slot.schedule.kelas, slot.schedule.halaqoh)}
         </span>
       ),
     },
@@ -304,7 +307,14 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
             <p className="text-xs text-primary-800 mt-0.5">
               Mengisi / mengoreksi agenda atas nama{' '}
               <strong>{teacherNameForForm}</strong>
-              {selectedSlot ? ` · ${selectedSlot.schedule.kelas}` : directEdit ? ` · ${directEdit.header.kelas}` : ''}
+              {selectedSlot
+                ? ` · ${labelKelasKelompok(selectedSlot.schedule.kelas, selectedSlot.schedule.halaqoh)}`
+                : directEdit
+                  ? ` · ${labelKelasKelompok(
+                      directEdit.header.kelas,
+                      directEdit.kbm?.find((k) => (k.halaqoh || '').trim().length > 0)?.halaqoh
+                    )}`
+                  : ''}
             </p>
           </div>
           <button
