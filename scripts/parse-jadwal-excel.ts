@@ -105,7 +105,14 @@ const CLASS_COLS = [
 ];
 
 function clean(s: string): string {
-  return s.replace(/\u000b/g, '').replace(/\s+/g, ' ').trim();
+  // \v = U+000B (vertical tab) — sisa pembungkus sel Excel. Harus dibuang
+  // SEBELUM \s+ digabung; kalau tidak, ia jadi spasi biasa dan menyisipkan
+  // spasi di tengah nama mapel.
+  //
+  // Ditulis `\v`, bukan `\u000b`: keduanya sama persis (U+000B), tetapi bentuk
+  // `\u000b` memicu lint `no-control-regex` karena terbaca sebagai karakter
+  // kendali mentah di dalam pola.
+  return s.replace(/\v/g, '').replace(/\s+/g, ' ').trim();
 }
 
 /** "08.05-08.40" -> { start:'08:05:00', end:'08:40:00' } ; null kalau bukan jam */
@@ -165,7 +172,7 @@ for (let bi = 0; bi < blocks.length; bi++) {
     if (!perJam.has(jamKe)) perJam.set(jamKe, new Map());
     const slot = perJam.get(jamKe)!;
 
-    for (const { col, tingkat } of CLASS_COLS) {
+    for (const { col } of CLASS_COLS) {
       const raw = clean(row[col] ?? '').toUpperCase();
       if (!raw) continue;
       if (!slot.has(col)) slot.set(col, []);
