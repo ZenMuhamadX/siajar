@@ -338,9 +338,12 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
         columns: [
           { key: 'no', header: 'No', align: 'center', ptWidth: 24 },
           { key: 'tanggal', header: 'Tanggal', align: 'center', ptWidth: 62 },
-          { key: 'kelas', header: 'Kelas', align: 'center', ptWidth: 48 },
-          { key: 'guru', header: 'Nama Guru', align: 'left', ptWidth: 118 },
-          { key: 'mapel', header: 'Mata Pelajaran', align: 'left', ptWidth: 88 },
+          { key: 'kelas', header: 'Kelas', align: 'center', ptWidth: 40 },
+          // Kelompok menyerap lebar sendiri: nama halaqoh ("Kelompok A",
+          // "Halaqoh 1") lebih panjang daripada label kelasnya.
+          { key: 'kelompok', header: 'Kelompok', align: 'center', ptWidth: 62 },
+          { key: 'guru', header: 'Nama Guru', align: 'left', ptWidth: 112 },
+          { key: 'mapel', header: 'Mata Pelajaran', align: 'left', ptWidth: 84 },
           { key: 'jp', header: 'JP Ke-', align: 'center', ptWidth: 34 },
           { key: 'materi', header: 'Materi', align: 'left' },
         ],
@@ -352,6 +355,9 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
             return kbmList.map((k) => ({
               tanggal: cellText(formatDateShort(r.tanggal)),
               kelas: cellText(r.kelas),
+              // `cellText` mengubah null/kosong menjadi "—", jadi kolom kelompok
+              // tetap sejajar dan pembaca tahu itu memang tanpa kelompok.
+              kelompok: cellText(k?.halaqoh),
               guru: `${cellText(
                 k?.nama_guru || r.actualTeacherName || r.kbm?.[0]?.nama_guru,
               )}${k?.is_badal ? ' (Badal)' : ''}`,
@@ -435,14 +441,32 @@ export const RekapAgenda: React.FC<RekapAgendaProps> = ({ showToast, onEditAgend
     () => [
       {
         key: 'kelas',
-        header: 'Kelas',
+        header: 'Kelas / Kelompok',
         align: 'center',
-        width: '90px',
-        accessor: (r) => (
-          <span className="inline-block px-2 py-0.5 bg-slate-800 text-white font-bold text-xs rounded print:border print:border-black print:text-black print:bg-white">
-            {r.kelas}
-          </span>
-        ),
+        width: '150px',
+        accessor: (r) => {
+          // Nama kelompok diambil dari baris KBM (bukan baris jadwal): log
+          // jurnal menampilkan apa yang BENAR-BENAR ditulis guru. Bisa `null`
+          // untuk mapel seluruh kelas maupun agenda lama sebelum halaqoh ada.
+          const kelompok = (r.kbm || []).find((k) => (k.halaqoh || '').trim().length > 0)?.halaqoh;
+          return (
+            <div className="flex flex-col items-center gap-0.5">
+              <span className="inline-block px-2 py-0.5 bg-slate-800 text-white font-bold text-xs rounded print:border print:border-black print:text-black print:bg-white">
+                {r.kelas}
+              </span>
+              {/*
+                Baris terpisah, TANPA lencana berwarna: di sini "kelompok"
+                bukan status yang perlu menonjol, hanya pembeda supaya dua
+                halaqoh pada kelas & jam yang sama tidak tampak identik.
+              */}
+              {kelompok && (
+                <span className="text-2xs font-medium text-primary-700 print:text-black">
+                  {kelompok}
+                </span>
+              )}
+            </div>
+          );
+        },
       },
       {
         key: 'tanggal',

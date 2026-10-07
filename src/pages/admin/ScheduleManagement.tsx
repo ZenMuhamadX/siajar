@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   type AcademicYear,
   type ScheduleItem,
@@ -21,6 +21,9 @@ import {
 } from '../../services/scheduleService';
 import { getPeriodTemplates } from '../../services/periodTemplateService';
 import { getDaftarGuru, getDaftarMapel } from '../../services/agendaService';
+import { getHalaqohByKelas } from '../../services/halaqohService';
+import { findKelasId } from '../../services/classService';
+import type { Halaqoh } from '../../types';
 import { PageHeader } from '../../components/admin/PageHeader';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { buildScheduleExportModel } from '../../services/export/scheduleExportModel';
@@ -40,6 +43,7 @@ import {
   Clock,
   FileSpreadsheet,
   Loader2,
+  Users,
 } from 'lucide-react';
 import {
   DataTable,
@@ -90,6 +94,19 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ScheduleItem | null>(null);
 
+  /**
+   * Kelompok (halaqoh) milik kelas yang sedang dipilih di formulir, beserta
+   * guru pilihan untuk MASING-MASING kelompok.
+   *
+   * Mapel Ummi diajarkan berkelompok: satu baris jadwal = satu kelompok = satu
+   * guru. Karena itu guru tidak bisa menjadi satu pilihan tunggal di formulir —
+   * ia dipilih per kelompok. Bentuk inilah yang menjaga prinsip "satu baris
+   * jadwal = satu guru" tetap utuh meski jamnya sama.
+   */
+  const [halaqohKelas, setHalaqohKelas] = useState<Halaqoh[]>([]);
+  const [guruPerHalaqoh, setGuruPerHalaqoh] = useState<Record<string, string>>({});
+  const [isLoadingHalaqoh, setIsLoadingHalaqoh] = useState(false);
+
   // Selected JP template for the form
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
 
@@ -106,6 +123,17 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
   });
   const [formConflictError, setFormConflictError] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
+
+  /**
+   * Kelas yang kelompoknya benar-benar sedang ditampilkan.
+   *
+   * Dihitung saat render — bukan disetel di dalam efek — supaya daftar kelompok
+   * tidak pernah tampil untuk kelas yang salah selama satu frame, dan supaya
+   * efek di bawah tidak perlu memanggil `setState` secara sinkron (yang memicu
+   * render berantai). Efek hanya MENGAMBIL data; keputusan "apakah datanya
+   * masih relevan" ada di sini dan di pemeriksaan `cancelled`.
+   */
+  const kelasHalaqohAktif = isEditModalOpen ? formData.kelas : '';
 
   // Dialog hapus (menggantikan confirm() bawaan browser)
   const [deleteTarget, setDeleteTarget] = useState<ScheduleItem | null>(null);
@@ -220,6 +248,82 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
     loadData();
   }, []);
 
+  /**
+   * Salinan `schedules` terbaru untuk dibaca di dalam efek tanpa menjadikannya
+   * dependensi.
+   *
+   * Efek pemuatan kelompok perlu tahu guru apa yang sudah tersimpan, tetapi
+   * kalau `schedules` masuk daftar dependensi, setiap penyimpanan jadwal akan
+   * memicu efek itu lagi — dan menimpa pilihan guru yang baru saja dibuat
+   * pengguna. Ref membuat nilainya selalu segar sekaligus tidak memicu efek.
+   */
+  const schedulesRef = useRef(schedules);
+  schedulesRef.current = schedules;
+
+  /**
+   * Muat kelompok kelas + guru yang sudah tersimpan, setiap kali kelas di
+   * formulir berganti.
+   *
+   * Dijalankan untuk SEMUA mapel (bukan hanya yang berkelompok) karena nilai
+   * yang dipilih di sini juga dipakai saat mengubah mapel dari biasa menjadi
+   * berkelompok. Menunda pemuatan sampai mapel dipilih akan membuat daftar
+   * kelompok berkedip kosong tepat saat pengguna butuh melihatnya.
+   *
+   * Edit: guru tiap kelompok diisi dari baris jadwal yang sudah ada (baris lain
+   * dengan JP/hari sama yang menunjuk kelompok itu), supaya membuka formulir
+   * tidak menghapus penugasan yang sudah benar.
+   *
+   * Seluruh `setState` terjadi SETELAH `await`, bukan di badan efek. Itulah yang
+   * membuat efek ini tidak memicu render berantai: React hanya menerima
+   * pembaruan saat data dari server benar-benar tiba.
+   */
+  useEffect(() => {
+    // Kelas efektif: kosong berarti modal tertutup, sehingga daftar kelompok
+    // tidak perlu ditampilkan sama sekali.
+    if (!kelasHalaqohAktif) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const kelasId = await findKelasId(kelasHalaqohAktif);
+        const list = kelasId ? await getHalaqohByKelas(kelasId) : [];
+        if (cancelled) return;
+
+        // Prefill guru dari jadwal yang sudah ada pada slot yang sama.
+        const guru: Record<string, string> = {};
+        for (const h of list) {
+          const sama = schedulesRef.current.find(
+            (s) =>
+              s.halaqoh_id === h.id &&
+              s.kelas === kelasHalaqohAktif &&
+              s.day === formData.day &&
+              s.period_number === Number(formData.period_number),
+          );
+          if (sama) guru[h.id] = sama.teacher_name;
+        }
+
+        // Kelas sudah berganti lagi saat permintaan ini berjalan → hasilnya
+        // sudah basi dan tidak boleh menimpa daftar kelompok yang baru.
+        if (cancelled) return;
+
+        setHalaqohKelas(list);
+        setGuruPerHalaqoh(guru);
+        setIsLoadingHalaqoh(false);
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setHalaqohKelas([]);
+          setIsLoadingHalaqoh(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [kelasHalaqohAktif, formData.kelas, formData.day, formData.period_number]);
+
   const handleAYChange = async (ayId: string) => {
     setSelectedAYId(ayId);
     setIsLoading(true);
@@ -245,6 +349,9 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
     }
     setEditingItem(null);
     setFormConflictError('');
+    setGuruPerHalaqoh({});
+    setHalaqohKelas([]);
+    setIsLoadingHalaqoh(true);
     // Pre-select first active JP if available
     const firstPT = periodTemplates[0] ?? null;
     setSelectedTemplateId(firstPT?.id ?? '');
@@ -265,6 +372,9 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
   const handleOpenEdit = (item: ScheduleItem) => {
     setEditingItem(item);
     setFormConflictError('');
+    setGuruPerHalaqoh({});
+    setHalaqohKelas([]);
+    setIsLoadingHalaqoh(true);
     // Try to match existing period_number to a template
     const matchedPT = periodTemplates.find((pt) => pt.period_number === item.period_number) ?? null;
     setSelectedTemplateId(matchedPT?.id ?? '');
@@ -281,6 +391,16 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
     setIsEditModalOpen(true);
   };
 
+  /**
+   * Apakah mapel yang dipilih di formulir diajarkan berkelompok (halaqoh).
+   *
+   * Dihitung dari MASTER MAPEL (`is_halaqoh`), bukan dari teks nama mapel.
+   * Sekolah bisa memutuskan sendiri mapel mana yang berkelompok tanpa aplikasi
+   * menebak-nebak dari kata "Ummi" di namanya.
+   */
+  const selectedSubject = subjects.find((m) => m.nama_mapel === formData.subject_name);
+  const isMapelHalaqoh = Boolean(selectedSubject?.is_halaqoh);
+
   // Save Schedule
   const handleSaveSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -290,7 +410,20 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
       setFormConflictError('Pilih Mata Pelajaran terlebih dahulu.');
       return;
     }
-    if (!formData.teacher_name) {
+    if (isMapelHalaqoh) {
+      if (halaqohKelas.length === 0) {
+        setFormConflictError(
+          'Kelas ini belum punya kelompok (halaqoh). Bagi siswanya dulu di menu Halaqoh.',
+        );
+        return;
+      }
+      if (halaqohKelas.some((h) => !guruPerHalaqoh[h.id])) {
+        setFormConflictError(
+          'Setiap kelompok harus punya guru. Lengkapi dulu guru untuk semua kelompok.',
+        );
+        return;
+      }
+    } else if (!formData.teacher_name) {
       setFormConflictError('Pilih Guru terlebih dahulu.');
       return;
     }
@@ -305,57 +438,144 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
 
     // RLS relies on schedule.teacher_id / subject_id, not the name text.
     // Resolve the master row so the ID is always stored.
-    const selectedTeacher = teachers.find((t) => t.nama_guru === formData.teacher_name);
-    const selectedSubject = subjects.find((m) => m.nama_mapel === formData.subject_name);
+    const subject = subjects.find((m) => m.nama_mapel === formData.subject_name);
 
-    if (!selectedTeacher) {
-      setFormConflictError(
-        'Guru tidak ditemukan di master data. Muat ulang halaman lalu coba lagi.'
-      );
-      return;
-    }
-    if (!selectedSubject) {
+    if (!subject) {
       setFormConflictError(
         'Mata pelajaran tidak ditemukan di master data. Muat ulang halaman lalu coba lagi.'
       );
       return;
     }
 
+    /** Baris dasar bersama untuk semua jalur simpan. */
+    const base = {
+      academic_year_id: selectedAYId,
+      day: formData.day,
+      period_number: Number(formData.period_number),
+      start_time: formData.start_time,
+      end_time: formData.end_time,
+      kelas: formData.kelas,
+      subject_name: formData.subject_name,
+      subject_id: subject.id,
+      status: formData.status,
+      ...(selectedTemplateId ? { period_template_id: selectedTemplateId } : {}),
+    };
+
     setIsSaving(true);
     try {
-      if (editingItem) {
-        await updateSchedule(editingItem.id, {
-          academic_year_id: selectedAYId,
-          day: formData.day,
-          period_number: Number(formData.period_number),
-          start_time: formData.start_time,
-          end_time: formData.end_time,
-          kelas: formData.kelas,
-          subject_name: formData.subject_name,
-          subject_id: selectedSubject.id,
-          teacher_name: formData.teacher_name,
-          teacher_id: selectedTeacher.id,
-          status: formData.status,
-          ...(selectedTemplateId ? { period_template_id: selectedTemplateId } : {}),
-        });
-        showToast('success', 'Jadwal berhasil diperbarui.');
+      if (isMapelHalaqoh) {
+        // Satu baris jadwal per kelompok — inilah bentuk B. Dua kelompok pada
+        // jam yang sama menjadi DUA baris, masing-masing dengan guru sendiri,
+        // sehingga "satu baris jadwal = satu guru" tetap benar.
+        const targets = halaqohKelas.map((h) => ({
+          halaqohId: h.id,
+          halaqohNama: h.nama,
+          guruNama: guruPerHalaqoh[h.id],
+          guru: teachers.find((t) => t.nama_guru === guruPerHalaqoh[h.id]),
+        }));
+
+        const missingTeacher = targets.find((t) => !t.guru);
+        if (missingTeacher) {
+          setFormConflictError(
+            `Guru "${missingTeacher.guruNama}" tidak ada di master data. Muat ulang halaman lalu coba lagi.`,
+          );
+          setIsSaving(false);
+          return;
+        }
+
+        // Bandingkan dengan baris yang sudah ada pada slot ini untuk kelas ini.
+        const existingRows = schedules.filter(
+          (s) =>
+            s.kelas === formData.kelas &&
+            s.day === formData.day &&
+            s.period_number === Number(formData.period_number) &&
+            // Hanya baris berkelompok yang boleh tersentuh dari sini.
+            Boolean(s.halaqoh_id),
+        );
+
+        // Baris yang bukan bagian dari formulir ini (mapel lain, jam lain) tidak
+        // pernah ikut terhapus.
+        const milikMapelIni = existingRows.filter(
+          (s) => s.subject_name === formData.subject_name,
+        );
+
+        for (const t of targets) {
+          const sudahAda = milikMapelIni.find((s) => s.halaqoh_id === t.halaqohId);
+          if (sudahAda) {
+            await updateSchedule(sudahAda.id, {
+              ...base,
+              teacher_name: t.guru!.nama_guru,
+              teacher_id: t.guru!.id,
+              halaqoh_id: t.halaqohId,
+            });
+          } else {
+            await createSchedule({
+              ...base,
+              teacher_name: t.guru!.nama_guru,
+              teacher_id: t.guru!.id,
+              halaqoh_id: t.halaqohId,
+              activity_type: 'KBM',
+            });
+          }
+        }
+
+        // Kelompok yang dilepas dari formulir (mis. kelompok dihapus setelah
+        // jadwal dibuat) ikut dibuang, tapi HANYA baris mapel ini pada slot ini.
+        const idDipakai = new Set(targets.map((t) => t.halaqohId));
+        for (const s of milikMapelIni) {
+          if (s.halaqoh_id && !idDipakai.has(s.halaqoh_id)) {
+            await deleteSchedule(s.id);
+          }
+        }
+
+        // Saat mengedit, baris asal mungkin berpindah kelas/hari/JP. Pencarian
+        // `milikMapelIni` di atas memakai nilai BARU, sehingga baris lama tidak
+        // akan pernah ditemukan dan akan tertinggal sebagai jadwal hantu di
+        // slot yang sudah ditinggalkan. Karena itu baris asal dibuang terpisah
+        // bila tidak lagi ikut dalam himpunan baris tujuan.
+        if (editingItem?.halaqoh_id) {
+          const masihDipakai = targets.some((t) => t.halaqohId === editingItem.halaqoh_id) &&
+            editingItem.kelas === formData.kelas &&
+            editingItem.day === formData.day &&
+            editingItem.period_number === Number(formData.period_number);
+          const barisLamaMasihAda = milikMapelIni.some((s) => s.id === editingItem.id);
+          if (!masihDipakai && !barisLamaMasihAda) {
+            await deleteSchedule(editingItem.id);
+          }
+        }
+
+        showToast(
+          'success',
+          editingItem
+            ? `Jadwal berkelompok diperbarui (${targets.length} kelompok).`
+            : `Jadwal berkelompok dibuat (${targets.length} kelompok, ${formData.kelas}).`,
+        );
       } else {
-        await createSchedule({
-          academic_year_id: selectedAYId,
-          day: formData.day,
-          period_number: Number(formData.period_number),
-          start_time: formData.start_time,
-          end_time: formData.end_time,
-          kelas: formData.kelas,
-          subject_name: formData.subject_name,
-          subject_id: selectedSubject.id,
-          teacher_name: formData.teacher_name,
-          teacher_id: selectedTeacher.id,
-          status: formData.status,
-          activity_type: 'KBM',
-          ...(selectedTemplateId ? { period_template_id: selectedTemplateId } : {}),
-        });
-        showToast('success', 'Jadwal baru berhasil dibuat.');
+        const selectedTeacher = teachers.find((t) => t.nama_guru === formData.teacher_name);
+        if (!selectedTeacher) {
+          setFormConflictError(
+            'Guru tidak ditemukan di master data. Muat ulang halaman lalu coba lagi.',
+          );
+          setIsSaving(false);
+          return;
+        }
+
+        if (editingItem) {
+          await updateSchedule(editingItem.id, {
+            ...base,
+            teacher_name: formData.teacher_name,
+            teacher_id: selectedTeacher.id,
+          });
+          showToast('success', 'Jadwal berhasil diperbarui.');
+        } else {
+          await createSchedule({
+            ...base,
+            teacher_name: formData.teacher_name,
+            teacher_id: selectedTeacher.id,
+            activity_type: 'KBM',
+          });
+          showToast('success', 'Jadwal baru berhasil dibuat.');
+        }
       }
 
       setIsEditModalOpen(false);
@@ -498,7 +718,22 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
     <span className="font-bold text-slate-900">{item.kelas}</span>
   );
   const cellSubject = (item: ScheduleItem) => (
-    <span className="font-semibold text-slate-900">{item.subject_name}</span>
+    <div className="flex flex-col gap-0.5">
+      <span className="font-semibold text-slate-900">{item.subject_name}</span>
+      {/* Baris berkelompok tanpa nama kelompok berarti data lama dari sebelum
+          Fase 2 — ditandai supaya kelihatan dan bisa diperbaiki. */}
+      {item.halaqoh ? (
+        <span className="inline-flex w-fit items-center gap-1 rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">
+          <Users className="w-2.5 h-2.5" />
+          {item.halaqoh}
+        </span>
+      ) : item.halaqoh_id ? (
+        <span className="inline-flex w-fit items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+          <Users className="w-2.5 h-2.5" />
+          Kelompok
+        </span>
+      ) : null}
+    </div>
   );
   const cellTeacher = (item: ScheduleItem) => (
     <span className="text-slate-700">{item.teacher_name}</span>
@@ -952,9 +1187,10 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
                       </label>
                       <select
                         value={formData.kelas}
-                        onChange={(e) =>
-                          setFormData({ ...formData, kelas: e.target.value })
-                        }
+                        onChange={(e) => {
+                          setIsLoadingHalaqoh(true);
+                          setFormData({ ...formData, kelas: e.target.value });
+                        }}
                         className={formStyles.select}
                       >
                         {kelasLabels.map((c) => (
@@ -980,6 +1216,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
                         {subjects.map((m) => (
                           <option key={m.id} value={m.nama_mapel}>
                             {m.nama_mapel}
+                            {m.is_halaqoh ? ' (berkelompok)' : ''}
                           </option>
                         ))}
                       </select>
@@ -991,25 +1228,94 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <span className={formStyles.sectionTitle}>
-                      Guru Pengampu
+                      {isMapelHalaqoh ? 'Guru per Kelompok' : 'Guru Pengampu'}
                     </span>
                     <div className="flex-1 h-px bg-primary-100" />
                   </div>
 
-                  <select
-                    value={formData.teacher_name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, teacher_name: e.target.value })
-                    }
-                    className={formStyles.select}
-                  >
-                    <option value="">-- Pilih Guru --</option>
-                    {teachers.map((g) => (
-                      <option key={g.id} value={g.nama_guru}>
-                        {g.nama_guru}
-                      </option>
-                    ))}
-                  </select>
+                  {isMapelHalaqoh ? (
+                    <>
+                      <div className="flex items-start gap-2 rounded-lg border border-primary-100 bg-primary-50 px-3 py-2 text-xs text-primary-700">
+                        <Users className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <span>
+                          <strong>{formData.subject_name}</strong> diajarkan berkelompok.
+                          Pilih guru untuk setiap kelompok — satu kelompok menjadi satu
+                          baris jadwal pada jam yang sama.
+                        </span>
+                      </div>
+
+                      {isLoadingHalaqoh ? (
+                        <div className="flex items-center gap-2 px-3 py-4 text-xs text-slate-500">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Memuat kelompok kelas {formData.kelas}...</span>
+                        </div>
+                      ) : halaqohKelas.length === 0 ? (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 space-y-2">
+                          <p>
+                            Kelas <strong>{formData.kelas}</strong> belum punya kelompok
+                            (halaqoh). Bagi siswanya dulu sebelum menyusun jadwal.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsEditModalOpen(false);
+                              onNavigateTab?.('halaqoh');
+                            }}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-md transition"
+                          >
+                            <Users className="w-3 h-3" />
+                            <span>Buka menu Halaqoh</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {halaqohKelas.map((h) => (
+                            <div
+                              key={h.id}
+                              className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2"
+                            >
+                              <span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-800">
+                                {h.nama}
+                              </span>
+                              <select
+                                value={guruPerHalaqoh[h.id] ?? ''}
+                                onChange={(e) =>
+                                  setGuruPerHalaqoh((prev) => ({
+                                    ...prev,
+                                    [h.id]: e.target.value,
+                                  }))
+                                }
+                                aria-label={`Guru untuk ${h.nama}`}
+                                className={`${formStyles.select} w-auto max-w-[220px] py-1`}
+                              >
+                                <option value="">-- Pilih Guru --</option>
+                                {teachers.map((g) => (
+                                  <option key={g.id} value={g.nama_guru}>
+                                    {g.nama_guru}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <select
+                      value={formData.teacher_name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, teacher_name: e.target.value })
+                      }
+                      className={formStyles.select}
+                    >
+                      <option value="">-- Pilih Guru --</option>
+                      {teachers.map((g) => (
+                        <option key={g.id} value={g.nama_guru}>
+                          {g.nama_guru}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
               </div>

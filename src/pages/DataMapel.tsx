@@ -50,6 +50,12 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
    * Normalisasi ke hex 6 digit dilakukan sekali saat menyimpan.
    */
   const [warnaInput, setWarnaInput] = useState<string>('');
+  /**
+   * Penanda mapel berkelompok (halaqoh). Disimpan di master mapel — bukan
+   * disimpulkan dari nama — supaya sekolah bisa memutuskan sendiri mapel mana
+   * yang berkelompok tanpa terikat teks nama mapel.
+   */
+  const [isHalaqohInput, setIsHalaqohInput] = useState<boolean>(false);
   const [editingMapel, setEditingMapel] = useState<MataPelajaran | null>(null);
   const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -90,15 +96,16 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
       // Kosong = "otomatis", disimpan sebagai NULL di database.
       const warna = normalizeOptionalColor(warnaInput);
       if (editingMapel) {
-        await updateMapel(editingMapel.id, namaInput, warna);
+        await updateMapel(editingMapel.id, namaInput, warna, isHalaqohInput);
         showToast('success', 'Mata pelajaran berhasil diperbarui.');
         setEditingMapel(null);
       } else {
-        await addMapel(namaInput, warna);
+        await addMapel(namaInput, warna, isHalaqohInput);
         showToast('success', `Mata pelajaran ${namaInput} berhasil ditambahkan.`);
       }
       setNamaInput('');
       setWarnaInput('');
+      setIsHalaqohInput(false);
       setIsFormOpen(false);
       fetchMapel();
     } catch (err: any) {
@@ -112,6 +119,7 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
     setEditingMapel(null);
     setNamaInput('');
     setWarnaInput('');
+    setIsHalaqohInput(false);
     setIsFormOpen(true);
   };
 
@@ -119,6 +127,7 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
     setEditingMapel(mapel);
     setNamaInput(mapel.nama_mapel);
     setWarnaInput(mapel.warna ?? '');
+    setIsHalaqohInput(Boolean(mapel.is_halaqoh));
     setIsFormOpen(true);
   };
 
@@ -127,6 +136,7 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
     setEditingMapel(null);
     setNamaInput('');
     setWarnaInput('');
+    setIsHalaqohInput(false);
   };
 
   /** Pilih acak dari palet — hanya untuk memberi titik awal, bukan nilai final. */
@@ -250,11 +260,16 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
               },
             },
             {
-              key: 'status',
-              header: 'Status',
-              width: '100px',
+              key: 'cara_ajar',
+              header: 'Cara Ajar',
+              width: '150px',
               align: 'center',
-              accessor: () => <StatusBadge status="Aktif" />,
+              accessor: (item) => (
+                <StatusBadge
+                  status={item.is_halaqoh ? 'BADAL' : 'AKTIF'}
+                  label={item.is_halaqoh ? 'Berkelompok' : 'Seluruh Kelas'}
+                />
+              ),
             },
             {
               key: 'actions',
@@ -420,6 +435,32 @@ export const DataMapel: React.FC<DataMapelProps> = ({ showToast }) => {
               </div>
             </div>
           </FormField>
+
+          {/*
+            Penanda halaqoh. Hanya berpengaruh pada formulir jadwal: baris jadwal
+            mapel ini WAJIB menunjuk satu kelompok (halaqoh), bukan seluruh kelas.
+          */}
+          <label
+            htmlFor="mapel-halaqoh"
+            className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 transition hover:border-primary-300 hover:bg-primary-50/40"
+          >
+            <input
+              id="mapel-halaqoh"
+              type="checkbox"
+              checked={isHalaqohInput}
+              onChange={(e) => setIsHalaqohInput(e.target.checked)}
+              className={formStyles.checkbox}
+            />
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold text-slate-800">
+                Diajarkan berkelompok (halaqoh)
+              </span>
+              <span className="mt-0.5 block text-2xs leading-relaxed text-slate-500">
+                Aktifkan untuk mapel seperti Ummi, yang siswanya dibagi menjadi
+                beberapa kelompok kecil dengan guru berbeda pada jam yang sama.
+              </span>
+            </span>
+          </label>
         </div>
       </FormModal>
 

@@ -29,6 +29,11 @@
 -- =============================================================================
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- `btree_gist` dipakai untuk menggabungkan kolom biasa (kelas, guru, hari)
+-- dengan RENTANG WAKTU dalam satu exclusion constraint. Tanpa ini, PostgreSQL
+-- tidak bisa memakai operator rentang (`&&`) bersama kolom btree biasa.
+-- Lihat "Penjaga bentrok" di bagian 2.
+CREATE EXTENSION IF NOT EXISTS btree_gist;
 CREATE SCHEMA IF NOT EXISTS agenda;
 
 SET search_path TO agenda, public;
@@ -205,6 +210,56 @@ CREATE TABLE IF NOT EXISTS agenda.siswa_kelas (
     CONSTRAINT uq_siswa_kelas_per_ay UNIQUE (siswa_id, academic_year_id)
 );
 
+-- --- Halaqoh: pembagian siswa di dalam satu kelas ---------------------------
+--
+-- Untuk mapel Ummi, satu kelas sering dipecah menjadi beberapa kelompok kecil
+-- (halaqoh), dan tiap kelompok diampu guru yang BERBEDA. Halaqoh di sini adalah
+-- wadahnya.
+--
+-- Kenapa BUKAN kelas tersendiri:
+--   Halaqoh hanya berlaku satu mapel dan tidak mengubah apa pun tentang
+--   kenaikan kelas, wali kelas, atau riwayat siswa. Kalau halaqoh dijadikan
+--   kelas ("1A-Ummi-1"), seluruh laporan dan riwayat akan penuh kelas yang
+--   tidak pernah ada, dan siswa tampak "pindah kelas" padahal hanya berpindah
+--   kelompok belajar. Karena itu halaqoh menempel pada kelas, bukan menyaingi.
+--
+-- Aturan yang dipegang:
+--   - SELALU ada halaqoh. Kelas kecil (mis. 12 anak) = satu halaqoh berisi
+--     seluruh kelas. Tidak ada cabang "tanpa halaqoh" — sistemnya seragam,
+--     hanya jumlah kelompoknya satu. Ini menyederhanakan semua pemeriksaan.
+--   - Guru TIDAK disimpan di sini. Satu halaqoh diampu satu guru, dan guru itu
+--     ditentukan di baris jadwal. Menyimpannya di dua tempat membuat keduanya
+--     bisa saling menyimpang.
+CREATE TABLE IF NOT EXISTS agenda.halaqoh (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    kelas_id UUID NOT NULL REFERENCES agenda.kelas(id) ON DELETE CASCADE,
+    -- Nama tampilan, mis. 'Halaqoh A'. Bebas, tetapi unik di dalam kelasnya
+    -- supaya dua kelompok tidak pernah bernama sama.
+    nama TEXT NOT NULL,
+    -- Urutan tampil di layar. Bukan identitas — boleh diubah kapan saja.
+    urutan INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_halaqoh_nama_per_kelas UNIQUE (kelas_id, nama)
+);
+
+-- Keanggotaan halaqoh per tahun ajaran, mengikuti pola `siswa_kelas`.
+--
+-- Dipisah per tahun ajaran dan TIDAK dibawa saat naik kelas, sesuai keputusan
+-- pemilik produk: jumlah murid berubah tiap tahun, jadi pembagiannya selalu
+-- disusun ulang dari awal.
+--
+-- Satu siswa hanya boleh ada di SATU halaqoh per tahun ajaran. Tanpa batas ini,
+-- absensi Ummi bisa mencacah anak yang sama dua kali.
+CREATE TABLE IF NOT EXISTS agenda.siswa_halaqoh (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    siswa_id UUID NOT NULL REFERENCES agenda.siswa(id) ON DELETE CASCADE,
+    halaqoh_id UUID NOT NULL REFERENCES agenda.halaqoh(id) ON DELETE CASCADE,
+    academic_year_id UUID NOT NULL REFERENCES agenda.academic_year(id) ON DELETE RESTRICT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_siswa_halaqoh_per_ay UNIQUE (siswa_id, academic_year_id)
+);
+
 -- --- Agenda, absensi, kejadian, kotak saran ----------------------------------
 
 CREATE TABLE IF NOT EXISTS agenda.agenda_header (
@@ -370,6 +425,22 @@ ALTER TABLE agenda.homeroom_assignment
 ALTER TABLE agenda.agenda_header
     ADD COLUMN IF NOT EXISTS kelas_id UUID REFERENCES agenda.kelas(id) ON DELETE RESTRICT;
 
+-- Halaqoh pada jadwal dan pada baris jurnal.
+--
+-- NULL berarti "berlaku untuk SELURUH kelas" — persis artinya untuk 22 mapel
+-- selain Ummi. Terisi berarti baris itu milik satu kelompok saja.
+--
+-- `schedule.halaqoh_id` dipasang di sini karena tabel `schedule` sudah ada di
+-- database berjalan; `CREATE TABLE IF NOT EXISTS` di atas tidak menyentuhnya.
+-- ON DELETE CASCADE: menghapus halaqoh membuang baris jadwalnya, sebab jadwal
+-- tanpa halaqoh yang menjadi induknya tidak punya arti.
+ALTER TABLE agenda.schedule
+    ADD COLUMN IF NOT EXISTS halaqoh_id UUID REFERENCES agenda.halaqoh(id) ON DELETE CASCADE;
+-- `agenda_kbm.halaqoh_id` menandai bagian jurnal milik halaqoh mana. Di sini
+-- CASCADE juga tepat: baris jurnal tanpa halaqohnya menjadi baris tanpa isi.
+ALTER TABLE agenda.agenda_kbm
+    ADD COLUMN IF NOT EXISTS halaqoh_id UUID REFERENCES agenda.halaqoh(id) ON DELETE CASCADE;
+
 -- `siswa_kelas.status` — lihat penjelasan di definisi tabelnya. Ditambahkan
 -- terpisah, dan backfill-nya hanya dijalankan SEKALI (saat kolomnya benar-benar
 -- baru) supaya menjalankan ulang file ini tidak menimpa perubahan yang sudah
@@ -473,6 +544,99 @@ CREATE INDEX IF NOT EXISTS idx_schedule_composite_conflict
     ON agenda.schedule(academic_year_id, day, status);
 CREATE INDEX IF NOT EXISTS idx_schedule_period_template
     ON agenda.schedule(period_template_id);
+
+-- -----------------------------------------------------------------------------
+-- PENJAGA BENTROK — ditegakkan DATABASE, bukan aplikasi
+-- -----------------------------------------------------------------------------
+-- Validator di aplikasi (`checkScheduleConflict`) hanya lapis pertama: ia bisa
+-- dilewati impor massal atau panggilan API langsung. Constraint di bawah ini
+-- lapis yang sesungguhnya, dan tidak bisa dilewati siapa pun.
+--
+-- Dua aturan, keduanya berbicara dalam bahasa "rentang waktu bertumpuk":
+--
+--   1) Halaqoh: satu kelompok tidak bisa punya dua jadwal yang tumpang-tindih.
+--      Kuncinya `halaqoh_id`, BUKAN `kelas_id`. Inilah perubahan yang membuat
+--      dua halaqoh di kelas yang sama menjadi sah — dulu kelas dianggap satu
+--      sumber daya, padahal sumber dayanya adalah kelompok.
+--
+--      Kolom `halaqoh_id` NULL (mapel biasa) tidak ikut diuji: exclusion
+--      constraint hanya membandingkan baris yang sama-sama non-NULL. Jadi
+--      aturan lama untuk mapel biasa ditegakkan lewat aturan (2) di atasnya
+--      plus validator aplikasi, persis seperti sebelumnya.
+--
+--   2) Guru: satu guru tidak bisa mengajar di dua tempat pada jam bertumpuk.
+--      Aturan ini berlaku untuk SEMUA baris, semua mapel. Inilah yang menahan
+--      "satu guru di dua halaqoh sekaligus" — kasus yang paling mudah terjadi
+--      saat menyusun Ummi.
+--
+-- Keduanya memakai rentang (start_time, end_time) yang setengah-terbuka:
+-- jam berdempet (08:00-08:35 lalu 08:35-09:10) TIDAK dianggap bentrok, sama
+-- persis dengan aturan validator aplikasi. Tanpa `[)`, dua JP berurutan akan
+-- saling dianggap bentrok dan penjadwalan jadi mustahil.
+--
+-- `academic_year_id` WAJIB ikut jadi kunci. Tanpa itu, jadwal tahun ajaran
+-- lampau akan memblokir jadwal tahun ini — sebab keduanya memakai jam dan hari
+-- yang sama. Jam 07:15 hari Senin ada di setiap tahun, dan itu bukan bentrok.
+--
+-- Guru dibandingkan lewat `teacher_id`. Baris lama yang teacher_id-nya kosong
+-- tidak akan ternaungi aturan (2) — itu keterbatasan yang disadari, dan salah
+-- satu alasan backfill `teacher_id` penting. Pemeriksaannya ada di Fase 0.
+DO $$
+BEGIN
+    -- 1) Halaqoh tidak boleh tumpang-tindih.
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'excl_schedule_halaqoh_overlap'
+          AND conrelid = 'agenda.schedule'::regclass
+    ) THEN
+        ALTER TABLE agenda.schedule
+            ADD CONSTRAINT excl_schedule_halaqoh_overlap
+            EXCLUDE USING gist (
+                academic_year_id WITH =,
+                halaqoh_id WITH =,
+                day WITH =,
+                tsrange(
+                    ('2000-01-01'::date + start_time),
+                    ('2000-01-01'::date + end_time),
+                    '[)'
+                ) WITH &&
+            )
+            WHERE (status <> 'ARCHIVED' AND halaqoh_id IS NOT NULL);
+    END IF;
+
+    -- 2) Guru tidak boleh tumpang-tindih (semua baris, semua mapel).
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'excl_schedule_teacher_overlap'
+          AND conrelid = 'agenda.schedule'::regclass
+    ) THEN
+        ALTER TABLE agenda.schedule
+            ADD CONSTRAINT excl_schedule_teacher_overlap
+            EXCLUDE USING gist (
+                academic_year_id WITH =,
+                teacher_id WITH =,
+                day WITH =,
+                tsrange(
+                    ('2000-01-01'::date + start_time),
+                    ('2000-01-01'::date + end_time),
+                    '[)'
+                ) WITH &&
+            )
+            WHERE (status <> 'ARCHIVED' AND teacher_id IS NOT NULL);
+    END IF;
+END $$;
+
+-- Index pendukung untuk tabel halaqoh.
+CREATE INDEX IF NOT EXISTS idx_halaqoh_kelas
+    ON agenda.halaqoh(kelas_id);
+CREATE INDEX IF NOT EXISTS idx_siswa_halaqoh_halaqoh
+    ON agenda.siswa_halaqoh(halaqoh_id);
+CREATE INDEX IF NOT EXISTS idx_siswa_halaqoh_siswa
+    ON agenda.siswa_halaqoh(siswa_id);
+CREATE INDEX IF NOT EXISTS idx_schedule_halaqoh
+    ON agenda.schedule(halaqoh_id);
+CREATE INDEX IF NOT EXISTS idx_agenda_kbm_halaqoh
+    ON agenda.agenda_kbm(halaqoh_id);
 
 CREATE INDEX IF NOT EXISTS idx_homeroom_ay_kelas
     ON agenda.homeroom_assignment(academic_year_id, kelas_id);
@@ -829,6 +993,20 @@ CREATE POLICY admin_write_homeroom_assignment ON agenda.homeroom_assignment
 CREATE POLICY member_read_siswa_kelas ON agenda.siswa_kelas
     FOR SELECT TO authenticated USING (agenda.is_member());
 CREATE POLICY admin_write_siswa_kelas ON agenda.siswa_kelas
+    FOR ALL TO authenticated
+    USING (agenda.is_staff()) WITH CHECK (agenda.is_staff());
+
+-- Halaqoh termasuk MASTER DATA + PENUGASAN: guru boleh melihat (untuk tahu
+-- siapa saja muridnya), staf (admin + kurikulum) yang mengelola.
+CREATE POLICY member_read_halaqoh ON agenda.halaqoh
+    FOR SELECT TO authenticated USING (agenda.is_member());
+CREATE POLICY admin_write_halaqoh ON agenda.halaqoh
+    FOR ALL TO authenticated
+    USING (agenda.is_staff()) WITH CHECK (agenda.is_staff());
+
+CREATE POLICY member_read_siswa_halaqoh ON agenda.siswa_halaqoh
+    FOR SELECT TO authenticated USING (agenda.is_member());
+CREATE POLICY admin_write_siswa_halaqoh ON agenda.siswa_halaqoh
     FOR ALL TO authenticated
     USING (agenda.is_staff()) WITH CHECK (agenda.is_staff());
 

@@ -221,6 +221,13 @@ const DrawerContent: React.FC<DrawerContentProps> = ({
                           Jam {k.jam_ke}
                         </span>
                         <span className="font-semibold text-slate-800">{k.mapel}</span>
+                        {/* Kelompok: pembeda wajib untuk mapel berkelompok —
+                            tanpa ini dua halaqoh pada jam yang sama tampak sama. */}
+                        {k.halaqoh && (
+                          <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-semibold text-2xs">
+                            {k.halaqoh}
+                          </span>
+                        )}
                       </div>
                       <p className="text-slate-700 leading-relaxed">{k.materi || '-'}</p>
                       {k.tugas_pr && (

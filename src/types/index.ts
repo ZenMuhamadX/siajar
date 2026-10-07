@@ -142,6 +142,68 @@ export interface Guru {
   created_at?: string;
 }
 
+/**
+ * Halaqoh — pembagian siswa DI DALAM satu kelas untuk mapel berkelompok (Ummi).
+ *
+ * Kenapa bukan kelas tersendiri: halaqoh hanya berlaku untuk satu mapel dan
+ * tidak mengubah apa pun tentang kenaikan kelas, wali kelas, atau riwayat.
+ * Kelas tetap unit; halaqoh hanya cara membagi siswanya saat mapel itu mengajar.
+ *
+ * Guru TIDAK disimpan di sini, melainkan di baris jadwal. Alasannya: satu mata
+ * pelajaran bisa diampu guru berbeda tiap tahun ajaran, dan guru tamu tidak perlu
+ * masuk master guru hanya karena sekali mengajar halaqoh.
+ *
+ * Halaqoh selalu ada — kelas kecil cukup punya satu halaqoh berisi seluruh kelas.
+ * Pembagiannya diulang tiap tahun ajaran (pola yang sama dengan `siswa_kelas`).
+ */
+export interface Halaqoh {
+  id: string;
+  /** Kelas pemilik halaqoh ini. */
+  kelas_id: string;
+  /** Nama kelompok, mis. 'Halaqoh 1'. Unik per kelas. */
+  nama: string;
+  /** Urutan tampil di dalam kelasnya. */
+  urutan: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * Halaqoh beserta label kelasnya — hasil join untuk tampilan.
+ *
+ * Sama seperti pola lain di berkas ini: label kelas adalah nilai turunan, bukan
+ * disimpan ulang di sini.
+ */
+export interface HalaqohTerdaftar extends Halaqoh {
+  /** Label kelas dari `agenda.kelas.label`. */
+  kelas: string;
+}
+
+/**
+ * Satu siswa di dalam sebuah halaqoh pada satu tahun ajaran.
+ *
+ * `academic_year_id` wajib: keanggotaan halaqoh TIDAK dibawa naik kelas, sama
+ * seperti penempatan kelasnya. Anak yang tahun ini di Halaqoh 1 bisa berada di
+ * Halaqoh 3 tahun depan.
+ */
+export interface SiswaHalaqoh {
+  id: string;
+  siswa_id: string;
+  halaqoh_id: string;
+  academic_year_id: string;
+  created_at?: string;
+}
+
+/** Siswa anggota halaqoh, siap tampil (nama + NIS ikut dibaca). */
+export interface AnggotaHalaqoh {
+  /** `siswa_halaqoh.id` — dipakai untuk memindahkan / mengeluarkan. */
+  id: string;
+  siswa_id: string;
+  halaqoh_id: string;
+  nama_siswa: string;
+  nis: string | null;
+}
+
 export interface MataPelajaran {
   id: string;
   nama_mapel: string;
@@ -151,6 +213,19 @@ export interface MataPelajaran {
    * secara deterministik dari id mapel (lihat `subjectPalette.ts`).
    */
   warna?: string | null;
+  /**
+   * Mapel ini diajarkan secara berkelompok (halaqoh), mis. Ummi.
+   *
+   * Kalau true, baris jadwal untuk mapel ini WAJIB memilih salah satu halaqoh
+   * kelas tersebut, dan tiap halaqoh diampu guru yang berbeda pada jam yang sama.
+   *
+   * Sengaja disimpan sebagai atribut mapel, bukan ditebak dari namanya: nama
+   * mapel bisa diganti kapan saja, dan penebakan dari teks akan mematikan seluruh
+   * mekanisme halaqoh tanpa satu pun error. Kolom eksplisit juga berarti guru
+   * melihat sendiri mapel mana yang berkelompok, dan `is_halaqoh` masuk ke
+   * pemeriksaan bentrok di UI jadwal.
+   */
+  is_halaqoh?: boolean;
   created_at?: string;
 }
 
@@ -185,6 +260,21 @@ export interface AgendaKBM {
   tugas_pr?: string;
   is_badal?: boolean;
   is_saved_db?: boolean;
+  /**
+   * Halaqoh yang diajar pada baris jurnal ini — hanya untuk mapel berkelompok.
+   *
+   * `null`/kosong berarti baris ini berlaku untuk SELURUH kelas (semua mapel
+   * biasa). Terisi berarti baris ini hanya mencatat bagian satu kelompok, dan
+   * kelompok lain punya barisnya sendiri.
+   *
+   * Kenapa ini penting sampai ke jurnal, bukan berhenti di jadwal: dua guru
+   * Ummi mengajar kelas + mapel + tanggal yang sama. Tanpa `halaqoh_id`, tidak
+   * ada cara membedakan bagian siapa yang sedang dibaca — guru kedua akan
+   * melihat (dan menimpa) catatan guru pertama.
+   */
+  halaqoh_id?: string | null;
+  /** Nama halaqoh untuk tampilan (diturunkan saat membaca, bukan disimpan). */
+  halaqoh?: string;
 }
 
 export interface AgendaAbsensi {

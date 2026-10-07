@@ -35,12 +35,29 @@ export function isTimeOverlapping(
  * Checks for:
  * 1. Invalid time range (start >= end)
  * 2. Teacher conflict (same day, same teacher, overlapping time)
- * 3. Class conflict (same day, same class, overlapping time)
+ * 3. Halaqoh conflict (same day, same halaqoh, overlapping time)
+ * 4. Class conflict (same day, same class, overlapping time) — hanya untuk
+ *    baris yang berlaku untuk SELURUH kelas
  *
  * Rules:
  * - Only checks items in same academic year
  * - Ignores ARCHIVED items (archived schedules do not cause conflicts)
  * - Ignores self (by id) when updating an existing schedule
+ *
+ * ---------------------------------------------------------------------------
+ * ATURAN INTI HALAQOH UMMI
+ * ---------------------------------------------------------------------------
+ * Yang dianggap "ruang" yang tidak boleh terisi dua kali adalah HALAQOH, bukan
+ * KELAS. Konsekuensinya, dua baris Ummi di kelas yang sama pada jam yang sama
+ * adalah SAH — justru itulah bentuk pengajarannya (dua kelompok, dua guru,
+ * jam yang sama).
+ *
+ * Karena itu bentrok kelas hanya diperiksa bila KEDUA baris berlaku untuk
+ * seluruh kelas (`halaqoh_id` kosong di kedua sisi). Begitu salah satunya
+ * punya halaqoh, pemeriksaan kelas dilewati dan digantikan pemeriksaan halaqoh.
+ *
+ * Kalau aturan ini salah, seluruh fitur halaqoh tidak bisa dipakai: guru tidak
+ * akan pernah bisa menyimpan baris kedua.
  */
 export function checkScheduleConflict(
   target: {
@@ -52,6 +69,18 @@ export function checkScheduleConflict(
     /** Label kelas, mis. '1A'. */
     kelas: string;
     teacher_name: string;
+    /**
+     * `teacher_id` — kunci sebenarnya untuk mendeteksi bentrok guru.
+     *
+     * Perbandingan lewat nama pernah dipakai dan itu keliru: dua guru bernama
+     * sama ("Ust. Ahmad") dianggap satu orang, sehingga muncul bentrok palsu
+     * yang tidak bisa dijelaskan pengguna. Nama hanya dipakai sebagai cadangan
+     * untuk baris lama yang belum punya `teacher_id`.
+     */
+    teacher_id?: string | null;
+    /** Halaqoh baris ini; kosong berarti berlaku seluruh kelas. */
+    halaqoh_id?: string | null;
+    halaqoh?: string;
     status?: string;
   },
   existingSchedules: ScheduleItem[]
@@ -72,6 +101,8 @@ export function checkScheduleConflict(
   }
 
   const normalizedTeacher = target.teacher_name.trim().toLowerCase();
+  const targetTeacherId = target.teacher_id ?? null;
+  const targetHalaqohId = target.halaqoh_id ?? null;
   // Kelas di kedua sisi berasal dari master data yang sama, jadi perbandingannya
   // bisa langsung. Normalisasi `.trim().toUpperCase()` yang dulu dipakai sudah
   // tidak perlu — itu justru gejala pencocokan berbasis teks bebas.
@@ -97,8 +128,16 @@ export function checkScheduleConflict(
 
     if (!overlaps) continue;
 
-    // 1. Teacher conflict: same teacher, overlapping time
-    if (item.teacher_name.trim().toLowerCase() === normalizedTeacher) {
+    // 1. Teacher conflict — dibandingkan lewat ID, bukan nama.
+    //
+    // `teacher_name` tetap dipakai sebagai cadangan HANYA bila salah satu sisi
+    // tidak punya id (baris lama). Tanpa cadangan itu, baris lama yang belum
+    // ber-`teacher_id` tidak akan pernah terdeteksi bentrok.
+    const sameTeacher = targetTeacherId
+      ? item.teacher_id === targetTeacherId
+      : item.teacher_name.trim().toLowerCase() === normalizedTeacher;
+
+    if (sameTeacher) {
       return {
         hasConflict: true,
         type: 'TEACHER_CONFLICT',
@@ -107,8 +146,27 @@ export function checkScheduleConflict(
       };
     }
 
-    // 2. Class conflict: same class, overlapping time
-    if (item.kelas === targetKelas) {
+    // 2. Halaqoh conflict — halaqoh yang sama tidak boleh di dua tempat.
+    //
+    // Diperiksa SEBELUM bentrok kelas, karena sifatnya lebih spesifik: dua baris
+    // dengan halaqoh sama jelas-jelas memperebutkan kelompok siswa yang sama.
+    if (targetHalaqohId && item.halaqoh_id === targetHalaqohId) {
+      const namaHalaqoh = target.halaqoh || item.halaqoh || 'halaqoh ini';
+      return {
+        hasConflict: true,
+        type: 'HALAQOH_CONFLICT',
+        conflictingItem: item,
+        message: `Bentrok Halaqoh: ${namaHalaqoh} sudah punya jadwal "${item.subject_name}" (${item.start_time.slice(0, 5)} - ${item.end_time.slice(0, 5)}) pada hari yang sama.`,
+      };
+    }
+
+    // 3. Class conflict — HANYA bila kedua baris berlaku untuk seluruh kelas.
+    //
+    // Kalau salah satunya punya halaqoh, keduanya memang boleh berdampingan:
+    // mereka mengajar kelompok siswa yang berbeda. Ini yang membuat Bentuk B
+    // (dua halaqoh, jam sama) bisa disimpan.
+    const bothWholeClass = !targetHalaqohId && !item.halaqoh_id;
+    if (bothWholeClass && item.kelas === targetKelas) {
       return {
         hasConflict: true,
         type: 'CLASS_CONFLICT',
