@@ -81,8 +81,12 @@ bun run desktop:build    # uji cepat → release/win-unpacked/SIAJAR.exe
 bun run desktop:dist     # rilis → installer NSIS + versi portable
 ```
 
-Penjelasan lengkap—termasuk penyesuaian CORS di Supabase, izin kamera, dan
-konfigurasi server per sekolah lewat `siajar-config.json`—ada di
+Yang dibagikan ke guru adalah `release/SIAJAR-Setup-<versi>.exe`. Naikkan
+`version` di `package.json` setiap kali merilis.
+
+Penjelasan lengkap—termasuk cara membagikan ke guru, penyesuaian CORS di
+Supabase, izin kamera, dan konfigurasi server per sekolah lewat
+`siajar-config.json`—ada di
 **[docs/DESKTOP-ELECTRON.md](docs/DESKTOP-ELECTRON.md)**.
 
 ## Database

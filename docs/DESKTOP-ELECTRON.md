@@ -62,12 +62,103 @@ bun run desktop:dist       # → release/SIAJAR-Setup-0.0.0.exe
 Keduanya menjalankan `bun run build` lebih dulu (type-check + bundle Vite), jadi
 `dist/` selalu segar.
 
+Versi rilis ditentukan `version` di `package.json` dan ikut jadi nama berkas,
+jadi naikkan nilainya setiap kali merilis. Aturan versi yang dipakai:
+
+| Perubahan | Naikkan |
+|---|---|
+| Perbaikan bug, teks, atau tampilan | digit ketiga — `0.1.0` → `0.1.1` |
+| Fitur baru yang tidak merusak | digit kedua — `0.1.1` → `0.2.0` |
+| Perubahan besar atau tidak kompatibel | digit pertama — `0.2.0` → `1.0.0` |
+
+Jangan rilis ulang dengan nomor yang sama. Guru yang memasang versi baru di
+atas versi lama perlu nomor berbeda supaya bisa dibedakan kalau ada keluhan.
+
 Isi paket sengaja **tidak menyertakan `node_modules/`**: seluruh dependensi
 renderer sudah dibundel Vite ke `dist/`, sama seperti versi web yang hanya
 mengunggah folder `dist/` ke Nginx.
 
 Ikon aplikasi diambil dari `build/icon.png` (512×512). Ganti berkas itu untuk
 mengubah ikon installer dan ikon berkas `.exe`.
+
+---
+
+## 3b. Membagikan ke guru
+
+Ada dua berkas di `release/` setelah `bun run desktop:dist`, dan keduanya punya
+peran berbeda:
+
+| Berkas | Untuk apa |
+|---|---|
+| `SIAJAR-Setup-<versi>.exe` | **Yang dibagikan ke guru.** Installer: membuat pintasan desktop, bisa dipilih lokasinya, dan muncul di *Programs and Features* |
+| `SIAJAR-<versi>-x64.exe` | Versi portable, jalan tanpa memasang. Simpan di flashdisk sebagai cadangan, atau untuk PC yang tidak boleh dipasangi aplikasi |
+
+Yang perlu dipastikan sebelum dibagikan:
+
+1. **Koneksi ke server.** Aplikasi ini **tidak bisa dipakai tanpa internet** —
+   ia menyambung ke Supabase. Pastikan PC guru bisa membuka
+   `https://supa.as-syifa.sch.id` (coba lewat peramban dulu). Kalau server itu
+   hanya bisa diakses dari jaringan sekolah, aplikasi hanya jalan di dalam
+   jaringan tersebut.
+2. **Kamera.** Untuk bukti foto, PC harus punya kamera dan izinnya aktif
+   (**Pengaturan → Privasi & keamanan → Kamera**).
+
+### Cara membagikan
+
+**Lewat jaringan sekolah / file server (paling praktis).** Taruh
+`SIAJAR-Setup-<versi>.exe` di satu folder bersama, lalu kirim tautan atau
+shortcut folder itu ke guru. Cara ini cepat dan tidak membebani internet.
+
+**Lewat flashdisk.** Salin berkasnya (satu berkas, ±107 MB), lalu guru menjalankan
+installer dari flashdisk. Cocok untuk PC yang tidak tersambung ke folder
+bersama.
+
+**Lewat Google Drive / OneDrive.** Bisa, tetapi ingat: setiap guru mengunduh
+±107 MB. Untuk 20 guru itu ±2 GB. Jika kuota sekolah terbatas, pilih cara
+pertama.
+
+Atau lewat GitHub Releases:
+
+```bash
+# sekali saja
+gh auth login
+
+# setiap kali merilis
+gh release create v0.1.0 \
+  "release/SIAJAR-Setup-0.1.0.exe" \
+  "release/SIAJAR-0.1.0-x64.exe" \
+  --title "SIAJAR 0.1.0" \
+  --notes "Ringkasan perubahan di versi ini."
+```
+
+Repositori ini privat, jadi unduhan lewat tautan rilisnya butuh akun GitHub
+yang diberi akses. Praktis kalau guru/pengelola memang punya akun; kalau tidak,
+pakai folder bersama sekolah.
+
+### Peringatan Windows "Windows protected your PC"
+
+Aplikasi ini **belum ditandatangani secara digital** (code signing), dan sertifikatnya
+berbayar. Akibatnya, saat guru menjalankan installer, muncul layar biru
+*"Windows protected your PC"*. Ini normal dan tidak berbahaya. Langkahnya:
+
+*Klik **More info** → **Run anyway**.*
+
+Tulis langkah itu di pesan yang Anda kirim ke guru. Kalau penggunaannya sudah
+meluas dan Anda ingin layar itu hilang, sertifikat code signing perlu dibeli —
+tetapi untuk aplikasi internal sekolah, menuliskan langkahnya biasanya cukup.
+
+### Membarui ke versi yang lebih baru
+
+Tidak ada pembaruan otomatis. Alurnya:
+
+1. Naikkan `version` di `package.json`, jalankan `bun run desktop:dist`.
+2. Bagikan installer baru dengan pesan singkat: *"ada versi baru, pasang di
+   atas yang lama"*.
+3. Guru menjalankan installer baru. Data, sesi login, dan pengaturan mereka
+   **tidak hilang** (tersimpan di luar folder aplikasi).
+
+Beri tahu juga kalau ada perubahan yang mengharuskan keluar lalu masuk lagi,
+misalnya setelah `schema.sql` dijalankan.
 
 ---
 
