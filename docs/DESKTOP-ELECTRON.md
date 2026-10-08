@@ -211,6 +211,7 @@ Tidak ada `require`, tidak ada akses berkas, dan tidak ada Node.js di renderer.
 |---|---|
 | Jendela putih / "Berkas build tidak ditemukan" | `dist/` tidak ada; jalankan `bun run build` lalu paketkan ulang |
 | Aplikasi tidak membuka jendela sama sekali, log menyebut `GPU process isn't usable` | Akselerasi GPU bermasalah (GPU lama, RDP, mesin virtual). Setel `SIAJAR_DISABLE_GPU=1`, atau jalankan `SIAJAR.exe --disable-gpu` |
+| Build gagal: `EBUSY: resource busy or locked, unlink '…\release\win-unpacked\resources\app.asar'` | Berkas lama di `release/` masih dipegang proses lain. Lihat bagian "Build gagal karena release/ terkunci" di bawah |
 | Login gagal, error CORS di DevTools | `app://local` belum diizinkan di CORS Supabase (bagian 5) |
 | Kamera tidak muncul | Izin kamera Windows, atau perangkat dipakai aplikasi lain |
 | Masih menyambung ke server lama | `siajar-config.json` belum ditemukan; cek `runtimeConfig.source` |
@@ -236,3 +237,42 @@ Jadikan permanen dengan salah satu dari dua cara:
 
 Tidak ada bedanya dari sisi fitur; hanya tampilan yang digambar oleh CPU
 sehingga sedikit lebih lambat pada animasi berat.
+
+### Build gagal karena `release/` terkunci
+
+Gejalanya seperti ini, dan `failedTask=build` menyertainya:
+
+```
+⨯ EBUSY: resource busy or locked, unlink
+  '…\release\win-unpacked\resources\app.asar'
+```
+
+electron-builder selalu membersihkan folder `release/` sebelum menulis ulang,
+dan Windows menolak menghapus berkas yang masih dibuka proses lain. Penyebab
+yang paling sering:
+
+- **Aplikasi SIAJAR masih berjalan** — tutup dulu, cek juga Task Manager.
+- **Antivirus sedang memindai `app.asar`.** Berkas itu besar, jadi pemindaian
+  bisa memakan waktu dan menahan handle-nya. Tunggu, lalu ulangi.
+- **Klien sinkronisasi cloud** (Synology Drive, OneDrive, Google Drive) yang
+  mengawasi folder proyek dan sedang mengunggah berkas besar tersebut.
+
+Langkah perbaikan, dari yang paling ringan:
+
+1. Tutup aplikasi SIAJAR, tunggu sebentar, lalu jalankan ulang build.
+2. Hapus folder `release/` lewat File Explorer, lalu build lagi.
+3. **Restart Windows.** Ini pasti melepas semua handle. Setelah restart, hapus
+   `release/` sekali lagi sebelum build berikutnya.
+4. Kalau tidak mau restart sekarang, arahkan hasil build ke folder lain:
+
+   ```bash
+   bun run build
+   bunx electron-builder --config.directories.output=release-baru
+   ```
+
+   Installer akan muncul di `release-baru/`. Nama itu belum masuk `.gitignore`,
+   jadi hapus setelah selesai.
+
+> **Pencegahan.** Jangan menaruh folder proyek di dalam folder yang
+> disinkronkan klien cloud. Selain memicu kunci berkas seperti ini, setiap
+> build mengunggah ulang ±370 MB.
