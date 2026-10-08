@@ -2,12 +2,18 @@
   "name": "agenda-kelas",
   "private": true,
   "version": "0.0.0",
+  "description": "SIAJAR — Sistem Agenda Pembelajaran SDIT AS-SYIFA",
+  "author": "SDIT AS-SYIFA",
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "desktop:dev": "concurrently -k -n vite,electron -c cyan,magenta \"vite\" \"wait-on tcp:127.0.0.1:9090 && cross-env SIAJAR_DEV_SERVER=1 electron .\"",
+    "desktop:build": "bun run build && electron-builder --dir",
+    "desktop:dist": "bun run build && electron-builder"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",
@@ -28,9 +34,14 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
+    "concurrently": "^10.0.5",
+    "cross-env": "^10.1.0",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
     "oxlint": "^1.79.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
-    "vite": "^8.2.2"
+    "vite": "^8.2.2",
+    "wait-on": "^9.5.1"
   }
 }

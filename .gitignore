@@ -24,6 +24,13 @@ dist-ssr
 *.sw?
 .env
 
+# Keluaran electron-builder (installer NSIS, versi portable, folder unpacked).
+release/
+
+# Konfigurasi runtime desktop: berisi alamat server per sekolah, tidak untuk
+# di-commit. Contohnya ada di electron/config.example.json.
+siajar-config.json
+
 # Catatan kerja asisten AI (memori proyek, artefak) — bukan bagian dari kode
 # aplikasi, jangan ikut ke repo tim.
 .workbuddy-ai/
