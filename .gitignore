@@ -27,6 +27,10 @@ dist-ssr
 # Keluaran electron-builder (installer NSIS, versi portable, folder unpacked).
 release/
 
+# Folder keluaran sementara saat release/ sedang terkunci proses lain
+# (lihat docs/DESKTOP-ELECTRON.md bagian "Build gagal karena release/ terkunci").
+release-*/
+
 # Konfigurasi runtime desktop: berisi alamat server per sekolah, tidak untuk
 # di-commit. Contohnya ada di electron/config.example.json.
 siajar-config.json

@@ -362,7 +362,13 @@ Langkah perbaikan, dari yang paling ringan:
    ```
 
    Installer akan muncul di `release-baru/`. Nama itu belum masuk `.gitignore`,
-   jadi hapus setelah selesai.
+   jadi hapus setelah selesai. Selain itu, tambahkan baris berikut ke bagian
+   bawah `.gitignore` supaya folder itu tidak ikut ter-commit:
+
+   ```gitignore
+   # Folder keluaran sementara saat release/ sedang terkunci.
+   release-*/
+   ```
 
 > **Pencegahan.** Jangan menaruh folder proyek di dalam folder yang
 > disinkronkan klien cloud. Selain memicu kunci berkas seperti ini, setiap
