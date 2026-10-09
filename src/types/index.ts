@@ -258,6 +258,14 @@ export interface AgendaHeader {
   kelas: string;
   tanggal: string; // YYYY-MM-DD
   schedule_id?: string | null;
+  /**
+   * Halaqoh sesi ini bila jurnalnya milik mapel berkelompok (Ummi). `null`
+   * berarti sesi seluruh kelas. Dipakai rekap untuk menyebar ke tiap kelas
+   * sumber halaqoh — sesi halaqoh bisa mencakup beberapa kelas sekaligus.
+   */
+  halaqoh_id?: string | null;
+  /** Nama halaqoh untuk tampilan (hasil join, bukan disimpan). */
+  halaqoh?: string | null;
   actual_teacher_name?: string | null;
   created_at?: string;
 }

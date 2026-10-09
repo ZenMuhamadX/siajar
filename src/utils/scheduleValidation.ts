@@ -56,8 +56,16 @@ export function isTimeOverlapping(
  * seluruh kelas (`halaqoh_id` kosong di kedua sisi). Begitu salah satunya
  * punya halaqoh, pemeriksaan kelas dilewati dan digantikan pemeriksaan halaqoh.
  *
- * Kalau aturan ini salah, seluruh fitur halaqoh tidak bisa dipakai: guru tidak
- * akan pernah bisa menyimpan baris kedua.
+ * Sejak "halaqoh lintas kelas", satu halaqoh boleh mencakup BEBERAPA kelas.
+ * Aturannya menjadi:
+ *   - dua halaqoh berbeda TIDAK pernah bentrok satu sama lain — anggotanya
+ *     tidak tumpang-tindih (satu siswa satu halaqoh per tahun), jadi kelas
+ *     yang sama boleh punya dua halaqoh pada jam yang sama. Itulah bentuk
+ *     pengajaran Ummi;
+ *   - halaqoh BENTROK dengan sesi SELURUH KELAS dari kelas mana pun yang
+ *     menyuplai halaqoh itu — sebab siswa kelas tersebut ada di dua tempat.
+ *     Inilah aturan (4) di bawah, dan ia butuh peta kelas sumber halaqoh
+ *     (`halaqohKelas`) yang diteruskan pemanggil.
  */
 export function checkScheduleConflict(
   target: {
@@ -83,7 +91,12 @@ export function checkScheduleConflict(
     halaqoh?: string;
     status?: string;
   },
-  existingSchedules: ScheduleItem[]
+  existingSchedules: ScheduleItem[],
+  /**
+   * Peta halaqoh → label kelas sumbernya. Dipakai aturan (4). Kosong berarti
+   * pemeriksaan halaqoh-vs-kelas dilewati (perilaku sebelum fitur ini).
+   */
+  halaqohKelas: Record<string, string[]> = {}
 ): ScheduleConflictCheckResult {
   const startMin = timeToMinutes(target.start_time);
   const endMin = timeToMinutes(target.end_time);
@@ -173,6 +186,28 @@ export function checkScheduleConflict(
         conflictingItem: item,
         message: `Bentrok Kelas: ${item.kelas} sudah memiliki jadwal mata pelajaran "${item.subject_name}" dengan ${item.teacher_name} (${item.start_time.slice(0, 5)} - ${item.end_time.slice(0, 5)}).`,
       };
+    }
+
+    // 4. Halaqoh vs seluruh kelas.
+    //
+    // Sesi halaqoh dan sesi SELURUH-KELAS dari kelas yang menyuplai halaqoh itu
+    // tidak boleh bertumpuk: siswa kelas tersebut akan berada di dua tempat.
+    // Dua halaqoh berbeda sengaja TIDAK diperiksa di sini — mereka memang boleh
+    // berdampingan (satu kelas dipecah jadi beberapa kelompok).
+    const satuHalaqohSaja = Boolean(targetHalaqohId) !== Boolean(item.halaqoh_id);
+    if (satuHalaqohSaja) {
+      const targetKelasSet = targetHalaqohId
+        ? halaqohKelas[targetHalaqohId] ?? []
+        : [targetKelas];
+      const itemKelasSet = item.halaqoh_id ? halaqohKelas[item.halaqoh_id] ?? [] : [item.kelas];
+      if (targetKelasSet.some((k) => itemKelasSet.includes(k))) {
+        return {
+          hasConflict: true,
+          type: 'CLASS_CONFLICT',
+          conflictingItem: item,
+          message: `Bentrok Kelas: sesi halaqoh dan jadwal seluruh kelas (${item.kelas}) bertumpuk — sebagian siswa akan masuk dua tempat. Sesuaikan jam atau kelas sumbernya.`,
+        };
+      }
     }
   }
 

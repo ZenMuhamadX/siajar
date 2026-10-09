@@ -4,6 +4,7 @@ import type { FullAgenda, Guru, Substitution } from '../types';
 import type { AcademicYear, ScheduleItem } from '../types/schedule';
 import { getAcademicYears, getSchedules } from './scheduleService';
 import { getRekapAgenda } from './agendaService';
+import { getKelasSumberMap } from './halaqohService';
 import { getSubstitutionsForDate, getSubstitutionHistory } from './substitutionService';
 import { getEvidenceSignedUrls } from './evidenceService';
 import { getScheduleDayFromDate } from './scheduleDetectionService';
@@ -64,6 +65,12 @@ export interface DailyReportItem {
   endTime: string | null;
   durationMinutes: number | null;
   classId: string;
+  /**
+   * Kelas-kelas yang dicakup baris ini (lihat `SlotRow.classIds`). Sesi halaqoh
+   * lintas kelas berisi lebih dari satu kelas, sehingga penyaringan rekap per
+   * kelas memakai daftar ini — bukan satu label.
+   */
+  classIds: string[];
   subjectName: string;
   /**
    * Nama halaqoh (kelompok) untuk mapel berkelompok; `null` = seluruh kelas.
@@ -248,13 +255,17 @@ export async function getDailyReport(options: {
   // 3. Agenda pada tanggal tersebut
   const agendas = await attachSignedUrls(await getRekapAgenda({ tanggal: date }));
 
-  // 4. Aturan hitung: SATU view-model untuk semua halaman
+  // 4. Aturan hitung: SATU view-model untuk semua halaman.
+  //    Peta kelas sumber halaqoh ikut diteruskan supaya sesi Ummi lintas kelas
+  //    dikenali kelas mana saja yang menerima rekapnya.
   const scheduleById = new Map(schedules.map((s) => [s.id, s]));
+  const halaqohKelas = await getKelasSumberMap();
   const rows = buildSlotRows({
     dates: [date],
     schedules,
     agendas,
     substitutions,
+    halaqohKelas,
     now,
   });
 
@@ -269,6 +280,7 @@ export async function getDailyReport(options: {
       endTime: row.endTime,
       durationMinutes: row.durationMinutes,
       classId: row.classId,
+      classIds: row.classIds,
       subjectName: row.subjectName,
       kelompok: row.kelompok,
       scheduledTeacherName: row.scheduledTeacherName,
@@ -292,7 +304,9 @@ export async function getDailyReport(options: {
       const matchActual = item.actualTeacherName.trim().toLowerCase() === teacherName.trim().toLowerCase();
       if (!matchScheduled && !matchActual) return false;
     }
-    if (classId && classId !== 'SEMUA' && item.classId !== classId) return false;
+    // Sesi halaqoh lintas kelas muncul di tiap kelas sumbernya: pencocokan
+    // memakai daftar kelas, bukan satu label.
+    if (classId && classId !== 'SEMUA' && !item.classIds.includes(classId)) return false;
     if (subjectName && subjectName !== 'SEMUA' && item.subjectName.trim().toLowerCase() !== subjectName.trim().toLowerCase())
       return false;
     if (statusFilter && statusFilter !== 'ALL' && item.status !== statusFilter) return false;
@@ -440,11 +454,13 @@ export async function getWeeklyReport(options: {
   const substitutions = await getSubstitutionHistory({ startDate, endDate });
 
   // Aturan hitung: view-model yang sama dengan Rekap Harian
+  const halaqohKelas = await getKelasSumberMap();
   const rows = buildSlotRows({
     dates: listDates(startDate, endDate),
     schedules: aySchedules,
     agendas,
     substitutions,
+    halaqohKelas,
   });
 
   const scheduleById = new Map(aySchedules.map((s) => [s.id, s]));

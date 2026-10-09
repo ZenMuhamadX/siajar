@@ -8,6 +8,7 @@ import type {
 } from '../types/schedule';
 import { checkScheduleConflict } from '../utils/scheduleValidation';
 import { findKelasId, resolveKelasId } from './classService';
+import { getKelasSumberMap } from './halaqohService';
 
 /**
  * Kelas disimpan di database sebagai `kelas_id` (referensi ke master kelas),
@@ -38,7 +39,12 @@ async function toScheduleRow(
   // `halaqoh` adalah nama hasil join, bukan kolom. Mengirimnya akan ditolak
   // database karena kolomnya tidak ada.
   delete row.halaqoh;
-  if (item.kelas !== undefined) {
+  if (item.halaqoh_id) {
+    // Baris halaqoh lintas kelas TIDAK punya satu kelas: kelasnya diturunkan
+    // dari `halaqoh_kelas` (bisa beberapa kelas). `kelas_id` dibiarkan NULL —
+    // CHECK di database mewajibkan salah satu dari kelas_id/halaqoh_id terisi.
+    row.kelas_id = null;
+  } else if (item.kelas !== undefined) {
     row.kelas_id = await resolveKelasId(item.kelas);
   }
   return row;
@@ -380,7 +386,10 @@ export async function createSchedule(
 ): Promise<ScheduleItem> {
   // 1. Conflict Validation against existing schedules
   const existing = await getSchedules({ academicYearId: payload.academic_year_id });
-  const conflict = checkScheduleConflict(payload, existing);
+  // Peta kelas sumber halaqoh diperlukan agar sesi halaqoh lintas kelas
+  // terdeteksi bentrok dengan jadwal seluruh kelas anggotanya.
+  const halaqohKelas = await getKelasSumberMap();
+  const conflict = checkScheduleConflict(payload, existing, halaqohKelas);
   if (conflict.hasConflict) {
     throw new Error(conflict.message || 'Bentrok jadwal terdeteksi.');
   }
@@ -443,7 +452,8 @@ export async function updateSchedule(
   };
 
   // Conflict validation
-  const conflict = checkScheduleConflict(merged, allSchedules);
+  const halaqohKelas = await getKelasSumberMap();
+  const conflict = checkScheduleConflict(merged, allSchedules, halaqohKelas);
   if (conflict.hasConflict) {
     throw new Error(conflict.message || 'Bentrok jadwal terdeteksi.');
   }

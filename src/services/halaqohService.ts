@@ -124,6 +124,44 @@ export async function getKelasSumberHalaqoh(
 }
 
 /**
+ * Id semua halaqoh yang KELAS SUMBER-nya memuat kelas ini (semua tahun ajaran).
+ *
+ * Dipakai filter laporan: sesi halaqoh tidak punya `kelas_id`, jadi agar muncul
+ * di rekap kelas X, penyaringan harus menyertakan halaqoh yang mencakup X.
+ */
+export async function getHalaqohIdsByKelas(kelasId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('halaqoh_kelas')
+    .select('halaqoh_id')
+    .eq('kelas_id', kelasId);
+  if (error) throw error;
+  return [...new Set(((data ?? []) as { halaqoh_id: string }[]).map((r) => r.halaqoh_id))];
+}
+
+/**
+ * Peta halaqoh → label kelas sumbernya, untuk SELURUH halaqoh.
+ *
+ * Dipakai lapisan rekap: satu sesi halaqoh harus muncul di rekap tiap kelas
+ * sumbernya. View-model laporan sengaja murni (tidak menyentuh DB), jadi peta
+ * ini disiapkan di sini lalu diteruskan sebagai data.
+ */
+export async function getKelasSumberMap(): Promise<Record<string, string[]>> {
+  const { data, error } = await supabase
+    .from('halaqoh_kelas')
+    .select('halaqoh_id, kelas:kelas_id (label)');
+  if (error) throw error;
+
+  type Row = { halaqoh_id: string; kelas?: { label?: string } | null };
+  const map: Record<string, string[]> = {};
+  for (const r of (data ?? []) as Row[]) {
+    const label = r.kelas?.label;
+    if (!label) continue;
+    (map[r.halaqoh_id] ??= []).push(label);
+  }
+  return map;
+}
+
+/**
  * Buat halaqoh baru di sebuah tahun ajaran, beserta kelas sumbernya.
  *
  * `urutan` dihitung otomatis (setelah yang terakhir) — nomor urut bukan

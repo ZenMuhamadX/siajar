@@ -1,7 +1,7 @@
 # Desain Halaqoh Lintas Kelas (Metode Ummi)
 
-**Status:** keputusan terkunci. **Fase 0–2 sudah diimplementasikan** di branch
-`feat/halaqoh-lintas-kelas` (skema, tipe & service, UI master). Fase 3–5 menyusul.
+**Status:** keputusan terkunci. **Fase 0–4 sudah diimplementasikan** di branch
+`feat/halaqoh-lintas-kelas` (skema, tipe & service, UI master, jadwal & agenda, rekap). Fase 5 menyusul.
 **Tanggal:** 9 Oktober 2026
 
 ## Keputusan yang sudah dikunci
@@ -138,10 +138,12 @@ ALTER TABLE agenda.agenda_header ADD CONSTRAINT chk_agenda_header_kelas_atau_hal
    `excl_schedule_halaqoh_overlap`).
 7. **Bentrok guru:** satu guru tidak boleh di dua tempat pada jam bertumpuk (sudah ada).
 8. **Bentrok kelas (baru):** karena halaqoh menyentuh beberapa kelas sekaligus —
-   - dua halaqoh yang **berbagi kelas sumber** tidak boleh pada jam yang sama;
-   - sesi halaqoh tidak boleh bertumpuk dengan sesi **seluruh-kelas** dari kelas sumbernya.
-   Aturan ini belum ada dan **tidak tertangkap** validator lama (bentrok kelas hanya aktif bila
-   kedua baris tanpa halaqoh) maupun exclusion constraint (kunci berbeda).
+   - dua halaqoh berbeda **TIDAK** bentrok meski berbagi kelas sumber — justru itulah bentuk
+     pengajaran Ummi (satu kelas dipecah jadi beberapa kelompok, anggotanya tidak tumpang-tindih);
+   - sesi halaqoh **BENTROK** dengan sesi **seluruh-kelas** dari kelas mana pun yang menyuplai
+     halaqoh itu — siswa kelas tersebut akan berada di dua tempat.
+   Aturan kedua belum ada sebelumnya dan **tidak tertangkap** validator lama (bentrok kelas hanya
+   aktif bila kedua baris tanpa halaqoh) maupun exclusion constraint (kunci berbeda).
 9. **Kelas yang dideklarasikan ≠ kelas anggota.** Kelas sumber adalah *kolam*, bukan jaminan bahwa
    semua siswanya ikut. Siswa yang tidak dipilih tetap tersedia untuk halaqoh lain.
 
@@ -237,7 +239,7 @@ lagi menjadi titik masuk, karena satu halaqoh mencakup beberapa kelas.
 - **Selesai bila:** bisa membuat halaqoh lintas kelas, mengisi sebagian siswa, dan sisa siswa tetap
   tersedia untuk halaqoh lain.
 
-### Fase 3 — Jadwal & agenda guru
+### Fase 3 — Jadwal & agenda guru — ✅ SELESAI
 - `ScheduleManagement.tsx`: pilih halaqoh (multi-kelas); **guru diisi manual** per baris (tidak
   ada pengisian otomatis).
 - `AgendaDetailForm.tsx`: absensi = anggota halaqoh lintas kelas, label kelas per baris.
@@ -245,7 +247,7 @@ lagi menjadi titik masuk, karena satu halaqoh mencakup beberapa kelas.
 - **Selesai bila:** guru Ummi bisa menyimpan jadwal & agenda halaqoh lintas kelas; dua halaqoh yang
   berbagi kelas ditolak pada jam yang sama.
 
-### Fase 4 — Rekap & cetak
+### Fase 4 — Rekap & cetak — ✅ SELESAI
 - `reportQuery.ts` / `reportViewModel.ts`: *fan-out* sesi ke tiap kelas sumber; label multi-kelas.
 - Layar rekap (harian, log jurnal, riwayat) + PDF + dashboard/monitoring.
 - **Selesai bila:** satu sesi halaqoh tampil di rekap tiap kelas sumbernya, terbaca sebagai satu

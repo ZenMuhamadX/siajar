@@ -534,6 +534,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
       if (!targetAgendaId) {
         const initSave = await simpanAgenda({
           schedule_id: scheduleId,
+          halaqoh_id: halaqohId,
           actual_teacher_name: activeTeacherName || teacherName,
           sekolah: schoolName,
           kelas,
@@ -628,6 +629,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
       await simpanAgenda({
         agendaId,
         schedule_id: scheduleId,
+        halaqoh_id: halaqohId,
         actual_teacher_name: activeTeacherName || teacherName,
         sekolah: schoolName,
         kelas,
