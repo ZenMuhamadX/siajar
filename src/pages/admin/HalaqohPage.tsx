@@ -20,6 +20,7 @@ import {
   getHalaqohByTahunAjaran,
   getKandidatAnggota,
   keluarkanSiswaDariHalaqoh,
+  salinHalaqohDariTahunLalu,
   setBanyakSiswaHalaqoh,
   setKelasSumberHalaqoh,
   updateHalaqoh,
@@ -267,6 +268,30 @@ export const HalaqohPage: React.FC<HalaqohPageProps> = ({ showToast }) => {
 
   const isSiap = Boolean(academicYearId);
 
+  /**
+   * Salin kerangka halaqoh dari tahun lalu (nama + kelas sumber, tanpa anggota).
+   *
+   * Berguna tepat setelah kenaikan kelas: kelompoknya sudah ada, guru tinggal
+   * mengisi anggotanya. Roster sengaja tidak disalin — ia berubah tiap tahun.
+   */
+  const [isSalin, setIsSalin] = useState(false);
+  const handleSalin = async () => {
+    if (!academicYearId) return;
+    setIsSalin(true);
+    try {
+      const { jumlah, dari } = await salinHalaqohDariTahunLalu(academicYearId);
+      showToast(
+        'success',
+        `${jumlah} halaqoh disalin dari ${dari ?? 'tahun lain'}. Isi anggotanya dulu sebelum dipakai.`,
+      );
+      await loadData();
+    } catch (err) {
+      showToast('error', err instanceof Error ? err.message : 'Gagal menyalin halaqoh.');
+    } finally {
+      setIsSalin(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -318,10 +343,20 @@ export const HalaqohPage: React.FC<HalaqohPageProps> = ({ showToast }) => {
           icon={<Layers className="w-5 h-5" />}
           action={
             isSiap ? (
-              <button type="button" onClick={openCreate} className={formStyles.primaryBtn}>
-                <Plus className="w-3.5 h-3.5" />
-                Tambah Halaqoh
-              </button>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <button type="button" onClick={openCreate} className={formStyles.primaryBtn}>
+                  <Plus className="w-3.5 h-3.5" />
+                  Tambah Halaqoh
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSalin}
+                  disabled={isSalin}
+                  className={`${formStyles.ghostBtn} disabled:opacity-40`}
+                >
+                  {isSalin ? 'Menyalin…' : 'Salin dari tahun lalu'}
+                </button>
+              </div>
             ) : undefined
           }
         />

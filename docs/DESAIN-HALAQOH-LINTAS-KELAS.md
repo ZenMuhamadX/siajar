@@ -1,7 +1,7 @@
 # Desain Halaqoh Lintas Kelas (Metode Ummi)
 
-**Status:** keputusan terkunci. **Fase 0–4 sudah diimplementasikan** di branch
-`feat/halaqoh-lintas-kelas` (skema, tipe & service, UI master, jadwal & agenda, rekap). Fase 5 menyusul.
+**Status:** keputusan terkunci. **Fase 0–5 SELESAI** di branch `feat/halaqoh-lintas-kelas`
+(skema, tipe & service, UI master, jadwal & agenda, rekap, tahun ajaran baru).
 **Tanggal:** 9 Oktober 2026
 
 ## Keputusan yang sudah dikunci
@@ -253,7 +253,7 @@ lagi menjadi titik masuk, karena satu halaqoh mencakup beberapa kelas.
 - **Selesai bila:** satu sesi halaqoh tampil di rekap tiap kelas sumbernya, terbaca sebagai satu
   baris berlabel kelompok, dan PDF memuat kolom kelompok.
 
-### Fase 5 — Tahun ajaran baru & verifikasi akhir
+### Fase 5 — Tahun ajaran baru & verifikasi akhir — ✅ SELESAI
 - Integrasi dengan alur kenaikan kelas (`docs/DESAIN_KENAIKAN_KELAS.md`): saat tahun ajaran baru,
   halaqoh dibuat ulang. Sediakan bantuan opsional "salin kelas sumber dari tahun lalu" (anggota
   tetap kosong karena roster berubah).

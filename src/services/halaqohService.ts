@@ -287,6 +287,65 @@ export async function countJadwalHalaqoh(halaqohId: string): Promise<number> {
   return count ?? 0;
 }
 
+/**
+ * Salin kerangka halaqoh dari tahun ajaran lain (biasanya tahun lalu) ke tahun
+ * ajaran ini — NAMA + KELAS SUMBERNYA, tanpa anggotanya.
+ *
+ * Anggota sengaja tidak disalin: roster berubah tiap tahun (siswa naik kelas),
+ * jadi pembagiannya memang harus disusun ulang. Yang menghemat waktu hanyalah
+ * kerangka kelompoknya — nama kelompok dan kelas sumbernya.
+ *
+ * Tahun sumber dipilih otomatis: tahun ajaran lain (bukan target) dengan
+ * `start_date` paling akhir yang benar-benar punya halaqoh. Nama yang sudah ada
+ * di tahun target dilewati supaya tidak menabrak keunikan nama.
+ */
+export async function salinHalaqohDariTahunLalu(
+  targetAcademicYearId: string,
+): Promise<{ jumlah: number; dari: string | null }> {
+  const { data: years, error: yErr } = await supabase
+    .from('academic_year')
+    .select('id, name, start_date')
+    .neq('id', targetAcademicYearId)
+    .order('start_date', { ascending: false });
+  if (yErr) throw yErr;
+
+  let sumberId: string | null = null;
+  let sumberName: string | null = null;
+  for (const y of (years ?? []) as { id: string; name: string }[]) {
+    const { count, error } = await supabase
+      .from('halaqoh')
+      .select('id', { count: 'exact', head: true })
+      .eq('academic_year_id', y.id);
+    if (error) throw error;
+    if ((count ?? 0) > 0) {
+      sumberId = y.id;
+      sumberName = y.name;
+      break;
+    }
+  }
+
+  if (!sumberId) {
+    throw new Error('Tidak ada halaqoh di tahun ajaran lain untuk disalin.');
+  }
+
+  const sumber = await getHalaqohByTahunAjaran(sumberId);
+  const target = await getHalaqohByTahunAjaran(targetAcademicYearId);
+  const namaAda = new Set(target.map((h) => h.nama.trim().toLowerCase()));
+
+  let jumlah = 0;
+  for (const h of sumber) {
+    if (namaAda.has(h.nama.trim().toLowerCase())) continue;
+    await addHalaqoh({
+      academicYearId: targetAcademicYearId,
+      nama: h.nama,
+      kelasIds: h.kelas_ids,
+    });
+    jumlah++;
+  }
+
+  return { jumlah, dari: sumberName };
+}
+
 // ----------------- KEANGGOTAAN (siapa ada di halaqoh mana) -----------------
 
 /**
