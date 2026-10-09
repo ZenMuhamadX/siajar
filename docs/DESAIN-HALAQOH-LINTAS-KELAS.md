@@ -1,6 +1,7 @@
 # Desain Halaqoh Lintas Kelas (Metode Ummi)
 
-**Status:** keputusan terkunci. **Belum ada kode yang ditulis.**
+**Status:** keputusan terkunci. **Fase 0–2 sudah diimplementasikan** di branch
+`feat/halaqoh-lintas-kelas` (skema, tipe & service, UI master). Fase 3–5 menyusul.
 **Tanggal:** 9 Oktober 2026
 
 ## Keputusan yang sudah dikunci
@@ -213,7 +214,7 @@ lagi menjadi titik masuk, karena satu halaqoh mencakup beberapa kelas.
 
 **6 fase (Fase 0–5).** Setiap fase bisa dirilis sendiri dan aplikasi tetap jalan.
 
-### Fase 0 — Skema database + migrasi data lama
+### Fase 0 — Skema database + migrasi data lama — ✅ SELESAI
 - `supabase/schema.sql`: `halaqoh` (+`academic_year_id`, −`kelas_id`), tabel `halaqoh_kelas`,
   RLS + policy + grant, index baru.
 - Migrasi di dalam blok `DO` yang dijaga: pindahkan `halaqoh.kelas_id` lama ke `halaqoh_kelas`,
@@ -223,14 +224,14 @@ lagi menjadi titik masuk, karena satu halaqoh mencakup beberapa kelas.
 - **Selesai bila:** skema lama bisa dijalankan berulang tanpa error; data halaqoh lama utuh di
   `halaqoh_kelas`.
 
-### Fase 1 — Tipe & service
+### Fase 1 — Tipe & service — ✅ SELESAI
 - `src/types/index.ts`: bentuk `Halaqoh`, `HalaqohTerdaftar`, `AnggotaHalaqoh` baru.
 - `src/services/halaqohService.ts`: daftar halaqoh per tahun ajaran, kelola kelas sumber, kandidat
   anggota, validasi anggota ⊆ kelas sumber.
 - `src/services/agendaService.ts`: `getSiswaHalaqoh` membaca kelas dari `siswa_kelas`.
 - **Selesai bila:** `bunx tsc --noEmit` bersih; skrip `test_*.ts` relevan lulus.
 
-### Fase 2 — UI Master Halaqoh
+### Fase 2 — UI Master Halaqoh — ✅ SELESAI
 - `HalaqohPage.tsx`: buat halaqoh + pilih kelas sumber (multi-select), pemilih tahun ajaran,
   panel kandidat per kelas sumber, pindahkan/keluarkan anggota.
 - **Selesai bila:** bisa membuat halaqoh lintas kelas, mengisi sebagian siswa, dan sisa siswa tetap
