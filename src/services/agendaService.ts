@@ -187,6 +187,10 @@ export async function getDaftarSiswa(options?: {
  * mengabsen kelompoknya sendiri. Menampilkan seluruh kelas akan membuat guru
  * menandai anak yang bukan tanggung jawabnya, dan absensi kelas penuh jadi
  * bolong karena setiap guru mengisi bagian yang berbeda.
+ *
+ * PENTING (halaqoh lintas kelas): kelas tiap siswa dibaca dari `siswa_kelas`
+ * pada tahun ajaran berjalan, BUKAN dari halaqoh. Satu halaqoh boleh mencakup
+ * beberapa kelas, jadi halaqoh tidak lagi menunjuk kelas mana pun.
  */
 export async function getSiswaHalaqoh(
   halaqohId: string,
@@ -199,8 +203,8 @@ export async function getSiswaHalaqoh(
     .from('siswa_halaqoh')
     .select(
       'siswa_id, ' +
-        'siswa:siswa_id (id, nama_siswa, nis, status), ' +
-        'halaqoh:halaqoh_id (kelas_id, kelas:kelas_id (label))',
+        'siswa:siswa_id (id, nama_siswa, nis, status, ' +
+        'siswa_kelas (kelas_id, academic_year_id, kelas:kelas_id (label)))',
     )
     .eq('halaqoh_id', halaqohId)
     .eq('academic_year_id', academicYearId);
@@ -213,21 +217,29 @@ export async function getSiswaHalaqoh(
       nama_siswa?: string;
       nis?: string | null;
       status?: string;
+      siswa_kelas?: {
+        kelas_id?: string;
+        academic_year_id?: string;
+        kelas?: { label?: string } | null;
+      }[] | null;
     } | null;
-    halaqoh?: { kelas_id?: string; kelas?: { label?: string } | null } | null;
   };
 
   const hasil: SiswaTerdaftar[] = [];
   for (const row of (data ?? []) as unknown as Row[]) {
     const s = row.siswa;
     if (!s?.id) continue;
+    // Penempatan tahun berjalan — satu siswa punya satu baris per tahun.
+    const penempatan = (s.siswa_kelas ?? []).find(
+      (sk) => sk.academic_year_id === academicYearId,
+    );
     hasil.push({
       id: s.id,
       nama_siswa: s.nama_siswa ?? '',
       nis: s.nis ?? null,
       status: (s.status ?? 'AKTIF') as SiswaTerdaftar['status'],
-      kelas: row.halaqoh?.kelas?.label ?? '',
-      kelas_id: row.halaqoh?.kelas_id ?? '',
+      kelas: penempatan?.kelas?.label ?? '',
+      kelas_id: penempatan?.kelas_id ?? '',
       academic_year_id: academicYearId,
     });
   }

@@ -143,48 +143,53 @@ export interface Guru {
 }
 
 /**
- * Halaqoh — pembagian siswa DI DALAM satu kelas untuk mapel berkelompok (Ummi).
+ * Halaqoh — kelompok belajar untuk mapel berkelompok (Ummi).
+ *
+ * Sejak revisi "halaqoh lintas kelas", satu halaqoh TIDAK lagi milik satu kelas.
+ * Ia punya DAFTAR KELAS SUMBER (kolam kandidat) dan milik satu tahun ajaran.
+ * Daftar kelas itu hanya menyaring siapa yang boleh dipilih jadi anggota —
+ * anggotanya tetap dipilih per siswa lewat `siswa_halaqoh`.
  *
  * Kenapa bukan kelas tersendiri: halaqoh hanya berlaku untuk satu mapel dan
  * tidak mengubah apa pun tentang kenaikan kelas, wali kelas, atau riwayat.
- * Kelas tetap unit; halaqoh hanya cara membagi siswanya saat mapel itu mengajar.
  *
  * Guru TIDAK disimpan di sini, melainkan di baris jadwal. Alasannya: satu mata
- * pelajaran bisa diampu guru berbeda tiap tahun ajaran, dan guru tamu tidak perlu
- * masuk master guru hanya karena sekali mengajar halaqoh.
- *
- * Halaqoh selalu ada — kelas kecil cukup punya satu halaqoh berisi seluruh kelas.
- * Pembagiannya diulang tiap tahun ajaran (pola yang sama dengan `siswa_kelas`).
+ * pelajaran bisa diampu guru berbeda tiap sesi, dan guru tamu tidak perlu masuk
+ * master guru hanya karena sekali mengajar halaqoh.
  */
 export interface Halaqoh {
   id: string;
-  /** Kelas pemilik halaqoh ini. */
-  kelas_id: string;
-  /** Nama kelompok, mis. 'Halaqoh 1'. Unik per kelas. */
+  /** Tahun ajaran pemilik halaqoh. Halaqoh disusun ulang tiap tahun. */
+  academic_year_id: string;
+  /** Nama kelompok, mis. 'Halaqoh A'. Unik per tahun ajaran. */
   nama: string;
-  /** Urutan tampil di dalam kelasnya. */
+  /** Urutan tampil di dalam tahun ajarannya. */
   urutan: number;
   created_at?: string;
   updated_at?: string;
 }
 
 /**
- * Halaqoh beserta label kelasnya — hasil join untuk tampilan.
+ * Halaqoh beserta kelas sumbernya — hasil join untuk tampilan.
  *
- * Sama seperti pola lain di berkas ini: label kelas adalah nilai turunan, bukan
- * disimpan ulang di sini.
+ * `kelas_ids` dipakai untuk menyaring kandidat anggota dan menurunkan kelas
+ * penerima rekap; `kelas` adalah labelnya untuk tampilan. Keduanya nilai
+ * turunan, bukan disimpan ulang di sini.
  */
 export interface HalaqohTerdaftar extends Halaqoh {
-  /** Label kelas dari `agenda.kelas.label`. */
-  kelas: string;
+  /** Id kelas sumber (kolam kandidat). */
+  kelas_ids: string[];
+  /** Label kelas sumber, mis. ['4A', '3A']. */
+  kelas: string[];
 }
 
 /**
  * Satu siswa di dalam sebuah halaqoh pada satu tahun ajaran.
  *
  * `academic_year_id` wajib: keanggotaan halaqoh TIDAK dibawa naik kelas, sama
- * seperti penempatan kelasnya. Anak yang tahun ini di Halaqoh 1 bisa berada di
- * Halaqoh 3 tahun depan.
+ * seperti penempatan kelasnya. Anak yang tahun ini di Halaqoh A bisa berada di
+ * Halaqoh C tahun depan. Kolom ini juga yang menegakkan "satu halaqoh per siswa
+ * per tahun ajaran".
  */
 export interface SiswaHalaqoh {
   id: string;
@@ -194,7 +199,7 @@ export interface SiswaHalaqoh {
   created_at?: string;
 }
 
-/** Siswa anggota halaqoh, siap tampil (nama + NIS ikut dibaca). */
+/** Siswa anggota halaqoh, siap tampil (nama + NIS + kelas ikut dibaca). */
 export interface AnggotaHalaqoh {
   /** `siswa_halaqoh.id` — dipakai untuk memindahkan / mengeluarkan. */
   id: string;
@@ -202,6 +207,13 @@ export interface AnggotaHalaqoh {
   halaqoh_id: string;
   nama_siswa: string;
   nis: string | null;
+  /**
+   * Label kelas siswa PADA tahun ajaran berjalan — dari `siswa_kelas`, BUKAN
+   * dari halaqoh. Satu halaqoh boleh mencakup beberapa kelas, jadi kelas tiap
+   * anggota harus dibaca per siswa.
+   */
+  kelas: string;
+  kelas_id: string;
 }
 
 export interface MataPelajaran {

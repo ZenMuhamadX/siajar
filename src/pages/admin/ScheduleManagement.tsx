@@ -23,7 +23,7 @@ import { getPeriodTemplates } from '../../services/periodTemplateService';
 import { getDaftarGuru, getDaftarMapel } from '../../services/agendaService';
 import { getHalaqohByKelas } from '../../services/halaqohService';
 import { findKelasId } from '../../services/classService';
-import type { Halaqoh } from '../../types';
+import type { HalaqohTerdaftar } from '../../types';
 import { PageHeader } from '../../components/admin/PageHeader';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { buildScheduleExportModel } from '../../services/export/scheduleExportModel';
@@ -103,7 +103,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
    * ia dipilih per kelompok. Bentuk inilah yang menjaga prinsip "satu baris
    * jadwal = satu guru" tetap utuh meski jamnya sama.
    */
-  const [halaqohKelas, setHalaqohKelas] = useState<Halaqoh[]>([]);
+  const [halaqohKelas, setHalaqohKelas] = useState<HalaqohTerdaftar[]>([]);
   const [guruPerHalaqoh, setGuruPerHalaqoh] = useState<Record<string, string>>({});
   const [isLoadingHalaqoh, setIsLoadingHalaqoh] = useState(false);
 
@@ -287,7 +287,10 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
     (async () => {
       try {
         const kelasId = await findKelasId(kelasHalaqohAktif);
-        const list = kelasId ? await getHalaqohByKelas(kelasId) : [];
+        // Halaqoh kini milik tahun ajaran dan punya kelas sumber; yang relevan
+        // untuk kelas ini adalah halaqoh yang kelas sumbernya memuatnya.
+        const list =
+          kelasId && selectedAYId ? await getHalaqohByKelas(kelasId, selectedAYId) : [];
         if (cancelled) return;
 
         // Prefill guru dari jadwal yang sudah ada pada slot yang sama.
@@ -322,7 +325,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [kelasHalaqohAktif, formData.kelas, formData.day, formData.period_number]);
+  }, [kelasHalaqohAktif, formData.kelas, formData.day, formData.period_number, selectedAYId]);
 
   const handleAYChange = async (ayId: string) => {
     setSelectedAYId(ayId);
