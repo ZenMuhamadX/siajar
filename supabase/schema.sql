@@ -154,7 +154,9 @@ CREATE TABLE IF NOT EXISTS agenda.schedule (
     period_number INTEGER NOT NULL CHECK (period_number >= 1 AND period_number <= 20),
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
-    kelas_id UUID NOT NULL REFERENCES agenda.kelas(id) ON DELETE RESTRICT,
+    -- Kelas baris jadwal. NULL untuk baris halaqoh lintas kelas (lihat
+    -- `halaqoh_id`); kelasnya diturunkan dari `halaqoh_kelas`.
+    kelas_id UUID REFERENCES agenda.kelas(id) ON DELETE RESTRICT,
     subject_id UUID REFERENCES agenda.mapel(id) ON DELETE SET NULL,
     subject_name TEXT NOT NULL,
     teacher_id UUID REFERENCES agenda.guru(id) ON DELETE SET NULL,
@@ -210,37 +212,51 @@ CREATE TABLE IF NOT EXISTS agenda.siswa_kelas (
     CONSTRAINT uq_siswa_kelas_per_ay UNIQUE (siswa_id, academic_year_id)
 );
 
--- --- Halaqoh: pembagian siswa di dalam satu kelas ---------------------------
+-- --- Halaqoh: kelompok belajar lintas kelas (mapel Ummi) --------------------
 --
--- Untuk mapel Ummi, satu kelas sering dipecah menjadi beberapa kelompok kecil
--- (halaqoh), dan tiap kelompok diampu guru yang BERBEDA. Halaqoh di sini adalah
--- wadahnya.
+-- Untuk mapel Ummi, siswa dibagi ke kelompok kecil (halaqoh) yang diampu guru
+-- BERBEDA. Sejak revisi "halaqoh lintas kelas", satu halaqoh TIDAK lagi milik
+-- satu kelas: satu halaqoh boleh berisi siswa dari beberapa kelas (mis. kelas 3
+-- dan 4 digabung), dan satu kelas boleh menyuplai beberapa halaqoh.
 --
 -- Kenapa BUKAN kelas tersendiri:
 --   Halaqoh hanya berlaku satu mapel dan tidak mengubah apa pun tentang
 --   kenaikan kelas, wali kelas, atau riwayat siswa. Kalau halaqoh dijadikan
 --   kelas ("1A-Ummi-1"), seluruh laporan dan riwayat akan penuh kelas yang
 --   tidak pernah ada, dan siswa tampak "pindah kelas" padahal hanya berpindah
---   kelompok belajar. Karena itu halaqoh menempel pada kelas, bukan menyaingi.
+--   kelompok belajar.
 --
--- Aturan yang dipegang:
---   - SELALU ada halaqoh. Kelas kecil (mis. 12 anak) = satu halaqoh berisi
---     seluruh kelas. Tidak ada cabang "tanpa halaqoh" — sistemnya seragam,
---     hanya jumlah kelompoknya satu. Ini menyederhanakan semua pemeriksaan.
+-- Bentuknya sekarang:
+--   - Halaqoh punya DAFTAR KELAS SUMBER (tabel `halaqoh_kelas`), bukan satu
+--     kelas. Daftar itu adalah KOLAM kandidat: saat mengisi anggota, siswa yang
+--     ditawarkan hanya yang berasal dari kelas-kelas itu.
+--   - Anggota tetap DIPILIH PER SISWA lewat `siswa_halaqoh`; tidak semua siswa
+--     kelas sumber ikut, dan satu kelas boleh terbagi ke beberapa halaqoh.
+--   - Halaqoh milik SATU TAHUN AJARAN (`academic_year_id`). Komposisinya tidak
+--     diwariskan saat naik kelas — tahun depan disusun ulang.
 --   - Guru TIDAK disimpan di sini. Satu halaqoh diampu satu guru, dan guru itu
 --     ditentukan di baris jadwal. Menyimpannya di dua tempat membuat keduanya
 --     bisa saling menyimpang.
 CREATE TABLE IF NOT EXISTS agenda.halaqoh (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    kelas_id UUID NOT NULL REFERENCES agenda.kelas(id) ON DELETE CASCADE,
-    -- Nama tampilan, mis. 'Halaqoh A'. Bebas, tetapi unik di dalam kelasnya
-    -- supaya dua kelompok tidak pernah bernama sama.
+    academic_year_id UUID NOT NULL
+        REFERENCES agenda.academic_year(id) ON DELETE CASCADE,
+    -- Nama tampilan, mis. 'Halaqoh A'. Bebas, tetapi unik di dalam tahun ajaran.
     nama TEXT NOT NULL,
     -- Urutan tampil di layar. Bukan identitas — boleh diubah kapan saja.
     urutan INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_halaqoh_nama_per_kelas UNIQUE (kelas_id, nama)
+    CONSTRAINT uq_halaqoh_nama_per_tahun UNIQUE (academic_year_id, nama)
+);
+
+-- Kelas sumber sebuah halaqoh (kolam kandidat). Satu halaqoh boleh punya
+-- beberapa kelas, dan satu kelas boleh muncul di beberapa halaqoh.
+CREATE TABLE IF NOT EXISTS agenda.halaqoh_kelas (
+    halaqoh_id UUID NOT NULL REFERENCES agenda.halaqoh(id) ON DELETE CASCADE,
+    kelas_id   UUID NOT NULL REFERENCES agenda.kelas(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (halaqoh_id, kelas_id)
 );
 
 -- Keanggotaan halaqoh per tahun ajaran, mengikuti pola `siswa_kelas`.
@@ -251,6 +267,12 @@ CREATE TABLE IF NOT EXISTS agenda.halaqoh (
 --
 -- Satu siswa hanya boleh ada di SATU halaqoh per tahun ajaran. Tanpa batas ini,
 -- absensi Ummi bisa mencacah anak yang sama dua kali.
+--
+-- PENTING (halaqoh lintas kelas): kelas seorang siswa TIDAK diturunkan dari
+-- halaqoh-nya, melainkan dari `siswa_kelas`. Satu halaqoh boleh berisi siswa
+-- dari beberapa kelas, jadi `halaqoh_id` tidak lagi menunjuk kelas mana pun.
+-- `academic_year_id` tetap dipertahankan justru karena dialah penegak aturan
+-- "satu halaqoh per siswa per tahun" (lihat unique di bawah).
 CREATE TABLE IF NOT EXISTS agenda.siswa_halaqoh (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     siswa_id UUID NOT NULL REFERENCES agenda.siswa(id) ON DELETE CASCADE,
@@ -265,7 +287,12 @@ CREATE TABLE IF NOT EXISTS agenda.siswa_halaqoh (
 CREATE TABLE IF NOT EXISTS agenda.agenda_header (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     sekolah TEXT DEFAULT 'SDIT AS-SYIFA',
-    kelas_id UUID NOT NULL REFERENCES agenda.kelas(id) ON DELETE RESTRICT,
+    -- Kelas jurnal. NULL untuk sesi halaqoh lintas kelas (lihat `halaqoh_id`).
+    kelas_id UUID REFERENCES agenda.kelas(id) ON DELETE RESTRICT,
+    -- Halaqoh sesi ini, bila jurnalnya milik mapel berkelompok (Ummi). Sesi
+    -- halaqoh bisa mencakup beberapa kelas, jadi kelasnya tidak bisa diwakili
+    -- satu `kelas_id`. Kelas penerima rekap diturunkan dari `halaqoh_kelas`.
+    halaqoh_id UUID REFERENCES agenda.halaqoh(id) ON DELETE CASCADE,
     tanggal DATE NOT NULL DEFAULT CURRENT_DATE,
     schedule_id UUID REFERENCES agenda.schedule(id) ON DELETE SET NULL,
     actual_teacher_name TEXT,
@@ -439,6 +466,15 @@ ALTER TABLE agenda.schedule
 -- `agenda_kbm.halaqoh_id` menandai bagian jurnal milik halaqoh mana. Di sini
 -- CASCADE juga tepat: baris jurnal tanpa halaqohnya menjadi baris tanpa isi.
 ALTER TABLE agenda.agenda_kbm
+    ADD COLUMN IF NOT EXISTS halaqoh_id UUID REFERENCES agenda.halaqoh(id) ON DELETE CASCADE;
+
+-- Halaqoh lintas kelas. Dua kolom ini ditambahkan di sini (dan bukan hanya di
+-- `CREATE TABLE`) supaya database yang sudah berjalan ikut terselaraskan.
+-- Isi & penyelesaiannya dikerjakan di bagian 14.
+ALTER TABLE agenda.halaqoh
+    ADD COLUMN IF NOT EXISTS academic_year_id UUID
+    REFERENCES agenda.academic_year(id) ON DELETE CASCADE;
+ALTER TABLE agenda.agenda_header
     ADD COLUMN IF NOT EXISTS halaqoh_id UUID REFERENCES agenda.halaqoh(id) ON DELETE CASCADE;
 
 -- `siswa_kelas.status` — lihat penjelasan di definisi tabelnya. Ditambahkan
@@ -627,8 +663,17 @@ BEGIN
 END $$;
 
 -- Index pendukung untuk tabel halaqoh.
-CREATE INDEX IF NOT EXISTS idx_halaqoh_kelas
-    ON agenda.halaqoh(kelas_id);
+--
+-- `idx_halaqoh_kelas` (di `halaqoh(kelas_id)`) DIHAPUS: kolom `kelas_id` tidak
+-- ada lagi. Kalau statement lamanya dibiarkan, menjalankan ulang file ini akan
+-- gagal `column kelas_id does not exist`. Index baru sengaja memakai nama
+-- berbeda — kalau namanya sama dengan index lama di kolom yang akan dihapus,
+-- `CREATE INDEX IF NOT EXISTS` akan melihat nama itu masih terpakai lalu
+-- melewatinya, dan index-nya hilang bersama kolomnya tanpa pernah dibuat ulang.
+CREATE INDEX IF NOT EXISTS idx_halaqoh_tahun
+    ON agenda.halaqoh(academic_year_id);
+CREATE INDEX IF NOT EXISTS idx_halaqoh_kelas_kelas
+    ON agenda.halaqoh_kelas(kelas_id);
 CREATE INDEX IF NOT EXISTS idx_siswa_halaqoh_halaqoh
     ON agenda.siswa_halaqoh(halaqoh_id);
 CREATE INDEX IF NOT EXISTS idx_siswa_halaqoh_siswa
@@ -637,6 +682,8 @@ CREATE INDEX IF NOT EXISTS idx_schedule_halaqoh
     ON agenda.schedule(halaqoh_id);
 CREATE INDEX IF NOT EXISTS idx_agenda_kbm_halaqoh
     ON agenda.agenda_kbm(halaqoh_id);
+CREATE INDEX IF NOT EXISTS idx_agenda_header_halaqoh
+    ON agenda.agenda_header(halaqoh_id);
 
 CREATE INDEX IF NOT EXISTS idx_homeroom_ay_kelas
     ON agenda.homeroom_assignment(academic_year_id, kelas_id);
@@ -709,6 +756,14 @@ ALTER TABLE agenda.kotak_saran ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agenda.substitutions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agenda.agenda_evidence ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agenda.app_settings ENABLE ROW LEVEL SECURITY;
+
+-- Halaqoh & keanggotaannya. Sebelumnya TERLEWAT dari daftar ini, sehingga
+-- policy-nya ada tetapi tidak pernah ditegakkan — dan karena grant default
+-- memberi `authenticated` hak penuh, tabelnya praktis terbuka untuk semua user
+-- yang login. Ditegakkan sekarang, sekaligus untuk tabel kolam `halaqoh_kelas`.
+ALTER TABLE agenda.halaqoh ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agenda.halaqoh_kelas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agenda.siswa_halaqoh ENABLE ROW LEVEL SECURITY;
 
 -- =============================================================================
 -- 4. FUNGSI OTORISASI
@@ -931,6 +986,15 @@ DROP POLICY IF EXISTS member_insert_kotak_saran ON agenda.kotak_saran;
 DROP POLICY IF EXISTS admin_read_kotak_saran ON agenda.kotak_saran;
 DROP POLICY IF EXISTS admin_update_kotak_saran ON agenda.kotak_saran;
 DROP POLICY IF EXISTS admin_delete_kotak_saran ON agenda.kotak_saran;
+-- Halaqoh: policy-nya dulu dibuat TANPA `DROP POLICY IF EXISTS` pasangannya,
+-- sehingga menjalankan ulang file ini gagal `policy ... already exists`.
+-- Dilengkapi di sini, sekaligus untuk tabel kolam `halaqoh_kelas`.
+DROP POLICY IF EXISTS member_read_halaqoh ON agenda.halaqoh;
+DROP POLICY IF EXISTS admin_write_halaqoh ON agenda.halaqoh;
+DROP POLICY IF EXISTS member_read_halaqoh_kelas ON agenda.halaqoh_kelas;
+DROP POLICY IF EXISTS admin_write_halaqoh_kelas ON agenda.halaqoh_kelas;
+DROP POLICY IF EXISTS member_read_siswa_halaqoh ON agenda.siswa_halaqoh;
+DROP POLICY IF EXISTS admin_write_siswa_halaqoh ON agenda.siswa_halaqoh;
 
 -- --- Direktori guru: satu-satunya data yang boleh dibaca sebelum login -------
 -- Hanya kolom id + nama_guru yang di-grant ke anon (lihat bagian 6), sehingga
@@ -1007,6 +1071,14 @@ CREATE POLICY admin_write_halaqoh ON agenda.halaqoh
 CREATE POLICY member_read_siswa_halaqoh ON agenda.siswa_halaqoh
     FOR SELECT TO authenticated USING (agenda.is_member());
 CREATE POLICY admin_write_siswa_halaqoh ON agenda.siswa_halaqoh
+    FOR ALL TO authenticated
+    USING (agenda.is_staff()) WITH CHECK (agenda.is_staff());
+
+-- Kelas sumber halaqoh (kolam). Polanya sama: baca untuk anggota, tulis untuk
+-- staf. Guru perlu membacanya untuk tahu kelas mana yang dicakup halaqohnya.
+CREATE POLICY member_read_halaqoh_kelas ON agenda.halaqoh_kelas
+    FOR SELECT TO authenticated USING (agenda.is_member());
+CREATE POLICY admin_write_halaqoh_kelas ON agenda.halaqoh_kelas
     FOR ALL TO authenticated
     USING (agenda.is_staff()) WITH CHECK (agenda.is_staff());
 
@@ -1747,7 +1819,119 @@ REVOKE EXECUTE ON FUNCTION agenda.hapus_tahun_ajaran(UUID) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION agenda.hapus_tahun_ajaran(UUID) TO authenticated;
 
 -- =============================================================================
--- 14. VERIFIKASI
+-- 14. HALAQOH LINTAS KELAS
+-- =============================================================================
+-- Halaqoh berhenti menempel pada satu kelas: kini punya DAFTAR KELAS SUMBER
+-- (tabel `halaqoh_kelas`, dibuat di bagian 1) dan menjadi milik satu tahun
+-- ajaran. Bagian ini menyesuaikan database yang SUDAH berjalan — memindahkan
+-- `halaqoh.kelas_id` lama ke `halaqoh_kelas`, mengisi `academic_year_id`, lalu
+-- membuang kolom `kelas_id`.
+--
+-- Sama seperti bagian 10 dan 11: seluruh perpindahan data berada di dalam
+-- penjaga keberadaan kolom, jadi instalasi baru melewatinya dan menjalankan
+-- ulang file ini tidak melakukan apa-apa.
+
+-- 14.1 Isi tahun ajaran & pindahkan kelas lama ---------------------------------
+DO $$
+DECLARE
+    v_ay UUID;
+    v_kelas INTEGER;
+BEGIN
+    -- Tahun ajaran acuan: yang ACTIVE; kalau tidak ada, yang start_date-nya
+    -- paling akhir. Sama dengan `resolveAcademicYearId()` di aplikasi.
+    SELECT id INTO v_ay
+    FROM agenda.academic_year
+    ORDER BY (status = 'ACTIVE') DESC, start_date DESC
+    LIMIT 1;
+
+    IF v_ay IS NULL THEN
+        RAISE NOTICE 'Halaqoh: belum ada tahun ajaran; academic_year_id dibiarkan NULL.';
+    END IF;
+
+    UPDATE agenda.halaqoh
+    SET academic_year_id = v_ay
+    WHERE academic_year_id IS NULL;
+
+    -- Hanya berjalan kalau kolom kelas_id lama masih ada.
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'agenda' AND table_name = 'halaqoh'
+          AND column_name = 'kelas_id'
+    ) THEN
+        INSERT INTO agenda.halaqoh_kelas (halaqoh_id, kelas_id)
+        SELECT id, kelas_id FROM agenda.halaqoh
+        WHERE kelas_id IS NOT NULL
+        ON CONFLICT DO NOTHING;
+        GET DIAGNOSTICS v_kelas = ROW_COUNT;
+
+        -- Constraint lama (kelas_id, nama) dibuang lebih dulu karena menyebut
+        -- kolom yang akan hilang; penggantinya dipasang di 14.3.
+        ALTER TABLE agenda.halaqoh DROP CONSTRAINT IF EXISTS uq_halaqoh_nama_per_kelas;
+
+        ALTER TABLE agenda.halaqoh DROP COLUMN kelas_id;
+
+        RAISE NOTICE 'Halaqoh: % kelas sumber dipindahkan ke halaqoh_kelas.', v_kelas;
+    END IF;
+END $$;
+
+-- 14.2 Jadikan academic_year_id NOT NULL bila tidak ada sisa NULL --------------
+DO $$
+DECLARE
+    v_sisa INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO v_sisa FROM agenda.halaqoh WHERE academic_year_id IS NULL;
+    IF v_sisa = 0 THEN
+        ALTER TABLE agenda.halaqoh ALTER COLUMN academic_year_id SET NOT NULL;
+    ELSE
+        RAISE NOTICE 'Halaqoh tanpa tahun ajaran: % baris (dibiarkan NULL).', v_sisa;
+    END IF;
+END $$;
+
+-- 14.3 Keunikan nama per tahun ajaran -----------------------------------------
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'uq_halaqoh_nama_per_tahun'
+          AND conrelid = 'agenda.halaqoh'::regclass
+    ) THEN
+        ALTER TABLE agenda.halaqoh
+            ADD CONSTRAINT uq_halaqoh_nama_per_tahun UNIQUE (academic_year_id, nama);
+    END IF;
+END $$;
+
+-- 14.4 Kelas boleh kosong pada baris halaqoh ----------------------------------
+-- Baris jadwal/jurnal ber-halaqoh lintas kelas tidak punya satu kelas. Supaya
+-- tidak ada baris tanpa acuan sama sekali, dipasang CHECK: salah satu dari
+-- kelas_id / halaqoh_id wajib terisi.
+ALTER TABLE agenda.schedule ALTER COLUMN kelas_id DROP NOT NULL;
+ALTER TABLE agenda.agenda_header ALTER COLUMN kelas_id DROP NOT NULL;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'chk_schedule_kelas_atau_halaqoh'
+          AND conrelid = 'agenda.schedule'::regclass
+    ) THEN
+        ALTER TABLE agenda.schedule
+            ADD CONSTRAINT chk_schedule_kelas_atau_halaqoh
+            CHECK (kelas_id IS NOT NULL OR halaqoh_id IS NOT NULL);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'chk_agenda_header_kelas_atau_halaqoh'
+          AND conrelid = 'agenda.agenda_header'::regclass
+    ) THEN
+        ALTER TABLE agenda.agenda_header
+            ADD CONSTRAINT chk_agenda_header_kelas_atau_halaqoh
+            CHECK (kelas_id IS NOT NULL OR halaqoh_id IS NOT NULL);
+    END IF;
+END $$;
+
+-- =============================================================================
+-- 15. VERIFIKASI
 -- =============================================================================
 -- 1. Semua tabel harus punya RLS aktif:
 --      SELECT relname, relrowsecurity FROM pg_class
@@ -1772,10 +1956,13 @@ GRANT EXECUTE ON FUNCTION agenda.hapus_tahun_ajaran(UUID) TO authenticated;
 --      ORDER BY table_name;
 --      -- harus KOSONG
 --
--- 6. Setiap baris punya kelas_id:
---      SELECT COUNT(*) FROM agenda.schedule            WHERE kelas_id IS NULL;
+-- 6. Setiap baris punya kelas_id ATAU halaqoh_id — baris Ummi lintas kelas
+--    memang tidak punya satu kelas:
+--      SELECT COUNT(*) FROM agenda.schedule
+--      WHERE kelas_id IS NULL AND halaqoh_id IS NULL;
 --      SELECT COUNT(*) FROM agenda.homeroom_assignment WHERE kelas_id IS NULL;
---      SELECT COUNT(*) FROM agenda.agenda_header       WHERE kelas_id IS NULL;
+--      SELECT COUNT(*) FROM agenda.agenda_header
+--      WHERE kelas_id IS NULL AND halaqoh_id IS NULL;
 --      -- ketiganya harus 0
 --
 -- 7. Setiap siswa punya penempatan:
@@ -1815,4 +2002,21 @@ GRANT EXECUTE ON FUNCTION agenda.hapus_tahun_ajaran(UUID) TO authenticated;
 --      JOIN agenda.siswa s ON s.id = sk.siswa_id
 --      JOIN agenda.academic_year ay ON ay.id = sk.academic_year_id
 --      WHERE s.status = 'LULUS' AND sk.status <> 'AKTIF' AND ay.status = 'ACTIVE';
+--
+-- 14. Halaqoh lintas kelas: kolom `kelas_id` lama sudah hilang, `academic_year_id`
+--     terisi, dan setiap halaqoh punya minimal satu kelas sumber:
+--      SELECT column_name FROM information_schema.columns
+--      WHERE table_schema = 'agenda' AND table_name = 'halaqoh'
+--        AND column_name = 'kelas_id';
+--      -- harus KOSONG
+--      SELECT COUNT(*) FROM agenda.halaqoh WHERE academic_year_id IS NULL;
+--      -- harus 0
+--      SELECT h.id, h.nama FROM agenda.halaqoh h
+--      WHERE NOT EXISTS (SELECT 1 FROM agenda.halaqoh_kelas hk WHERE hk.halaqoh_id = h.id);
+--      -- idealnya KOSONG (halaqoh tanpa kelas sumber)
+--      SELECT conname FROM pg_constraint
+--      WHERE conname IN ('uq_halaqoh_nama_per_tahun',
+--                        'chk_schedule_kelas_atau_halaqoh',
+--                        'chk_agenda_header_kelas_atau_halaqoh');
+--      -- ketiganya harus muncul
 -- =============================================================================
