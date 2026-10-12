@@ -1,7 +1,7 @@
 {
   "name": "agenda-kelas",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "SIAJAR — Sistem Agenda Pembelajaran SDIT AS-SYIFA",
   "author": "SDIT AS-SYIFA",
   "type": "module",
