@@ -1527,7 +1527,7 @@ END $$;
 -- browser. Kalau koneksi putus di tengah, tidak ada keadaan setengah jadi —
 -- semuanya ikut dibatalkan.
 --
--- Aturan (lihat docs/DESAIN_KENAIKAN_KELAS.md):
+-- Aturan kenaikan kelas:
 --   - hanya siswa yang berstatus AKTIF **pada tahun ajaran asal** yang dibuatkan
 --     penempatan di tahun ajaran baru;
 --   - siswa tingkat 6 yang masih AKTIF ditandai LULUS, tanpa penempatan baru;
