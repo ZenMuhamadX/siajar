@@ -1,8 +1,10 @@
 # Desain Halaqoh Lintas Kelas (Metode Ummi)
 
-**Status:** keputusan terkunci. **Fase 0–5 SELESAI** di branch `feat/halaqoh-lintas-kelas`
-(skema, tipe & service, UI master, jadwal & agenda, rekap, tahun ajaran baru).
-**Tanggal:** 9 Oktober 2026
+**Status:** keputusan terkunci. **Fase 0–6 SELESAI** dan sudah dirilis — merge ke `main`
+(commit `a80b86d`) dan ditandai tag **`v1.0.0`**. Fase 0–5 dikerjakan di branch
+`feat/halaqoh-lintas-kelas`; Fase 6 (perbaikan kelas baris jadwal) di
+`fix/halaqoh-kelas-konsumen`.
+**Tanggal:** 9 Oktober 2026 · diperbarui 12 Oktober 2026
 
 ## Keputusan yang sudah dikunci
 
@@ -178,11 +180,10 @@ lagi menjadi titik masuk, karena satu halaqoh mencakup beberapa kelas.
    d. **isi guru manual untuk tiap halaqoh** — tidak diisi otomatis;
    e. simpan → sistem membuat **satu baris jadwal per halaqoh** (hari & jam sama, guru berbeda).
 4. **Validasi sebelum simpan** (aturan §3 no. 6–8): guru tidak bentrok; halaqoh tidak bentrok;
-   kelas sumber tidak bentrok — dua halaqoh yang berbagi kelas, atau halaqoh vs sesi seluruh-kelas
-   dari kelas sumbernya.
-5. **Tampilan grid:** sesi Ummi muncul di jadwal **tiap kelas sumbernya**, berlabel
-   "Ummi · Halaqoh A". Baris Ummi tidak lagi punya satu `kelas_id` — kelasnya diturunkan dari
-   `halaqoh_kelas`.
+   halaqoh vs sesi **seluruh-kelas** dari kelas sumbernya bentrok. Dua halaqoh berbeda yang
+   berbagi kelas **justru sah** — itu bentuk pengajaran Ummi.
+5. **Tampilan daftar jadwal:** baris sesi Ummi tidak lagi punya satu `kelas_id`, sehingga kolom
+   kelasnya diisi dari **daftar kelas sumber** (mis. `3A, 4A`) — lihat §6a.
 
 **Yang perlu diperhatikan:**
 - Halaqoh yang belum punya anggota tetap boleh dijadwalkan, tetapi sebaiknya diberi peringatan
@@ -199,16 +200,18 @@ lagi menjadi titik masuk, karena satu halaqoh mencakup beberapa kelas.
 |---|---|
 | `supabase/schema.sql` | `halaqoh` (+`academic_year_id`, −`kelas_id`), tabel `halaqoh_kelas`, `schedule`/`agenda_header` longgar, RLS + index, migrasi data lama |
 | `src/types/index.ts` | `Halaqoh` (+`academic_year_id`, +`kelas_ids`), `HalaqohTerdaftar` (kelas sumber, bukan satu label), `AnggotaHalaqoh` (+`kelas`). Komentar "guru TIDAK disimpan di sini" tetap berlaku |
-| `src/services/halaqohService.ts` | `getHalaqohByTahunAjaran`, `getKelasSumberHalaqoh`, `addHalaqoh({academicYearId,nama,kelasIds})`, `setKelasSumber`, kandidat anggota, validasi anggota ⊆ kelas sumber |
-| `src/services/agendaService.ts` | `getSiswaHalaqoh`: kelas per siswa dari `siswa_kelas` (bukan `halaqoh.kelas_id`); `simpanAgenda`: tulis `agenda_header.halaqoh_id` |
-| `src/utils/halaqohLabel.ts` | Label multi-kelas, mis. `"Halaqoh A · kelas 4"`, `"Halaqoh B · kelas 4 & 3"` |
-| `src/utils/scheduleValidation.ts` | Aturan bentrok #8 (halaqoh berbagi kelas; halaqoh vs seluruh-kelas kelas sumber) |
+| `src/types/schedule.ts` | `ScheduleItem` (+`kelasList`) — lihat §6a |
+| `src/services/halaqohService.ts` | `getHalaqohByTahunAjaran`, `getKelasSumberHalaqoh`, `getHalaqohIdsByKelas`, `addHalaqoh({academicYearId,nama,kelasIds})`, `setKelasSumber`, kandidat anggota, validasi anggota ⊆ kelas sumber |
+| `src/services/agendaService.ts` | `getSiswaHalaqoh`: kelas per siswa dari `siswa_kelas` (bukan `halaqoh.kelas_id`); `simpanAgenda`: tulis `agenda_header.halaqoh_id`; `getRekapAgenda`: filter kelas menyertakan `halaqoh_id` |
+| `src/services/scheduleService.ts` | `kelasDariJadwal` / `jadwalMencakupKelas`; `mapScheduleRow` mengisi `kelasList` dari `halaqoh_kelas`; filter kelas di SQL menyertakan `halaqoh_id` |
+| `src/utils/halaqohLabel.ts` | `labelKelasKelompok(kelas, namaKelompok)` → `"3A · Kelompok A"`; pengulangan nama kelompok yang sama dengan kelasnya dibuang |
+| `src/utils/scheduleValidation.ts` | Aturan bentrok #8 (halaqoh vs seluruh-kelas dari kelas sumber; dua halaqoh berbeda **tidak** bentrok) |
 | `src/pages/admin/HalaqohPage.tsx` | Pilih kelas sumber (multi) saat membuat halaqoh; filter per tahun ajaran; panel kandidat per kelas sumber |
-| `src/pages/admin/ScheduleManagement.tsx` | Pemilihan halaqoh lintas kelas (bukan per kelas terpilih); guru **diisi manual**, tidak otomatis |
-| `src/components/agenda/AgendaDetailForm.tsx` | Absensi anggota lintas kelas + label kelas per baris |
+| `src/pages/admin/ScheduleManagement.tsx` | Pemilihan halaqoh lintas kelas (bukan per kelas terpilih); guru **diisi manual**, tidak otomatis; kolom kelas memakai `kelasList` |
+| `src/components/agenda/AgendaDetailForm.tsx` | Absensi anggota lintas kelas + label kelas per baris; penjaga pemuatan daftar siswa menyertakan `halaqoh_id` |
 | `src/services/report/reportQuery.ts`, `src/services/report/reportViewModel.ts` | *Fan-out*: sesi halaqoh masuk ke tiap kelas sumber; pencocokan agenda ↔ jadwal ikut `halaqoh_id` |
 | `src/services/scheduleDetectionService.ts` | Pencocokan tetap membandingkan `halaqoh_id` (sudah ada) |
-| `docs/UJI-HALAQOH.md` | Checklist diarahkan ulang ke alur lintas kelas |
+| `docs/UJI-HALAQOH.md` | Checklist diarahkan ulang ke alur lintas kelas; §4b menguji filter kelas di sisi admin |
 
 ---
 
@@ -244,8 +247,9 @@ lagi menjadi titik masuk, karena satu halaqoh mencakup beberapa kelas.
   ada pengisian otomatis).
 - `AgendaDetailForm.tsx`: absensi = anggota halaqoh lintas kelas, label kelas per baris.
 - `scheduleValidation.ts`: aturan bentrok #8.
-- **Selesai bila:** guru Ummi bisa menyimpan jadwal & agenda halaqoh lintas kelas; dua halaqoh yang
-  berbagi kelas ditolak pada jam yang sama.
+- **Selesai bila:** guru Ummi bisa menyimpan jadwal & agenda halaqoh lintas kelas, dan halaqoh
+  vs sesi seluruh-kelas dari kelas sumbernya ditolak pada jam yang sama. (Dua halaqoh berbeda
+  yang berbagi kelas tetap **sah** — lihat §3 no. 8.)
 
 ### Fase 4 — Rekap & cetak — ✅ SELESAI
 - `reportQuery.ts` / `reportViewModel.ts`: *fan-out* sesi ke tiap kelas sumber; label multi-kelas.
@@ -262,14 +266,55 @@ lagi menjadi titik masuk, karena satu halaqoh mencakup beberapa kelas.
 - **Selesai bila:** ganti tahun ajaran menghasilkan daftar halaqoh yang benar-benar kosong, tanpa
   warisan anggota maupun kerangka kelompok.
 
+### Fase 6 — Perbaikan kelas baris jadwal — ✅ SELESAI
+- Ditemukan setelah uji manual: baris jadwal halaqoh **hilang** saat difilter kelas, daftar absensi
+  berputar tanpa henti, dan jadwal berkelompok bisa tergandakan saat disimpan ulang.
+- Akarnya satu: baris halaqoh tidak punya `kelas_id`, jadi turunan `kelas`-nya kosong, dan tiap
+  layar yang membandingkan `kelas` dengan satu label kelas membuang baris itu.
+- Perbaikan: `ScheduleItem.kelasList` + `kelasDariJadwal`/`jadwalMencakupKelas` (lihat §6a),
+  penjaga pemuatan siswa di `AgendaDetailForm`, pencocokan baris saat menyimpan di
+  `ScheduleManagement`, dan filter kelas di SQL.
+- **Selesai bila:** baris halaqoh tetap muncul saat difilter ke kelas sumbernya, daftar absensi
+  termuat, dan menyimpan ulang tidak menambah baris ganda.
+
+---
+
+## 6a. Kelas baris jadwal halaqoh (`kelasList`)
+
+**Masalahnya.** Baris jadwal ber-halaqoh disimpan dengan `kelas_id = NULL` — kelasnya ada di
+`halaqoh_kelas` dan bisa lebih dari satu. Akibatnya turunan `kelas` untuk baris itu adalah **string
+kosong**. Selama ini setiap layar membandingkan `kelas` dengan satu label kelas, sehingga:
+
+- baris halaqoh terbuang begitu filter kelas dipakai (Jadwal admin, Agenda admin, Rekap Harian);
+- kolom Kelas tampil kosong sehingga baris tampak anonim;
+- di `AgendaDetailForm`, penjaga `if (!kelas) return` keluar **sebelum** `finally` yang mematikan
+  spinner — daftar absensi tidak pernah dimuat dan "Memuat data siswa…" berputar selamanya;
+- di `ScheduleManagement`, pencocokan baris saat menyimpan tidak menemukan baris lama, sehingga
+  setiap penyimpanan membuat baris **baru** (jadwal ganda).
+
+**Keputusan.** `ScheduleItem` mendapat field baru **`kelasList: string[]`** — label seluruh kelas
+yang dicakup baris itu (kelas sumber untuk baris halaqoh, `[kelas]` untuk baris biasa). Diisi
+`mapScheduleRow` dari `halaqoh_kelas`, dan dipakai lewat dua helper: `kelasDariJadwal(item)` dan
+`jadwalMencakupKelas(item, label)`.
+
+**`kelas` sengaja TIDAK diubah artinya.** Ia tetap kosong untuk baris halaqoh. Alasannya konkret:
+`reportViewModel.findAgenda` dan `scheduleDetectionService` mencocokkan agenda **lama** (yang belum
+punya `schedule_id`) lewat `a.header.kelas === schedule.kelas`. Kalau `kelas` diisi label gabungan
+seperti `"3A, 4A"`, pencocokan itu putus dan agenda lama berhenti terdeteksi.
+
+**Aturan saat menyentuh baris jadwal:** untuk menyaring atau menampilkan kelas, pakai
+`kelasDariJadwal`/`kelasList` — jangan membandingkan `kelas` dengan satu label. Invarian ini
+dikunci `test_halaqoh_lintas_kelas.ts`.
+
 ---
 
 ## 7. Verifikasi
 
 - `bun run lint`
 - `bunx tsc --noEmit -p tsconfig.app.json`
-- Skrip uji relevan: `test_schema_struktur.ts`, `test_conflict.ts`, dan skrip baru untuk aturan
-  halaqoh lintas kelas (kandidat, validasi anggota ⊆ kelas sumber, bentrok berbagi kelas).
+- Skrip uji relevan: `test_schema_struktur.ts`, `test_conflict.ts`, dan
+  `test_halaqoh_lintas_kelas.ts` (bentrok halaqoh, *fan-out* rekap, dan kelas baris jadwal).
+  Berkas `test_*.ts` tidak ada di repositori — lihat catatan di `README.md`.
 - `bun run build`
 - Uji manual browser (checklist `docs/UJI-HALAQOH.md`).
 

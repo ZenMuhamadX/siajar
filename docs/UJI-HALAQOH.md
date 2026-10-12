@@ -144,7 +144,7 @@ Setelah kenaikan kelas (menu **Pengaturan → Kenaikan Kelas**):
 
 | Layar | Alasan |
 | --- | --- |
-| **Export Excel jadwal** (`.xlsx`) | Belum menyertakan kelompok — dibatasi ke rekap saja. |
+| **Export Excel jadwal** (`.xlsx`) | Sheet mingguan disusun per kolom kelas, sedangkan baris halaqoh tidak punya satu kelas — jadi baris itu tidak masuk sheet jadwal. Kelompok tetap terdokumentasi lewat rekap. |
 | **Rekap Mingguan & Bulanan** | Agregat per guru (tidak punya kolom kelas/mapel), jadi tidak ada tempat untuk kelompok. |
 | **Kuota anggota halaqoh** | Memang tidak dibatasi — guru yang mengatur komposisi. |
 

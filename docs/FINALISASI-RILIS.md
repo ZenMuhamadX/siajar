@@ -19,15 +19,19 @@ Dokumen ini adalah panduan rilis terurut untuk versi **1.0.0**: rilis yang memua
 | SIAJAR Desktop | Pembungkus Electron (`.exe`), protokol `app://`, `HashRouter`, konfigurasi runtime per sekolah |
 | Skema database | `halaqoh_kelas`, `halaqoh.academic_year_id`, `agenda_header.halaqoh_id`, CHECK baru pada `schedule`/`agenda_header` |
 
-**Cakupan branch:** `release/v1.0.0`, gabungan `feat/halaqoh-lintas-kelas` dan
-`feat/electron-desktop` di atas `main`.
+**Cakupan:** branch `release/v1.0.0`, gabungan `feat/halaqoh-lintas-kelas` dan
+`feat/electron-desktop`, **sudah di-merge ke `main`** (merge commit `a80b86d`) dan
+**sudah ditandai tag `v1.0.0`**. Yang tersisa di dokumen ini adalah pekerjaan
+sisi server — bukan lagi pekerjaan git.
 
 ---
 
 ## 1. Pemeriksaan sebelum menyentuh server
 
-- [ ] Branch rilis sudah hijau: `bun run lint`, `bunx tsc --noEmit -p tsconfig.app.json`,
-      seluruh skrip `test_*.ts`, `bun run build`. **(sudah diverifikasi)**
+- [ ] Kode sudah hijau: `bun run lint`, `bunx tsc --noEmit -p tsconfig.app.json`,
+      seluruh skrip `test_*.ts` yang Anda punya, `bun run build`. **(sudah diverifikasi)**
+      Catatan: skrip `test_*.ts` tidak ada di repositori (di-gitignore), jadi hanya
+      tersedia di mesin pengembang.
 - [ ] `version` di `package.json` sudah dinaikkan — sekarang **1.0.0**.
 - [ ] **Cadangkan database** (`pg_dump`) sebelum menjalankan migrasi apa pun.
 - [ ] Tentukan `AUTH_DOMAIN` final dan pastikan nilainya sama di **tiga** tempat:
@@ -86,7 +90,8 @@ Dokumen ini adalah panduan rilis terurut untuk versi **1.0.0**: rilis yang memua
 1. Salin berkasnya **tanpa lewat shell yang mengekspansi backtick** — pakai
    `docker cp` (cara A di `DEPLOY.md` §4). Heredoc tanpa kutip pada penutupnya
    akan merusak isi file.
-2. Verifikasi penyalinan utuh: `wc -l` harus **360**.
+2. Verifikasi penyalinan utuh: `wc -l` harus **542**. (Kalau memakai versi tanpa dependensi
+   dari `DEPLOY.md` §4, angkanya **397** — dan versi itu ketinggalan fitur manajemen staf.)
 3. Pastikan `AUTH_DOMAIN` dan `ADMIN_EMAIL` di service `functions` **terisi**,
    bukan variabel kosong. Variabel yang ada tapi kosong akan menghasilkan galat
    `Cannot create a user without either an email or phone`.
@@ -115,6 +120,11 @@ Terapkan blok Nginx + header keamanan dari `DEPLOY.md` §3 — termasuk
 
 ## 5. Build desktop (`.exe`)
 
+> **Bangun paling akhir.** `.exe` membungkus isi `dist/` pada saat perintah dijalankan. Kalau ada
+> perbaikan kode setelah `.exe` dibuat, berkas itu **basi** dan harus dibangun ulang — guru akan
+> memakai versi lama tanpa menyadarinya. Ini pernah terjadi di rilis ini: installer dari build pagi
+> belum memuat perbaikan halaqoh yang masuk siang.
+
 ```bash
 bun run desktop:dist
 ```
@@ -126,14 +136,30 @@ Menghasilkan dua berkas di `release/`:
 | `SIAJAR-Setup-1.0.0.exe` | **Dibagikan ke guru** (installer NSIS) |
 | `SIAJAR-1.0.0-x64.exe` | Versi portable, tanpa memasang |
 
-Bagikan lewat folder bersama sekolah (paling hemat kuota) atau GitHub Releases:
+Bagikan lewat **folder bersama sekolah** (paling hemat kuota internet sekolah) atau
+**GitHub Releases**.
+
+> **Repositori ini privat.** Konsekuensinya tautan Release **tidak bisa diunduh tanpa akun GitHub
+> yang diberi akses**. Untuk guru di lapangan, folder bersama sekolah atau flashdisk tetap cara
+> utama; GitHub Releases lebih cocok sebagai arsip resmi, sumber unduhan pengelola, dan jalan
+> rollback ke versi lama.
+
+Tag `v1.0.0` **sudah dibuat dan sudah dipush**, jadi Release tinggal dibuat di web UI GitHub
+(*Releases → Draft a new release → pilih tag `v1.0.0`*). Kalau memakai CLI — perhatikan bahwa
+`gh` **belum terpasang** di mesin pengembangan ini:
 
 ```bash
 gh release create v1.0.0 \
   "release/SIAJAR-Setup-1.0.0.exe" \
   "release/SIAJAR-1.0.0-x64.exe" \
   --title "SIAJAR 1.0.0" \
-  --notes "Halaqoh lintas kelas + aplikasi desktop."
+  --notes-file <berkas-catatan-rilis>
+```
+
+Isi catatan rilisnya sama dengan pesan tag `v1.0.0` — lihat dengan:
+
+```bash
+git tag -n99 v1.0.0
 ```
 
 Yang perlu diingat: `.exe` **butuh internet** (Supabase tetap di jaringan), dan
@@ -152,10 +178,16 @@ Checklist `DEPLOY.md` §6, ditambah yang khusus rilis ini
 - [ ] Bukti foto bisa diunggah dan dibuka; tanpa login ditolak.
 - [ ] **Halaqoh lintas kelas** (§1–4 `UJI-HALAQOH.md`): buat halaqoh dengan
       beberapa kelas sumber, isi anggota dari kandidat.
+- [ ] **Daftar absensi benar-benar termuat** (§4): tulisan "Memuat data siswa…" hilang
+      dan diganti daftar nama — bukan berputar terus.
+- [ ] **Filter kelas di admin** (§4b): baris halaqoh tetap muncul saat difilter ke
+      kelas sumbernya (3A maupun 4A), dan hilang saat difilter ke kelas lain.
 - [ ] **Fan-out rekap** (§5): satu sesi halaqoh muncul di rekap **setiap** kelas
       sumbernya, terbaca sebagai satu baris berlabel kelompok.
 - [ ] **Tahun ajaran baru** (§6): daftar halaqoh kosong dan **tidak ada** tombol
       salin dari tahun lalu.
+- [ ] Akun staf bisa dibuat/dihapus dari **Pengaturan → Akun Staf** (butuh Edge Function
+      versi terbaru, bukan versi fallback di `DEPLOY.md` §4).
 - [ ] Aplikasi desktop terbuka, kamera bekerja, dan menyambung ke server yang benar.
 
 ---

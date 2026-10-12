@@ -77,14 +77,21 @@ Aktifkan TLS melalui **Website → SSL → Let's Encrypt**, lalu aktifkan **Forc
 
 ## 4. Edge Function `manage-users` (Supabase self-hosted)
 
-Satu fungsi ini yang membuat akun, mengubah kode, dan menonaktifkan akun guru. Fungsinya memakai `npm:@supabase/supabase-js@2`.
+Satu fungsi ini yang membuat akun, mengubah kode, menonaktifkan akun guru, dan mengelola akun staf. Fungsinya memakai `npm:@supabase/supabase-js@2`.
 
-> Butuh `edge-runtime` yang mendukung specifier `npm:` (instalasi self-hosted 2024 ke atas) dan akses ke registry npm. Kalau muncul galat module resolution saat deploy, ganti ke versi tanpa dependensi:
+> Butuh `edge-runtime` yang mendukung specifier `npm:` (instalasi self-hosted 2024 ke atas) dan akses ke registry npm. Kalau muncul galat module resolution saat deploy, ada versi tanpa dependensi di riwayat git:
 >
 > ```bash
-> git show 1879fc4:supabase/functions/manage-users/index.ts > volumes/functions/manage-users/index.ts
+> git show 6a29c14:supabase/functions/manage-users/index.ts > volumes/functions/manage-users/index.ts
 > docker compose restart functions
 > ```
+>
+> **Baca dulu sebelum memakainya.** Versi itu build lama dan **ketinggalan fitur**: ia hanya
+> mendukung 6 aksi (`status`, `bootstrap-admin`, `list-accounts`, `create-teacher`,
+> `set-teacher-code`, `set-teacher-active`), sedangkan versi sekarang mendukung 10 — tanpa
+> `list-staff`, `create-staff`, `delete-staff`, dan `set-staff-password`. Artinya manajemen akun
+> staf/tata usaha tidak akan jalan. Pakai hanya sebagai penambal sementara, dan utamakan
+> menaikkan `edge-runtime` ke versi yang mendukung `npm:`.
 
 ### 4.1 Pasang fungsinya
 
@@ -143,13 +150,14 @@ EOF
 
 Tanpa tanda kutip itu, `` `...` `` dan `${...}` akan diekspansi shell dan file jadi rusak.
 
-**Verifikasi setelah menyalin** — jumlah baris harus **360**:
+**Verifikasi setelah menyalin** — jumlah baris harus **542**:
 
 ```bash
 wc -l volumes/functions/manage-users/index.ts
 ```
 
-Kalau angkanya berbeda, penyalinan tidak utuh: ulangi dengan cara A.
+Kalau angkanya berbeda, penyalinan tidak utuh: ulangi dengan cara A. (Kalau Anda memakai versi
+tanpa dependensi dari §4, angkanya lain — versi itu **397** baris.)
 
 ### 4.2 Variabel lingkungan
 
@@ -280,6 +288,8 @@ Backup database terlebih dahulu, lalu jalankan `supabase/schema.sql` untuk menye
 - [ ] Guru dapat masuk dengan kode pribadinya dan tetap masuk setelah refresh.
 - [ ] Kode guru bisa diganti dari panel; kode lama tidak berlaku lagi.
 - [ ] Akun guru yang dinonaktifkan tidak bisa masuk.
+- [ ] Akun staf dapat dibuat, dilihat, dan dihapus dari **Pengaturan → Akun Staf**; sandinya bisa diganti.
+      (Butuh Edge Function versi terbaru — lihat peringatan di §4.)
 - [ ] Sandi admin dapat diganti dari **Pengaturan → Keamanan Akun**.
 - [ ] Tanpa login, query langsung ke `agenda.siswa` ditolak server (bukan hanya disembunyikan UI).
 - [ ] Bukti foto dapat diunggah dan dibuka; tanpa login ditolak.

@@ -117,19 +117,26 @@ bersama.
 ±107 MB. Untuk 20 guru itu ±2 GB. Jika kuota sekolah terbatas, pilih cara
 pertama.
 
-Atau lewat GitHub Releases:
+Atau lewat GitHub Releases. Tag rilisnya dibuat lebih dulu dari sisi git, lalu Release-nya
+mengacu ke tag itu:
 
 ```bash
-# sekali saja
+# sekali saja, kalau memakai CLI (gh belum terpasang secara bawaan)
 gh auth login
 
-# setiap kali merilis
-gh release create v0.1.0 \
-  "release/SIAJAR-Setup-0.1.0.exe" \
-  "release/SIAJAR-0.1.0-x64.exe" \
-  --title "SIAJAR 0.1.0" \
+# setiap kali merilis: tag dulu, baru unggah
+git tag -a v1.0.0 -m "SIAJAR v1.0.0"
+git push origin v1.0.0
+
+gh release create v1.0.0 \
+  "release/SIAJAR-Setup-1.0.0.exe" \
+  "release/SIAJAR-1.0.0-x64.exe" \
+  --title "SIAJAR 1.0.0" \
   --notes "Ringkasan perubahan di versi ini."
 ```
+
+Bisa juga tanpa CLI: buat tag lewat git seperti di atas, lalu di web GitHub pilih
+*Releases → Draft a new release* dan pilih tag yang sudah ada.
 
 Repositori ini privat, jadi unduhan lewat tautan rilisnya butuh akun GitHub
 yang diberi akses. Praktis kalau guru/pengelola memang punya akun; kalau tidak,
@@ -361,14 +368,9 @@ Langkah perbaikan, dari yang paling ringan:
    bunx electron-builder --config.directories.output=release-baru
    ```
 
-   Installer akan muncul di `release-baru/`. Nama itu belum masuk `.gitignore`,
-   jadi hapus setelah selesai. Selain itu, tambahkan baris berikut ke bagian
-   bawah `.gitignore` supaya folder itu tidak ikut ter-commit:
-
-   ```gitignore
-   # Folder keluaran sementara saat release/ sedang terkunci.
-   release-*/
-   ```
+   Installer akan muncul di `release-baru/`. Pola `release-*/` **sudah ada di
+   `.gitignore`**, jadi folder itu tidak akan ikut ter-commit. Tetap hapus setelah
+   selesai supaya tidak menumpuk (±370 MB per build).
 
 > **Pencegahan.** Jangan menaruh folder proyek di dalam folder yang
 > disinkronkan klien cloud. Selain memicu kunci berkas seperti ini, setiap

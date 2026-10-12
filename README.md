@@ -2,6 +2,14 @@
 
 Aplikasi web untuk mencatat agenda pembelajaran, absensi, bukti foto, dan rekap mengajar guru. Dibangun sebagai SPA (React + TypeScript + Vite) dengan Supabase (PostgreSQL + Storage) sebagai backend.
 
+Fitur yang perlu diketahui sejak awal:
+
+- **Jadwal & agenda per kelas** — satu baris jadwal, satu guru, satu sesi.
+- **Halaqoh lintas kelas** (metode Ummi) — kelompok belajar yang mencakup **beberapa kelas sekaligus**. Satu halaqoh punya daftar *kelas sumber*, anggotanya dipilih per siswa, dan satu kelas boleh menyuplai beberapa halaqoh. Rancangannya di [docs/DESAIN-HALAQOH-LINTAS-KELAS.md](docs/DESAIN-HALAQOH-LINTAS-KELAS.md).
+- **Rekap fan-out** — satu sesi halaqoh muncul di rekap **setiap** kelas sumbernya, sebagai satu baris berlabel kelompok.
+- **Kenaikan kelas** — status siswa dibaca per tahun ajaran, tidak berlaku surut.
+- **Versi desktop** (`.exe`) — kemasan Electron dari aplikasi yang sama; lihat bagian Deployment di bawah.
+
 ## Menjalankan secara lokal
 
 ```bash
@@ -103,14 +111,18 @@ File migrasi lama dipindahkan ke `supabase/legacy/` dan hanya diperlukan untuk d
 
 ### Urutan deploy saat master kelas berubah
 
-`schema.sql` bagian 9 mengubah nilai teks kelas di `agenda.siswa`, `agenda.schedule`,
-`agenda.homeroom_assignment`, dan `agenda.agenda_header` dari `KELAS 1` menjadi `1A`.
-Daftar kelas di frontend **tidak lagi hardcoded** — ia dibaca dari tabel `agenda.kelas`
-lewat `ClassProvider`.
+Kelas tidak lagi disimpan sebagai teks. Kolom teks lama (`siswa.kelas`, `schedule.class_id`,
+`homeroom_assignment.class_id`, `agenda_header.kelas`) **sudah dihapus** dan digantikan referensi
+`kelas_id` ke `agenda.kelas`. Perapian nilai teks lama (`KELAS 1` → `1A`) untuk database yang
+sudah berjalan ada di `schema.sql` bagian 10 dan 11, masing-masing di dalam blok `DO` yang dijaga
+keberadaan kolomnya. Bagian 9 sendiri hanya menyentuh `agenda.kelas` — tabel master yang selalu ada.
 
-Karena itu, menjalankan `schema.sql` dan mengunggah bundle baru harus **berdekatan**.
-Kalau SQL jalan sementara bundle lama masih terpasang, pilihan filter kelas akan kosong
-sampai bundle baru naik. Lakukan di luar jam sekolah.
+Daftar kelas di frontend **tidak lagi hardcoded** — ia dibaca dari tabel `agenda.kelas` lewat
+`ClassProvider`.
+
+Karena itu, untuk database yang sudah berjalan, menjalankan `schema.sql` dan mengunggah bundle baru
+harus **berdekatan**. Kalau SQL jalan sementara bundle lama masih terpasang, pilihan filter kelas
+akan kosong sampai bundle baru naik. Lakukan di luar jam sekolah.
 
 Untuk instalasi baru, urutan itu tidak berlaku — tidak ada data lama yang perlu diubah.
 
@@ -125,14 +137,21 @@ Backup dulu, lalu jalankan `supabase/schema.sql` untuk menyelaraskan struktur da
 ```bash
 bun run lint
 bunx tsc --noEmit -p tsconfig.app.json
+bun test_schema_struktur.ts
 bun test_conflict.ts
+bun test_halaqoh_lintas_kelas.ts
 bun test_stage2_integration.ts
 bun test_report_pdf_model.ts
 bun test_promotion_preview.ts
 bun test_status_per_tahun.ts
-bun test_schema_struktur.ts
 bun run build
 ```
+
+> **Skrip `test_*.ts` tidak ada di repositori.** Berkas itu di-gitignore (lihat `.gitignore`) dan
+> memang alat uji manual di mesin pengembang — dijalankan langsung dengan `bun`, bukan lewat test
+> runner. Jadi setelah `git clone`, daftar di atas hanya bisa dijalankan kalau Anda punya berkasnya
+> sendiri. Untuk kontributor baru, acuan verifikasi yang tersedia adalah `bun run lint`,
+> `bunx tsc --noEmit`, dan `bun run build`.
 
 `test_schema_struktur.ts` memeriksa `supabase/schema.sql` tanpa perlu database:
 keseimbangan `$$`, pasangan `THEN` ↔ `END IF;` di setiap blok `DO`, dan yang
@@ -158,6 +177,14 @@ dari penempatan tahun itu (`agenda.siswa_kelas.status`).
 (siapa naik, siapa lulus, siapa dilewati). Aturan yang sama diulang di fungsi SQL
 `agenda.kenaikan_kelas` — kalau keduanya berbeda, pratinjau di halaman akan
 berbohong tentang apa yang benar-benar terjadi.
+
+`test_halaqoh_lintas_kelas.ts` mengunci tiga hal sekaligus: aturan bentrok halaqoh
+(dua halaqoh berbeda **tidak** bentrok; halaqoh vs sesi seluruh-kelas dari kelas
+sumbernya **bentrok**), *fan-out* rekap (satu sesi menghasilkan satu baris dengan
+seluruh kelas sumbernya), dan **kelas baris jadwal halaqoh**. Yang terakhir itu
+invarian paling mudah rusak: baris halaqoh disimpan dengan `kelas_id` NULL, jadi
+`kelas`-nya memang kosong sementara `kelasList` yang berisi kelas sumber. Kalau
+`kelas` sampai terisi label gabungan, pencocokan agenda lama ikut putus.
 
 `tmp-settings.test.ts` adalah berkas kerja, bukan bagian dari rangkaian di atas.
 Satu uji di dalamnya (`showBorders=false`) memang sudah gagal sejak sebelum
