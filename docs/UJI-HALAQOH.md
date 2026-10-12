@@ -103,14 +103,13 @@ Menu **Rekap**, untuk tanggal yang barusan diisi.
 
 ---
 
-## 6. Salin halaqoh antar tahun ajaran
+## 6. Tahun ajaran baru (halaqoh dibuat dari nol)
 
 Setelah kenaikan kelas (menu **Pengaturan → Kenaikan Kelas**):
 
 - [ ] Buka **Master Data → Halaqoh** pada tahun ajaran baru. Daftarnya kosong.
-- [ ] Klik **Salin dari tahun lalu** → kerangka kelompok (nama + kelas sumber) tersalin,
-      **tanpa anggota**.
-- [ ] Isi anggotanya kembali dari daftar kandidat.
+- [ ] **Tidak ada** tombol salin/impor dari tahun lalu — halaqoh harus dibuat manual.
+- [ ] Tambah halaqoh baru + pilih kelas sumbernya, lalu isi anggotanya dari daftar kandidat.
 
 ---
 

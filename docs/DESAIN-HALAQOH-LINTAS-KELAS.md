@@ -255,11 +255,12 @@ lagi menjadi titik masuk, karena satu halaqoh mencakup beberapa kelas.
 
 ### Fase 5 — Tahun ajaran baru & verifikasi akhir — ✅ SELESAI
 - Integrasi dengan alur kenaikan kelas (`docs/DESAIN_KENAIKAN_KELAS.md`): saat tahun ajaran baru,
-  halaqoh dibuat ulang. Sediakan bantuan opsional "salin kelas sumber dari tahun lalu" (anggota
-  tetap kosong karena roster berubah).
+  halaqoh **dibuat ulang dari nol** — tidak ada salin/impor kerangka dari tahun lalu. Grup, kelas
+  sumber, dan anggotanya semuanya disusun manual karena roster berubah tiap tahun.
 - `docs/UJI-HALAQOH.md` diperbarui; uji manual browser; `bun run lint`, `bunx tsc --noEmit`,
   `test_*.ts`, `bun run build`.
-- **Selesai bila:** ganti tahun ajaran menghasilkan halaqoh baru yang bersih, tanpa warisan anggota.
+- **Selesai bila:** ganti tahun ajaran menghasilkan daftar halaqoh yang benar-benar kosong, tanpa
+  warisan anggota maupun kerangka kelompok.
 
 ---
 
