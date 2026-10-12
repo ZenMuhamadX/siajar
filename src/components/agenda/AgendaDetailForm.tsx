@@ -29,6 +29,7 @@ import {
   RefreshCw,
   RotateCcw,
   Users,
+  BadgeCheck,
 } from 'lucide-react';
 
 /**
@@ -823,6 +824,27 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
               )}
             </div>
           </div>
+
+          {/* Badge validasi — muncul saat agenda sudah tersimpan */}
+          {existingAgenda && (
+            <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <BadgeCheck className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
+              <span className="text-xs text-emerald-800">
+                <span className="font-semibold">Tervalidasi</span>
+                <span className="text-emerald-600 mx-1">&bull;</span>
+                Diisi oleh{' '}
+                <strong>{existingAgenda.header.actual_teacher_name || scheduledTeacherName}</strong>
+                {existingAgenda.header.created_at && (
+                  <>
+                    {' '}pada{' '}
+                    <time dateTime={existingAgenda.header.created_at}>
+                      {formatDateTimeShort(existingAgenda.header.created_at)}
+                    </time>
+                  </>
+                )}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Pemberitahuan draf yang dipulihkan */}

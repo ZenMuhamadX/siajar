@@ -22,7 +22,6 @@ import {
   Camera,
   BarChart3,
   Layers,
-  Lock,
   CheckCircle2,
   AlertCircle,
   XCircle,
@@ -243,12 +242,25 @@ const guruSections: Section[] = [
           </div>
         </AccordionItem>
         <div className="h-2" />
-        <AccordionItem title="4. Tanda Tangan Digital" icon={<Lock className="w-4 h-4" />}>
+        <AccordionItem title="4. Validasi Sistem" icon={<CheckCircle2 className="w-4 h-4" />}>
           <div className="space-y-2">
             <p>
-              Sebelum menyimpan, Anda akan diminta <strong>menandatangani</strong> secara digital sebagai bukti keaslian entri.
+              Setelah agenda <strong>tersimpan</strong>, sistem otomatis mencatat identitas pengisi dan waktunya.
+              Badge <strong>"Tervalidasi"</strong> akan muncul di bagian atas formulir agenda.
             </p>
-            <p>Tanda tangan bersifat wajib dan tidak bisa diubah setelah disimpan.</p>
+            <p>Badge tersebut menampilkan:</p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>
+                <strong>Nama guru</strong> yang mengisi agenda
+              </li>
+              <li>
+                <strong>Tanggal dan waktu</strong> penyimpanan
+              </li>
+            </ul>
+            <Note>
+              Data validasi bersifat otomatis dan tidak bisa diubah — terkait dengan akun login guru.
+              Admin bisa melihat detail ini saat membuka agenda dari panel admin.
+            </Note>
           </div>
         </AccordionItem>
       </div>
@@ -267,7 +279,7 @@ const guruSections: Section[] = [
           Gunakan filter tanggal atau kelas untuk menemukan agenda tertentu. Anda juga bisa mencari berdasarkan nama mapel.
         </Step>
         <Step number={2} title="Lihat Detail">
-          Klik baris agenda untuk melihat detail lengkap — absensi, materi, foto, dan tanda tangan.
+          Klik baris agenda untuk melihat detail lengkap — absensi, materi, dan foto.
         </Step>
         <Step number={3} title="Edit atau Hapus">
           <ul className="list-disc list-inside space-y-1 mt-1">
@@ -538,10 +550,10 @@ const adminSections: Section[] = [
           Gunakan filter tanggal, kelas, atau guru untuk menyaring data.
         </Step>
         <Step number={2} title="Lihat Detail">
-          Klik baris agenda untuk melihat detail lengkap — absensi, materi, foto, dan tanda tangan guru.
+          Klik baris agenda untuk melihat detail lengkap — absensi, materi, dan foto.
         </Step>
         <Step number={3} title="Edit">
-          Klik ikon pensil. Anda bisa mengubah absensi, materi, atau foto. Tanda tangan tetap milik guru asli.
+          Klik ikon pensil. Anda bisa mengubah absensi, materi, atau foto. Data validasi (nama & waktu) tetap tercatat sebagai guru asli pengisi.
         </Step>
         <Step number={4} title="Hapus">
           Klik ikon tempat sampah untuk menghapus agenda. Aksi ini permanen.
@@ -601,7 +613,7 @@ const adminSections: Section[] = [
             <Step number={2} title="Klik baris untuk melihat detail" />
             <Step number={3} title="Klik Unduh PDF untuk ekspor" />
             <Tip>
-              Log Jurnal adalah laporan paling detail — menampilkan absensi per siswa, materi, foto, dan tanda tangan.
+              Log Jurnal adalah laporan paling detail — menampilkan absensi per siswa, materi, dan foto.
             </Tip>
           </div>
         </AccordionItem>
