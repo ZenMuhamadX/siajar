@@ -5,7 +5,7 @@ Aplikasi web untuk mencatat agenda pembelajaran, absensi, bukti foto, dan rekap 
 Fitur yang perlu diketahui sejak awal:
 
 - **Jadwal & agenda per kelas** — satu baris jadwal, satu guru, satu sesi.
-- **Halaqoh lintas kelas** (metode Ummi) — kelompok belajar yang mencakup **beberapa kelas sekaligus**. Satu halaqoh punya daftar *kelas sumber*, anggotanya dipilih per siswa, dan satu kelas boleh menyuplai beberapa halaqoh. Rancangannya di [docs/DESAIN-HALAQOH-LINTAS-KELAS.md](docs/DESAIN-HALAQOH-LINTAS-KELAS.md).
+- **Halaqoh lintas kelas** (metode Ummi) — kelompok belajar yang mencakup **beberapa kelas sekaligus**. Satu halaqoh punya daftar *kelas sumber*, anggotanya dipilih per siswa, dan satu kelas boleh menyuplai beberapa halaqoh.
 - **Rekap fan-out** — satu sesi halaqoh muncul di rekap **setiap** kelas sumbernya, sebagai satu baris berlabel kelompok.
 - **Kenaikan kelas** — status siswa dibaca per tahun ajaran, tidak berlaku surut.
 - **Versi desktop** (`.exe`) — kemasan Electron dari aplikasi yang sama; lihat bagian Deployment di bawah.

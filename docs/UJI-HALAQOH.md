@@ -3,7 +3,20 @@
 Checklist untuk menguji sendiri seluruh alur halaqoh **lintas kelas**. Dijalankan
 **berurutan** — tiap bagian bergantung pada bagian sebelumnya.
 
-Latar desain lengkap: `docs/DESAIN-HALAQOH-LINTAS-KELAS.md`.
+**Aturan yang dikunci** (ditegakkan di kode, jadi inilah yang harus terbukti saat diuji):
+
+1. Halaqoh punya **daftar kelas sumber** (kolam kandidat), bukan satu kelas pemilik.
+   Satu kelas boleh menyuplai beberapa halaqoh, dan sebaliknya.
+2. Anggota **dipilih per siswa** — bukan otomatis seluruh kelas. Satu siswa hanya boleh
+   ada di **satu** halaqoh per tahun ajaran.
+3. Halaqoh milik **satu tahun ajaran** dan **dibuat dari nol** tiap tahun — tidak ada
+   salin/impor kerangka dari tahun sebelumnya.
+4. **Guru diisi manual di baris jadwal**, bukan disimpan di halaqoh.
+5. Dua halaqoh berbeda yang **berbagi kelas itu SAH** (satu kelas dipecah jadi beberapa
+   kelompok). Yang **bentrok** adalah halaqoh vs sesi **seluruh kelas** dari kelas
+   sumbernya — siswa akan berada di dua tempat.
+6. Satu sesi halaqoh menghasilkan **satu baris** rekap, tetapi muncul di rekap
+   **setiap** kelas sumbernya.
 
 ---
 
