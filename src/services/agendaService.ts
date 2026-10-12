@@ -187,6 +187,10 @@ export async function getDaftarSiswa(options?: {
  * mengabsen kelompoknya sendiri. Menampilkan seluruh kelas akan membuat guru
  * menandai anak yang bukan tanggung jawabnya, dan absensi kelas penuh jadi
  * bolong karena setiap guru mengisi bagian yang berbeda.
+ *
+ * PENTING (halaqoh lintas kelas): kelas tiap siswa dibaca dari `siswa_kelas`
+ * pada tahun ajaran berjalan, BUKAN dari halaqoh. Satu halaqoh boleh mencakup
+ * beberapa kelas, jadi halaqoh tidak lagi menunjuk kelas mana pun.
  */
 export async function getSiswaHalaqoh(
   halaqohId: string,
@@ -199,8 +203,8 @@ export async function getSiswaHalaqoh(
     .from('siswa_halaqoh')
     .select(
       'siswa_id, ' +
-        'siswa:siswa_id (id, nama_siswa, nis, status), ' +
-        'halaqoh:halaqoh_id (kelas_id, kelas:kelas_id (label))',
+        'siswa:siswa_id (id, nama_siswa, nis, status, ' +
+        'siswa_kelas (kelas_id, academic_year_id, kelas:kelas_id (label)))',
     )
     .eq('halaqoh_id', halaqohId)
     .eq('academic_year_id', academicYearId);
@@ -213,21 +217,29 @@ export async function getSiswaHalaqoh(
       nama_siswa?: string;
       nis?: string | null;
       status?: string;
+      siswa_kelas?: {
+        kelas_id?: string;
+        academic_year_id?: string;
+        kelas?: { label?: string } | null;
+      }[] | null;
     } | null;
-    halaqoh?: { kelas_id?: string; kelas?: { label?: string } | null } | null;
   };
 
   const hasil: SiswaTerdaftar[] = [];
   for (const row of (data ?? []) as unknown as Row[]) {
     const s = row.siswa;
     if (!s?.id) continue;
+    // Penempatan tahun berjalan — satu siswa punya satu baris per tahun.
+    const penempatan = (s.siswa_kelas ?? []).find(
+      (sk) => sk.academic_year_id === academicYearId,
+    );
     hasil.push({
       id: s.id,
       nama_siswa: s.nama_siswa ?? '',
       nis: s.nis ?? null,
       status: (s.status ?? 'AKTIF') as SiswaTerdaftar['status'],
-      kelas: row.halaqoh?.kelas?.label ?? '',
-      kelas_id: row.halaqoh?.kelas_id ?? '',
+      kelas: penempatan?.kelas?.label ?? '',
+      kelas_id: penempatan?.kelas_id ?? '',
       academic_year_id: academicYearId,
     });
   }
@@ -515,6 +527,14 @@ export async function deleteMapel(id: string): Promise<void> {
 export interface SimpanAgendaPayload {
   agendaId?: string;
   schedule_id?: string | null;
+  /**
+   * Halaqoh sesi ini, bila jurnalnya milik mapel berkelompok (Ummi).
+   *
+   * Sesi halaqoh bisa mencakup beberapa kelas, jadi `kelas` (satu label) tidak
+   * cukup untuk menandai kelas penerima rekap. `halaqoh_id` inilah yang dipakai
+   * rekap untuk menyebar ke tiap kelas sumber halaqoh.
+   */
+  halaqoh_id?: string | null;
   actual_teacher_name?: string | null;
   sekolah?: string;
   kelas: string;
@@ -528,6 +548,7 @@ export async function simpanAgenda(payload: SimpanAgendaPayload): Promise<{ id: 
   const {
     agendaId,
     schedule_id,
+    halaqoh_id,
     actual_teacher_name,
     // Nama sekolah dari Pengaturan. Agenda lama tetap memakai nilai yang
     // tersimpan saat itu — itu memang benar untuk jejak audit.
@@ -543,9 +564,14 @@ export async function simpanAgenda(payload: SimpanAgendaPayload): Promise<{ id: 
 
   // Terjemahan label → kelas_id di luar try mana pun: kelas yang tidak ada di
   // master data harus melempar, bukan tersimpan sebagai agenda tanpa kelas.
+  //
+  // Baris halaqoh lintas kelas tidak punya satu kelas: `kelas_id` dibiarkan NULL
+  // dan kelas penerima rekap diturunkan dari `halaqoh_kelas`. CHECK di database
+  // mewajibkan salah satu dari kelas_id/halaqoh_id terisi.
   const headerPayload: any = {
     sekolah,
-    kelas_id: await resolveKelasId(kelas),
+    kelas_id: halaqoh_id ? null : await resolveKelasId(kelas),
+    halaqoh_id: halaqoh_id ?? null,
     tanggal,
   };
   if (schedule_id !== undefined) headerPayload.schedule_id = schedule_id;
@@ -613,6 +639,7 @@ export async function simpanAgenda(payload: SimpanAgendaPayload): Promise<{ id: 
 const AGENDA_DETAIL_SELECT = `
       *,
       kelas:kelas_id (label),
+      halaqoh:halaqoh_id (nama),
       agenda_kbm (*, halaqoh:halaqoh_id (nama)),
       agenda_absensi (
         *,
@@ -636,6 +663,7 @@ const AGENDA_DETAIL_SELECT = `
 const AGENDA_DETAIL_SELECT_BY_TEACHER = `
       *,
       kelas:kelas_id (label),
+      halaqoh:halaqoh_id (nama),
       agenda_kbm!inner (*, halaqoh:halaqoh_id (nama)),
       agenda_absensi (
         *,
@@ -660,6 +688,8 @@ function mapAgendaRow(item: any): FullAgenda {
       kelas: item.kelas?.label ?? '',
       tanggal: item.tanggal,
       schedule_id: item.schedule_id || null,
+      halaqoh_id: item.halaqoh_id || null,
+      halaqoh: item.halaqoh?.nama ?? null,
       actual_teacher_name: item.actual_teacher_name || null,
       created_at: item.created_at,
     },

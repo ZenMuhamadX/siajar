@@ -29,6 +29,12 @@ export interface SlotRow {
   scheduleId: string | null;
   agendaId: string | null;
   classId: string;
+  /**
+   * Kelas-kelas yang dicakup baris ini. Sesi seluruh kelas isinya satu kelas;
+   * sesi halaqoh lintas kelas isinya SELURUH kelas sumber halaqoh — itulah yang
+   * membuat satu sesi muncul di rekap tiap kelas anggotanya.
+   */
+  classIds: string[];
   subjectName: string;
   /**
    * Nama halaqoh (kelompok) bila baris ini bagian dari mapel berkelompok.
@@ -61,6 +67,12 @@ export interface BuildSlotRowsInput {
   agendas: FullAgenda[];
   /** Substitusi dalam rentang; yang `cancelled_at` terisi diabaikan pemanggil. */
   substitutions: Substitution[];
+  /**
+   * Peta halaqoh → label kelas sumbernya. Diperlukan agar sesi halaqoh lintas
+   * kelas dikenali kelas mana saja yang menerima rekapnya. Kosong berarti tidak
+   * ada halaqoh lintas kelas (perilaku lama).
+   */
+  halaqohKelas?: Record<string, string[]>;
   /** "Sekarang" untuk menentukan status slot yang belum Terisi. */
   now?: Date;
 }
@@ -171,6 +183,19 @@ function resolveTeacher(
 export function buildSlotRows(input: BuildSlotRowsInput): SlotRow[] {
   const { dates, schedules, agendas, substitutions } = input;
   const now = input.now ?? new Date();
+  const halaqohKelas = input.halaqohKelas ?? {};
+
+  /**
+   * Kelas-kelas yang dicakup sebuah baris. Sesi halaqoh mengambil SELURUH kelas
+   * sumbernya (bisa lebih dari satu); sesi biasa hanya kelasnya sendiri.
+   */
+  const kelasUntuk = (halaqohId: string | null | undefined, kelas: string): string[] => {
+    if (halaqohId) {
+      const sumber = halaqohKelas[halaqohId];
+      if (sumber && sumber.length > 0) return sumber;
+    }
+    return kelas ? [kelas] : [];
+  };
 
   // Indeks agar pencocokan O(1), bukan `find` di dalam loop.
   const bySlot = new Map<string, FullAgenda>();
@@ -218,12 +243,16 @@ export function buildSlotRows(input: BuildSlotRowsInput): SlotRow[] {
               : 'BELUM_TEREALISASI';
       }
 
+      const kelasList = kelasUntuk(schedule.halaqoh_id, schedule.kelas);
       rows.push({
         key: slotKey(schedule.id, date),
         date,
         scheduleId: schedule.id,
         agendaId: agenda?.header.id || null,
-        classId: schedule.kelas,
+        // Sesi halaqoh tidak punya satu kelas: labelnya digabung dari kelas
+        // sumber, dan `classIds` itulah yang dipakai menyaring rekap per kelas.
+        classId: schedule.halaqoh_id ? kelasList.join(', ') : schedule.kelas,
+        classIds: kelasList,
         subjectName: schedule.subject_name,
         // Baris jadwal adalah sumber utama: guru ditentukan di baris ini, jadi
         // halaqoh-nya pun pasti. Cadangan ke KBM hanya untuk agenda lama yang
@@ -253,12 +282,14 @@ export function buildSlotRows(input: BuildSlotRowsInput): SlotRow[] {
 
     const kbmFirst = agenda.kbm?.[0];
     const isBadal = Boolean(kbmFirst?.is_badal);
+    const kelasListAgenda = kelasUntuk(agenda.header.halaqoh_id, agenda.header.kelas);
     rows.push({
       key: `${agenda.header.tanggal}|manual|${agenda.header.id}`,
       date: agenda.header.tanggal,
       scheduleId: null,
       agendaId: agenda.header.id,
-      classId: agenda.header.kelas,
+      classId: agenda.header.halaqoh_id ? kelasListAgenda.join(', ') : agenda.header.kelas,
+      classIds: kelasListAgenda,
       subjectName: kbmFirst?.mapel || 'Pembelajaran',
       // Agenda tanpa slot: satu-satunya sumber halaqoh adalah baris KBM-nya.
       kelompok: kbmFirst?.halaqoh || null,

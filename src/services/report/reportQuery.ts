@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase';
 import { findKelasId } from '../classService';
+import { getHalaqohIdsByKelas, getKelasSumberMap } from '../halaqohService';
 
 /**
  * Lapisan query khusus daftar jurnal (bukan detail).
@@ -36,6 +37,13 @@ export interface JournalRow {
   id: string;
   sekolah: string | null;
   kelas: string;
+  /**
+   * Halaqoh sesi ini (bila mapel berkelompok). Untuk sesi halaqoh lintas kelas,
+   * `kelas` diisi dari kelas sumbernya saat baris dipetakan — lihat
+   * `isiKelasHalaqoh`.
+   */
+  halaqohId?: string | null;
+  halaqohName?: string | null;
   tanggal: string;
   scheduleId: string | null;
   actualTeacherName: string | null;
@@ -75,6 +83,8 @@ export const JOURNAL_LIST_SELECT = `
   id,
   sekolah,
   kelas:kelas_id (label),
+  halaqoh_id,
+  halaqoh_ref:halaqoh_id (nama),
   tanggal,
   schedule_id,
   actual_teacher_name,
@@ -214,6 +224,7 @@ function buildJournalQuery(
   params: JournalQueryParams,
   searchIds: string[] | null,
   kelasId: string | null | undefined,
+  halaqohIds: string[],
 ) {
   const { startDate, endDate } = params;
   let q = supabase
@@ -227,7 +238,14 @@ function buildJournalQuery(
     // "tanpa filter", yang justru akan menampilkan seluruh sekolah.
     q = q.eq('id', NO_MATCH_ID);
   } else if (kelasId !== undefined) {
-    q = q.eq('kelas_id', kelasId);
+    // Sesi halaqoh lintas kelas tidak punya `kelas_id`; ia harus muncul di tiap
+    // kelas sumbernya. `or` di sini hanya menyebut dua kolom top-level
+    // `agenda_header` — bentuk yang didukung PostgREST (lihat catatan batasan di
+    // atas). Koma di dalam `in.(...)` adalah pemisah daftar id, bukan kondisi.
+    q =
+      halaqohIds.length > 0
+        ? q.or(`kelas_id.eq.${kelasId},halaqoh_id.in.(${halaqohIds.join(',')})`)
+        : q.eq('kelas_id', kelasId);
   }
 
   if (!isAll(params.teacherName)) {
@@ -260,6 +278,8 @@ export function mapJournalRow(item: any): JournalRow {
     sekolah: item.sekolah ?? null,
     // `JOURNAL_LIST_SELECT` mengambil labelnya lewat relasi `kelas_id`.
     kelas: item.kelas?.label ?? '',
+    halaqohId: item.halaqoh_id ?? null,
+    halaqohName: item.halaqoh_ref?.nama ?? null,
     tanggal: item.tanggal,
     scheduleId: item.schedule_id ?? null,
     actualTeacherName: item.actual_teacher_name ?? null,
@@ -284,6 +304,24 @@ export function mapJournalRow(item: any): JournalRow {
   };
 }
 
+/**
+ * Isi label kelas untuk baris sesi halaqoh.
+ *
+ * Sesi halaqoh lintas kelas tidak punya `kelas_id`, jadi `kelas`-nya kosong.
+ * Agar tabel dan PDF tetap menyebut kelas mana yang menerima rekapnya, labelnya
+ * digabung dari kelas sumber halaqoh. Dipanggil sekali per hasil (bukan per
+ * baris) supaya petanya hanya diambil satu kali.
+ */
+async function isiKelasHalaqoh(rows: JournalRow[]): Promise<void> {
+  const perlu = rows.filter((r) => !r.kelas && r.halaqohId);
+  if (perlu.length === 0) return;
+  const map = await getKelasSumberMap();
+  for (const r of perlu) {
+    const sumber = r.halaqohId ? map[r.halaqohId] : undefined;
+    if (sumber && sumber.length > 0) r.kelas = sumber.join(', ');
+  }
+}
+
 export interface JournalRowsResult {
   rows: JournalRow[];
   /** Total baris yang cocok filter (untuk paginasi server). */
@@ -296,13 +334,17 @@ export interface JournalRowsResult {
 export async function queryJournalRows(params: JournalQueryParams): Promise<JournalRowsResult> {
   const { ids, truncated } = await resolveSearchIds(params.search || '');
   const kelasId = await resolveClassFilterId(params.classId);
+  const halaqohIds = kelasId ? await getHalaqohIdsByKelas(kelasId) : [];
   const { data, error, count } = await buildJournalQuery(
     params,
     truncated ? null : ids,
     kelasId,
+    halaqohIds,
   );
   if (error) throw error;
-  return { rows: (data || []).map(mapJournalRow), total: count ?? 0, searchTruncated: truncated };
+  const rows = (data || []).map(mapJournalRow);
+  await isiKelasHalaqoh(rows);
+  return { rows, total: count ?? 0, searchTruncated: truncated };
 }
 
 /**
@@ -341,6 +383,7 @@ export async function queryAllJournalRowsForPrint(
   const { ids, truncated: searchTruncated } = await resolveSearchIds(params.search || '');
   const effectiveIds = searchTruncated ? null : ids;
   const kelasId = await resolveClassFilterId(params.classId);
+  const halaqohIds = kelasId ? await getHalaqohIdsByKelas(kelasId) : [];
 
   const all: JournalRow[] = [];
   let offset = 0;
@@ -351,7 +394,8 @@ export async function queryAllJournalRowsForPrint(
     const { data, error, count } = await buildJournalQuery(
       { ...params, page: undefined, pageSize: undefined },
       effectiveIds,
-      kelasId
+      kelasId,
+      halaqohIds
     )
       // `buildJournalQuery` tidak menerima rentang kustom, jadi batasi di sini.
       .range(offset, offset + chunkLimit - 1);
@@ -363,11 +407,13 @@ export async function queryAllJournalRowsForPrint(
 
     const total = count ?? all.length;
     if (batch.length < chunkLimit || all.length >= total) {
+      await isiKelasHalaqoh(all);
       return { rows: all, total, truncated: total > JOURNAL_PRINT_MAX_ROWS };
     }
     offset += batch.length;
   }
 
+  await isiKelasHalaqoh(all);
   return { rows: all, total: all.length, truncated: true };
 }
 
@@ -392,7 +438,12 @@ export async function queryJournalAbsenceStats(
   if (!isAll(params.classId)) {
     const kelasId = await findKelasId(params.classId!);
     if (!kelasId) return { S: 0, I: 0, A: 0, total: 0 };
-    q = q.eq('kelas_id', kelasId);
+    // Sesi halaqoh lintas kelas ikut dihitung di tiap kelas sumbernya.
+    const halaqohIds = await getHalaqohIdsByKelas(kelasId);
+    q =
+      halaqohIds.length > 0
+        ? q.or(`kelas_id.eq.${kelasId},halaqoh_id.in.(${halaqohIds.join(',')})`)
+        : q.eq('kelas_id', kelasId);
   }
   if (!isAll(params.teacherName)) {
     q = q.ilike('actual_teacher_name', `%${escapeSingle(params.teacherName!)}%`);
