@@ -1,8 +1,17 @@
 # Desain PDF Terstandarisasi — Rekap Harian, Mingguan, Bulanan
 
-**Status:** usulan desain (belum ada perubahan kode)
-**Acuan gaya:** `src/services/export/journalPdfExport.ts` — PDF Log Jurnal yang sudah dikustomisasi
-**Tanggal:** 1 Oktober 2026
+**Status:** ✅ **SELESAI DIIMPLEMENTASIKAN.** Dokumen ini disimpan sebagai catatan
+desain — isinya sudah tercermin di kode.
+**Tanggal:** 1 Oktober 2026 · status diperbarui 12 Oktober 2026
+
+> **Catatan pembaruan.** Rencana di dokumen ini sudah dijalankan:
+> `src/services/export/reportPdfExport.ts` dan `src/hooks/useReportPdf.ts` **ada**,
+> sedangkan `journalPdfExport.ts`, `useReportPrint.ts`, dan `ReportPrintLayout.tsx`
+> **sudah dihapus**. Keempat tampilan rekap (Harian, Mingguan, Bulanan, Log Jurnal)
+> kini memakai satu mesin PDF terprogram, dan tidak ada lagi pemanggilan
+> `window.print()` di jalur cetak. Karena itu rujukan ke ketiga berkas lama di
+> bawah ini dibaca sebagai **keadaan sebelum perubahan**, bukan sebagai berkas
+> yang masih ada. Acuan gaya terkini: `src/services/export/reportPdfExport.ts`.
 
 ---
 

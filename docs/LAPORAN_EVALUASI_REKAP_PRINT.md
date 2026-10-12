@@ -6,6 +6,19 @@
 **Ruang lingkup:** `/admin/rekap` (Harian, Mingguan, Bulanan, Log Jurnal), modul export Jadwal, lapisan data laporan
 **Status:** hasil audit statis (read-only, tanpa perubahan kode)
 
+> **Catatan pembaruan (12 Oktober 2026).** Dokumen ini adalah **potret keadaan
+> 29 September 2026** dan sengaja tidak diubah isinya. Sebagian besar temuannya
+> **sudah ditangani** sejak itu — terutama perpindahan cetak rekap dari
+> `window.print()` ke mesin PDF terprogram.
+>
+> Berkas yang disebut di sini sebagai implementasi saat itu, `ReportPrintLayout.tsx`
+> dan `src/hooks/useReportPrint.ts`, **sudah dihapus**. Penggantinya:
+> `src/services/export/reportPdfExport.ts` dan `src/hooks/useReportPdf.ts`
+> (lihat `docs/DESAIN_PDF_REKAP_TERSTANDARISASI.md`).
+>
+> Jadi bacalah temuan di bawah sebagai riwayat — bukan sebagai daftar masalah yang
+> masih terbuka. Untuk keadaan terkini, rujuk `README.md` dan kode.
+
 ---
 
 ## Daftar Isi

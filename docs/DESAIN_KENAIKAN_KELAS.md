@@ -1,7 +1,8 @@
 # Desain Kenaikan Kelas & Riwayat Penempatan Siswa
 
-**Status:** keputusan terkunci. **Fase 0 sudah diimplementasikan** (lihat §7).
-**Tanggal:** 1 Oktober 2026
+**Status:** keputusan terkunci. **Fase 0–3 SELESAI** beserta perbaikan pasca-uji-coba
+(lihat §7).
+**Tanggal:** 1 Oktober 2026 · status diperbarui 12 Oktober 2026
 
 ## Keputusan yang sudah dikunci
 
@@ -347,10 +348,16 @@ baru naik. Di luar jam sekolah, urutan mana pun aman.
 - Saat menyunting, kelas boleh kosong ("— Tidak ditempatkan —"); kelas hanya wajib
   ketika menambah siswa baru.
 
-**Fase 2 — Semua kolom kelas jadi FK**
+**Fase 2 — Semua kolom kelas jadi FK — ✅ SELESAI**
 - `homeroom_assignment.class_id`, `schedule.class_id`, dan `agenda_header.kelas` →
   `kelas_id` UUID (FK), mengikuti langkah di §8.
-- Sesuaikan berkas-berkas di §6.2.
+- `supabase/schema.sql` bagian 11 menghapus ketiga kolom lama itu di dalam blok `DO` yang
+  dijaga keberadaan kolomnya: `schedule.class_id`, `homeroom_assignment.class_id`, dan
+  `agenda_header.kelas` (baris 1448, 1483, 1515).
+- Sesuaikan berkas-berkas di §6.2 — sudah dikerjakan.
+- **Selesai bila:** tidak ada lagi kolom kelas berbentuk teks. Terpenuhi: sisa penyebutan
+  `class_id` di `src/` hanya ada di komentar dan penyesuaian cache localStorage lama,
+  bukan pemakaian kolom.
 
 **Fase 3 — Wizard kenaikan kelas — ✅ SELESAI**
 
