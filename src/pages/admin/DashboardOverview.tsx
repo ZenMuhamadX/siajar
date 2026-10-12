@@ -7,7 +7,7 @@ import {
   getRekapAgenda,
   getDaftarKotakSaran,
 } from '../../services/agendaService';
-import { getAcademicYears, getSchedules } from '../../services/scheduleService';
+import { getAcademicYears, getSchedules, kelasDariJadwal } from '../../services/scheduleService';
 import { getScheduleDayFromDate } from '../../services/scheduleDetectionService';
 import type { FullAgenda, Guru } from '../../types';
 import type { ScheduleItem } from '../../types/schedule';
@@ -349,7 +349,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       </div>
                       <p className="text-sm font-bold text-slate-900">{slot.subject_name}</p>
                       <p className="text-xs text-slate-600">
-                        {labelKelasKelompok(slot.kelas, slot.halaqoh)} • {slot.teacher_name}
+                        {labelKelasKelompok(kelasDariJadwal(slot).join(', '), slot.halaqoh)} • {slot.teacher_name}
                       </p>
                     </div>
                   ))}
@@ -367,7 +367,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                         {jadwalBerikutnya.subject_name}
                       </p>
                       <p className="text-xs text-slate-600">
-                        {labelKelasKelompok(jadwalBerikutnya.kelas, jadwalBerikutnya.halaqoh)} •{' '}
+                        {labelKelasKelompok(kelasDariJadwal(jadwalBerikutnya).join(', '), jadwalBerikutnya.halaqoh)} •{' '}
                         {jadwalBerikutnya.teacher_name}
                       </p>
                     </div>

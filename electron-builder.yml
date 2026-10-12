@@ -1,0 +1,56 @@
+# Konfigurasi paket SIAJAR Desktop.
+#
+# Dipakai oleh `bun run desktop:dist` (installer NSIS + versi portable) dan
+# `bun run desktop:build` (folder unpacked untuk uji cepat).
+#
+# Yang TIDAK diikutkan ke dalam .exe: `node_modules/`. Seluruh dependensi
+# renderer sudah dibundel Vite ke dalam `dist/`, sama seperti versi web yang
+# hanya mengunggah folder `dist/` ke Nginx. Berkas yang diikutkan hanya:
+#   - dist/        → hasil build SPA
+#   - electron/    → proses utama + preload
+#   - package.json → entry point
+#
+# Catatan: electron-builder menyalin seluruh dependency produksi ke app.asar
+# secara bawaan, tanpa menghiraukan daftar `files` di bawah. Itu membuat paket
+# membengkak ±100 MB (exceljs, pdfmake, dsb. tersalin dua kali — sekali lagi di
+# dalam bundle Vite). Baris `!node_modules/**/*` di akhir daftar itulah yang
+# benar-benar mencegahnya. Jangan dihapus.
+
+appId: id.sch.sditassyifa.siajar
+productName: SIAJAR
+copyright: © SDIT AS-SYIFA
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+  - '!node_modules/**/*'
+
+asar: true
+
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: SIAJAR
+  # Data di %APPDATA% (termasuk siajar-config.json) sengaja dibiarkan saat
+  # uninstall supaya konfigurasi sekolah tidak hilang kalau hanya reinstall.
+  deleteAppDataOnUninstall: false
+  artifactName: ${productName}-Setup-${version}.${ext}

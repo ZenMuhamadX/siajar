@@ -7,6 +7,7 @@ import {
   resolveAcademicYearIdForDate,
   simpanAgenda,
 } from '../../services/agendaService';
+import { kelasDariJadwal } from '../../services/scheduleService';
 import { uploadAgendaEvidence, getEvidenceDisplayUrl } from '../../services/evidenceService';
 import { PhotoLightboxModal } from '../PhotoLightboxModal';
 import { ConfirmDialog } from '../ConfirmDialog';
@@ -131,7 +132,14 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   // Tidak ada lagi fallback 'KELAS 1': label itu sudah tidak ada di master kelas.
   // Agenda selalu dibuka dari jadwal atau dari agenda yang sudah tersimpan, jadi
   // kalau keduanya kosong lebih baik gagal jelas daripada menyimpan kelas salah.
+  //
+  // Khusus baris halaqoh lintas kelas, `kelas` memang KOSONG (barisnya tidak
+  // punya `kelas_id`). Kelasnya ada di `kelasList`. `kelasLabel` dipakai untuk
+  // TAMPILAN saja; `kelas` tetap dipakai apa adanya untuk penulisan supaya
+  // `simpanAgenda` tetap menyimpan `kelas_id` NULL pada baris berkelompok.
   const kelas = schedule?.kelas || existingAgenda?.header.kelas || '';
+  const kelasList = schedule ? kelasDariJadwal(schedule) : [];
+  const kelasLabel = kelas || kelasList.join(', ');
   const subjectName = schedule?.subject_name || existingAgenda?.kbm?.[0]?.mapel || '-';
   /**
    * Nama kelompok yang sedang diisi, bila baris ini menunjuk sebuah halaqoh.
@@ -356,7 +364,20 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
   useEffect(() => {
     let isMounted = true;
     async function loadSiswa() {
-      if (!kelas) return;
+      const halaqohId = slot?.schedule?.halaqoh_id ?? null;
+
+      // Penjaga ini WAJIB menyertakan halaqoh. Baris halaqoh lintas kelas tidak
+      // punya `kelas` tunggal, jadi keluar lebih awal di sini akan melewatkan
+      // pemuatan daftar absensi SEKALIGUS meninggalkan `isLoadingSiswa` bernilai
+      // true selamanya — spinner "Memuat data siswa…" tidak pernah berhenti.
+      if (!kelas && !halaqohId) {
+        if (isMounted) {
+          setSiswaKelas([]);
+          setIsLoadingSiswa(false);
+        }
+        return;
+      }
+
       setIsLoadingSiswa(true);
       try {
         // Tiga hal yang harus benar di sini:
@@ -371,7 +392,6 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
         //      membuat absensi kelas penuh bolong, karena setiap guru mengisi
         //      bagian yang berbeda pada jam yang sama.
         const academicYearId = await resolveAcademicYearIdForDate(targetDate);
-        const halaqohId = slot?.schedule?.halaqoh_id ?? null;
         const list = halaqohId
           ? await getSiswaHalaqoh(halaqohId, {
               academicYearId: academicYearId ?? undefined,
@@ -430,7 +450,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
 
   const handleAddAbsensi = () => {
     if (siswaKelas.length === 0) {
-      showToast('error', `Belum ada data siswa di ${kelas}.`);
+      showToast('error', `Belum ada data siswa di ${kelasLabel || 'kelompok ini'}.`);
       return;
     }
     if (absensiList.length >= siswaKelas.length) {
@@ -534,6 +554,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
       if (!targetAgendaId) {
         const initSave = await simpanAgenda({
           schedule_id: scheduleId,
+          halaqoh_id: halaqohId,
           actual_teacher_name: activeTeacherName || teacherName,
           sekolah: schoolName,
           kelas,
@@ -628,6 +649,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
       await simpanAgenda({
         agendaId,
         schedule_id: scheduleId,
+        halaqoh_id: halaqohId,
         actual_teacher_name: activeTeacherName || teacherName,
         sekolah: schoolName,
         kelas,
@@ -652,8 +674,8 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
       showToast(
         'success',
         existingAgenda
-          ? `Perubahan agenda ${kelas} (${subjectName}) tersimpan.`
-          : `Agenda ${kelas} (${subjectName}) selesai disimpan.`
+          ? `Perubahan agenda ${kelasLabel} (${subjectName}) tersimpan.`
+          : `Agenda ${kelasLabel} (${subjectName}) selesai disimpan.`
       );
 
       // Navigasi setelah simpan diurus pemanggil (`onSuccessSave`), supaya bisa
@@ -750,7 +772,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
               <span className="text-2xs font-bold text-slate-600 uppercase tracking-wider block">
                 Kelas
               </span>
-              <span className="text-base font-bold text-slate-900">{kelas}</span>
+              <span className="text-base font-bold text-slate-900">{kelasLabel || '—'}</span>
               {/*
                 Penanda kelompok. Hanya muncul untuk mapel berkelompok: guru
                 perlu tahu ia mengisi bagian SATU kelompok, bukan seluruh kelas
@@ -839,7 +861,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
               <div className="relative rounded-xl overflow-hidden bg-slate-900 flex items-center justify-center max-h-72 border border-slate-300">
                 <img
                   src={existingEvidence.signedUrl || ''}
-                  alt={`Dokumentasi foto ${kelas}`}
+                  alt={`Dokumentasi foto ${kelasLabel}`}
                   className="w-full h-auto max-h-72 object-contain"
                 />
               </div>
@@ -1018,7 +1040,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
             <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 text-xs text-amber-900 flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
               <span>
-                Belum ada data siswa untuk kelas {kelas}. Hubungi administrator bila seharusnya
+                Belum ada data siswa untuk kelas {kelasLabel || '—'}. Hubungi administrator bila seharusnya
                 sudah ada.
               </span>
             </div>
@@ -1189,7 +1211,7 @@ export const AgendaDetailForm: React.FC<AgendaDetailFormProps> = ({
           actualTeacherName={
             existingEvidence?.actual_teacher_name || activeTeacherName || teacherName
           }
-          title={`Dokumentasi Foto - ${kelas} (${subjectName})`}
+          title={`Dokumentasi Foto - ${kelasLabel} (${subjectName})`}
         />
 
         {/* Konfirmasi ganti foto — penggantian tetap boleh, tetapi tercatat */}

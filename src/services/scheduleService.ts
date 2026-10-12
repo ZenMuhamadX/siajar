@@ -8,6 +8,7 @@ import type {
 } from '../types/schedule';
 import { checkScheduleConflict } from '../utils/scheduleValidation';
 import { findKelasId, resolveKelasId } from './classService';
+import { getHalaqohIdsByKelas, getKelasSumberMap } from './halaqohService';
 
 /**
  * Kelas disimpan di database sebagai `kelas_id` (referensi ke master kelas),
@@ -18,14 +19,67 @@ import { findKelasId, resolveKelasId } from './classService';
  * Halaqoh ikut dibaca bersama jadwal supaya daftar bisa menyebut NAMA kelompok
  * ('Halaqoh 1'), bukan sekadar id-nya. Sama seperti `kelas`, bentuk bersarang
  * dari join diratakan di `mapScheduleRow` dan TIDAK boleh ikut ditulis kembali.
+ *
+ * Kelas sumber halaqoh ikut diambil (`kelas_sumber`) karena baris halaqoh tidak
+ * punya `kelas_id`: tanpa itu, `kelas`-nya kosong dan barisnya terbuang di setiap
+ * penyaringan kelas. Lihat `kelasDariJadwal`.
  */
-const SCHEDULE_SELECT = '*, kelas:kelas_id (label), halaqoh_ref:halaqoh_id (nama)';
+const SCHEDULE_SELECT =
+  '*, kelas:kelas_id (label), ' +
+  'halaqoh_ref:halaqoh_id (nama, kelas_sumber:halaqoh_kelas (kelas:kelas_id (label)))';
 
-function mapScheduleRow(row: any): ScheduleItem {
+/** Kolom hasil join yang TIDAK boleh ikut dikirim kembali ke database. */
+const KOLOM_TURUNAN = ['kelas', 'halaqoh', 'kelasList', 'halaqoh_ref'] as const;
+
+/**
+ * Label kelas yang dicakup sebuah baris jadwal.
+ *
+ * Baris halaqoh lintas kelas tidak punya satu kelas: `kelasList`-nya diisi
+ * seluruh kelas sumbernya. Baris biasa memakai `kelas` tunggalnya. Helper ini
+ * dipakai penyaring supaya baris halaqoh tidak ikut terbuang saat difilter kelas.
+ */
+export function kelasDariJadwal(
+  item: Pick<ScheduleItem, 'kelas' | 'kelasList'>,
+): string[] {
+  if (item.kelasList && item.kelasList.length > 0) return item.kelasList;
+  return item.kelas ? [item.kelas] : [];
+}
+
+/** Apakah baris jadwal ini mencakup kelas berlabel `label`. */
+export function jadwalMencakupKelas(
+  item: Pick<ScheduleItem, 'kelas' | 'kelasList'>,
+  label: string,
+): boolean {
+  return kelasDariJadwal(item).includes(label);
+}
+
+/**
+ * Ratakan satu baris hasil join `schedule` menjadi `ScheduleItem`.
+ *
+ * Diekspor supaya bisa diuji tanpa database (bentuknya murni): invarian
+ * "baris halaqoh tetap ber-`kelas` kosong tetapi `kelasList`-nya terisi" itu
+ * yang menjaga pencocokan data lama tetap jalan.
+ */
+export function mapScheduleRow(row: any): ScheduleItem {
+  const kelasLabel = row?.kelas?.label ?? '';
+
+  // Kelas sumber halaqoh (bisa beberapa). Untuk baris biasa, daftarnya satu
+  // kelas saja — sehingga pemakai bisa selalu memakai `kelasList` tanpa cabang.
+  const sumber: string[] = (row?.halaqoh_ref?.kelas_sumber ?? [])
+    .map((s: any) => s?.kelas?.label)
+    .filter((label: unknown): label is string => Boolean(label));
+
+  const kelasList = row?.halaqoh_id ? sumber : kelasLabel ? [kelasLabel] : [];
+
+  // `...row` dibuang lebih dulu supaya bentuk bersarang hasil join
+  // (`kelas`, `halaqoh_ref`) tidak bocor ke komponen React.
+  const { kelas: _kelas, halaqoh_ref: _ref, ...sisa } = row ?? {};
+
   return {
-    ...row,
-    kelas: row?.kelas?.label ?? '',
+    ...sisa,
+    kelas: kelasLabel,
     halaqoh: row?.halaqoh_ref?.nama ?? undefined,
+    kelasList,
   } as ScheduleItem;
 }
 
@@ -34,11 +88,15 @@ async function toScheduleRow(
   item: Partial<Omit<ScheduleItem, 'id' | 'created_at' | 'updated_at'>>,
 ): Promise<Record<string, unknown>> {
   const row: Record<string, unknown> = { ...item };
-  delete row.kelas;
-  // `halaqoh` adalah nama hasil join, bukan kolom. Mengirimnya akan ditolak
-  // database karena kolomnya tidak ada.
-  delete row.halaqoh;
-  if (item.kelas !== undefined) {
+  // `kelas`, `halaqoh`, `kelasList`, dan `halaqoh_ref` adalah hasil turunan saat
+  // membaca, bukan kolom. Mengirimnya akan ditolak database.
+  for (const kolom of KOLOM_TURUNAN) delete row[kolom];
+  if (item.halaqoh_id) {
+    // Baris halaqoh lintas kelas TIDAK punya satu kelas: kelasnya diturunkan
+    // dari `halaqoh_kelas` (bisa beberapa kelas). `kelas_id` dibiarkan NULL —
+    // CHECK di database mewajibkan salah satu dari kelas_id/halaqoh_id terisi.
+    row.kelas_id = null;
+  } else if (item.kelas !== undefined) {
     row.kelas_id = await resolveKelasId(item.kelas);
   }
   return row;
@@ -71,11 +129,15 @@ function getLocalSchedules(): ScheduleItem[] {
     if (!raw) return [];
     // Cache dari versi sebelum Fase 2 menyimpan `class_id`. Bentuk lamanya
     // disamakan di sini supaya kelas tidak tampil kosong saat jatuh ke jalur
-    // offline.
-    return (JSON.parse(raw) as any[]).map((s) => ({
-      ...s,
-      kelas: s.kelas ?? s.class_id ?? '',
-    }));
+    // offline. `kelasList` lama belum ada, jadi diturunkan dari `kelas`.
+    return (JSON.parse(raw) as any[]).map((s) => {
+      const kelas = s.kelas ?? s.class_id ?? '';
+      return {
+        ...s,
+        kelas,
+        kelasList: Array.isArray(s.kelasList) ? s.kelasList : kelas ? [kelas] : [],
+      };
+    });
   } catch {
     return [];
   }
@@ -325,7 +387,14 @@ export async function getSchedules(filters?: GetScheduleFilters): Promise<Schedu
       const kelasId = await findKelasId(filters.classId);
       // Label yang tidak ada di master kelas berarti tidak ada jadwal yang cocok.
       if (!kelasId) return [];
-      query = query.eq('kelas_id', kelasId);
+      // Sesi halaqoh lintas kelas tidak punya `kelas_id`; ia harus ikut muncul
+      // saat difilter ke salah satu kelas sumbernya. Karena itu penyaringnya
+      // menyertakan halaqoh yang mencakup kelas ini, bukan hanya `kelas_id`.
+      const halaqohIds = await getHalaqohIdsByKelas(kelasId);
+      query =
+        halaqohIds.length > 0
+          ? query.or(`kelas_id.eq.${kelasId},halaqoh_id.in.(${halaqohIds.join(',')})`)
+          : query.eq('kelas_id', kelasId);
     }
     if (filters?.status) {
       query = query.eq('status', filters.status);
@@ -367,7 +436,9 @@ function filterLocalSchedules(filters?: GetScheduleFilters): ScheduleItem[] {
     list = list.filter((s) => s.teacher_name === filters.teacherName);
   }
   if (filters.classId) {
-    list = list.filter((s) => s.kelas === filters.classId);
+    // Baris halaqoh lintas kelas tidak punya satu `kelas`; penyaring harus
+    // memakai daftar kelasnya, kalau tidak baris itu ikut terbuang.
+    list = list.filter((s) => jadwalMencakupKelas(s, filters.classId!));
   }
   if (filters.status) {
     list = list.filter((s) => s.status === filters.status);
@@ -380,7 +451,10 @@ export async function createSchedule(
 ): Promise<ScheduleItem> {
   // 1. Conflict Validation against existing schedules
   const existing = await getSchedules({ academicYearId: payload.academic_year_id });
-  const conflict = checkScheduleConflict(payload, existing);
+  // Peta kelas sumber halaqoh diperlukan agar sesi halaqoh lintas kelas
+  // terdeteksi bentrok dengan jadwal seluruh kelas anggotanya.
+  const halaqohKelas = await getKelasSumberMap();
+  const conflict = checkScheduleConflict(payload, existing, halaqohKelas);
   if (conflict.hasConflict) {
     throw new Error(conflict.message || 'Bentrok jadwal terdeteksi.');
   }
@@ -443,7 +517,8 @@ export async function updateSchedule(
   };
 
   // Conflict validation
-  const conflict = checkScheduleConflict(merged, allSchedules);
+  const halaqohKelas = await getKelasSumberMap();
+  const conflict = checkScheduleConflict(merged, allSchedules, halaqohKelas);
   if (conflict.hasConflict) {
     throw new Error(conflict.message || 'Bentrok jadwal terdeteksi.');
   }

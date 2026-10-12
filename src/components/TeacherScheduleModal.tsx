@@ -6,7 +6,7 @@ import {
   SCHEDULE_DAYS,
   DAY_TRANSLATION_MAP,
 } from '../types';
-import { getAcademicYears, getSchedules } from '../services/scheduleService';
+import { getAcademicYears, getSchedules, kelasDariJadwal } from '../services/scheduleService';
 import { Calendar, X, Loader2 } from 'lucide-react';
 import { ModalShell } from './common/ModalShell';
 import { ScrollArea } from './common/ScrollArea';
@@ -247,7 +247,7 @@ export const TeacherScheduleModal: React.FC<TeacherScheduleModalProps> = ({
                     </td>
                     <td className="px-2 sm:px-4 py-3 text-center whitespace-nowrap">
                       <span className="inline-block font-bold text-slate-900 bg-slate-100 px-1.5 sm:px-2 py-0.5 rounded text-xs">
-                        {item.kelas}
+                        {kelasDariJadwal(item).join(', ') || '—'}
                       </span>
                     </td>
                     <td className="px-3 sm:px-4 py-3 font-medium text-slate-800 break-words">

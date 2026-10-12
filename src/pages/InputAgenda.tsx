@@ -16,7 +16,7 @@ import {
   createSubstitution,
 } from '../services/substitutionService';
 import { getDaftarGuru } from '../services/agendaService';
-import { getAcademicYears } from '../services/scheduleService';
+import { getAcademicYears, kelasDariJadwal } from '../services/scheduleService';
 import { ScheduleTimelineCard } from '../components/agenda/ScheduleTimelineCard';
 import { ActiveScheduleHero } from '../components/agenda/ActiveScheduleHero';
 import { AgendaDetailForm } from '../components/agenda/AgendaDetailForm';
@@ -891,7 +891,7 @@ export const InputAgenda: React.FC<InputAgendaProps> = ({
                           <div className="space-y-1 text-xs">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="font-bold text-slate-900">
-                                {slot.schedule.kelas}
+                                {kelasDariJadwal(slot.schedule).join(', ') || '—'}
                               </span>
                               <span className="text-slate-500" aria-hidden="true">
                                 &bull;

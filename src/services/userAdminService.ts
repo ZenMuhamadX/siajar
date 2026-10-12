@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { runtimeConfig } from '../lib/runtimeConfig';
 
 /**
  * Klien untuk Edge Function `manage-users`.
@@ -15,16 +16,15 @@ const FUNCTION_NAME = 'manage-users';
  *
  * Server (Edge Function) adalah sumber kebenaran: nilainya dikirim balik oleh
  * aksi `status`. Kalau belum sempat terbaca — atau Edge Function tidak
- * tersedia — dipakai nilai build `VITE_AUTH_DOMAIN`. Keduanya default ke nilai
+ * tersedia — dipakai nilai dari `runtimeConfig` (di desktop: `siajar-config.json`
+ * bila ada; di web: `VITE_AUTH_DOMAIN` hasil build). Keduanya default ke nilai
  * yang sama, jadi ketidakcocokan hanya mungkin kalau salah satu diubah
  * sendirian. Halaman setup menampilkan keduanya agar perbedaan langsung
  * terlihat.
  */
-const BUILD_AUTH_DOMAIN =
-  (import.meta.env?.VITE_AUTH_DOMAIN as string) || 'siajar.local';
+const BUILD_AUTH_DOMAIN = runtimeConfig.authDomain;
 
-const BUILD_ADMIN_EMAIL =
-  (import.meta.env?.VITE_ADMIN_EMAIL as string) || `admin@${BUILD_AUTH_DOMAIN}`;
+const BUILD_ADMIN_EMAIL = runtimeConfig.adminEmail || `admin@${BUILD_AUTH_DOMAIN}`;
 
 let serverAuthDomain: string | null = null;
 let serverAdminEmail: string | null = null;

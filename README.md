@@ -69,6 +69,26 @@ Selama sesi masih berlaku, guru tidak perlu memasukkan kode lagi.
 
 Aplikasi ini statis dan di-host di **aaPanel (Nginx)**. Docker tidak digunakan. Panduan lengkap—termasuk konfigurasi Nginx dan setup database—ada di **[DEPLOY.md](DEPLOY.md)**.
 
+### Versi desktop (.exe)
+
+Ada juga kemasan **SIAJAR Desktop** (Electron) untuk guru yang lebih nyaman
+membuka aplikasi dari ikon di desktop. Isinya bundle React yang sama dan tetap
+menyambung ke Supabase, jadi **tidak bisa dipakai offline**.
+
+```bash
+bun run desktop:dev      # mode pengembangan (Vite + Electron)
+bun run desktop:build    # uji cepat → release/win-unpacked/SIAJAR.exe
+bun run desktop:dist     # rilis → installer NSIS + versi portable
+```
+
+Yang dibagikan ke guru adalah `release/SIAJAR-Setup-<versi>.exe`. Naikkan
+`version` di `package.json` setiap kali merilis.
+
+Penjelasan lengkap—termasuk cara membagikan ke guru, penyesuaian CORS di
+Supabase, izin kamera, dan konfigurasi server per sekolah lewat
+`siajar-config.json`—ada di
+**[docs/DESKTOP-ELECTRON.md](docs/DESKTOP-ELECTRON.md)**.
+
 ## Database
 
 Untuk **instalasi baru**, cukup jalankan **satu file**:

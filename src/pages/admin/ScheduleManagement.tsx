@@ -18,12 +18,14 @@ import {
   updateSchedule,
   setScheduleStatus,
   deleteSchedule,
+  jadwalMencakupKelas,
+  kelasDariJadwal,
 } from '../../services/scheduleService';
 import { getPeriodTemplates } from '../../services/periodTemplateService';
 import { getDaftarGuru, getDaftarMapel } from '../../services/agendaService';
 import { getHalaqohByKelas } from '../../services/halaqohService';
 import { findKelasId } from '../../services/classService';
-import type { Halaqoh } from '../../types';
+import type { HalaqohTerdaftar } from '../../types';
 import { PageHeader } from '../../components/admin/PageHeader';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { buildScheduleExportModel } from '../../services/export/scheduleExportModel';
@@ -103,7 +105,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
    * ia dipilih per kelompok. Bentuk inilah yang menjaga prinsip "satu baris
    * jadwal = satu guru" tetap utuh meski jamnya sama.
    */
-  const [halaqohKelas, setHalaqohKelas] = useState<Halaqoh[]>([]);
+  const [halaqohKelas, setHalaqohKelas] = useState<HalaqohTerdaftar[]>([]);
   const [guruPerHalaqoh, setGuruPerHalaqoh] = useState<Record<string, string>>({});
   const [isLoadingHalaqoh, setIsLoadingHalaqoh] = useState(false);
 
@@ -287,7 +289,10 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
     (async () => {
       try {
         const kelasId = await findKelasId(kelasHalaqohAktif);
-        const list = kelasId ? await getHalaqohByKelas(kelasId) : [];
+        // Halaqoh kini milik tahun ajaran dan punya kelas sumber; yang relevan
+        // untuk kelas ini adalah halaqoh yang kelas sumbernya memuatnya.
+        const list =
+          kelasId && selectedAYId ? await getHalaqohByKelas(kelasId, selectedAYId) : [];
         if (cancelled) return;
 
         // Prefill guru dari jadwal yang sudah ada pada slot yang sama.
@@ -296,7 +301,10 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
           const sama = schedulesRef.current.find(
             (s) =>
               s.halaqoh_id === h.id &&
-              s.kelas === kelasHalaqohAktif &&
+              // Baris halaqoh tidak punya `kelas` tunggal — pencocokan kelasnya
+              // memakai daftar kelas sumber, kalau tidak guru tidak pernah
+              // ter-prefill saat jadwalnya dibuka ulang.
+              jadwalMencakupKelas(s, kelasHalaqohAktif) &&
               s.day === formData.day &&
               s.period_number === Number(formData.period_number),
           );
@@ -322,7 +330,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [kelasHalaqohAktif, formData.kelas, formData.day, formData.period_number]);
+  }, [kelasHalaqohAktif, formData.kelas, formData.day, formData.period_number, selectedAYId]);
 
   const handleAYChange = async (ayId: string) => {
     setSelectedAYId(ayId);
@@ -383,7 +391,10 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
       period_number: item.period_number,
       start_time: item.start_time.slice(0, 5),
       end_time: item.end_time.slice(0, 5),
-      kelas: item.kelas,
+      // Baris halaqoh tidak punya `kelas` tunggal; kelas pertama dari kelas
+      // sumbernya dipakai sebagai konteks formulir, karena dari kelas itulah
+      // daftar kelompoknya dimuat kembali.
+      kelas: kelasDariJadwal(item)[0] ?? item.kelas,
       subject_name: item.subject_name,
       teacher_name: item.teacher_name,
       status: item.status,
@@ -484,9 +495,13 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
         }
 
         // Bandingkan dengan baris yang sudah ada pada slot ini untuk kelas ini.
+        // Pencocokan kelas WAJIB memakai daftar kelas sumber: baris halaqoh tidak
+        // punya `kelas` tunggal, jadi perbandingan label langsung selalu gagal —
+        // akibatnya setiap penyimpanan membuat baris BARU alih-alih memperbarui
+        // yang lama, dan jadwal halaqoh menumpuk ganda.
         const existingRows = schedules.filter(
           (s) =>
-            s.kelas === formData.kelas &&
+            jadwalMencakupKelas(s, formData.kelas) &&
             s.day === formData.day &&
             s.period_number === Number(formData.period_number) &&
             // Hanya baris berkelompok yang boleh tersentuh dari sini.
@@ -535,7 +550,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
         // bila tidak lagi ikut dalam himpunan baris tujuan.
         if (editingItem?.halaqoh_id) {
           const masihDipakai = targets.some((t) => t.halaqohId === editingItem.halaqoh_id) &&
-            editingItem.kelas === formData.kelas &&
+            jadwalMencakupKelas(editingItem, formData.kelas) &&
             editingItem.day === formData.day &&
             editingItem.period_number === Number(formData.period_number);
           const barisLamaMasihAda = milikMapelIni.some((s) => s.id === editingItem.id);
@@ -676,13 +691,17 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
     .filter((s) => {
       if (filterDay !== 'ALL' && s.day !== filterDay) return false;
       if (filterTeacher !== 'ALL' && s.teacher_name !== filterTeacher) return false;
-      if (filterClass !== 'ALL' && s.kelas !== filterClass) return false;
+      if (filterClass !== 'ALL' && !jadwalMencakupKelas(s, filterClass)) return false;
       if (filterStatus !== 'ALL' && s.status !== filterStatus) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchSubj = s.subject_name.toLowerCase().includes(q);
         const matchTeach = s.teacher_name.toLowerCase().includes(q);
-        const matchClass = s.kelas.toLowerCase().includes(q);
+        // Pencarian kelas memakai daftar kelasnya, supaya baris halaqoh lintas
+        // kelas ikut ketemu saat dicari lewat salah satu kelas sumbernya.
+        const matchClass = kelasDariJadwal(s).some((label) =>
+          label.toLowerCase().includes(q),
+        );
         if (!matchSubj && !matchTeach && !matchClass) return false;
       }
       return true;
@@ -714,9 +733,16 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
   const cellPeriod = (item: ScheduleItem) => (
     <span className="font-bold text-slate-700">{item.period_number}</span>
   );
-  const cellClass = (item: ScheduleItem) => (
-    <span className="font-bold text-slate-900">{item.kelas}</span>
-  );
+  const cellClass = (item: ScheduleItem) => {
+    // Baris halaqoh lintas kelas tidak punya satu `kelas` — selnya akan kosong
+    // dan baris tampak anonim. Labelnya digabung dari kelas sumbernya.
+    const labels = kelasDariJadwal(item);
+    return (
+      <span className="font-bold text-slate-900">
+        {labels.length > 0 ? labels.join(', ') : '—'}
+      </span>
+    );
+  };
   const cellSubject = (item: ScheduleItem) => (
     <div className="flex flex-col gap-0.5">
       <span className="font-semibold text-slate-900">{item.subject_name}</span>

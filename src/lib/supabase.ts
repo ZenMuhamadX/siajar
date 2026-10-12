@@ -1,8 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
+import { runtimeConfig } from './runtimeConfig';
 
-const globalProcess = typeof globalThis !== 'undefined' ? (globalThis as any).process : undefined;
-const supabaseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || globalProcess?.env?.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseAnonKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || globalProcess?.env?.VITE_SUPABASE_ANON_KEY || 'placeholder-anon-key';
+/**
+ * Alamat dan anon key dibaca lewat `runtimeConfig`, yang urutannya:
+ *   1. `siajar-config.json` di luar bundle (hanya SIAJAR Desktop),
+ *   2. `VITE_*` yang tertanam saat build,
+ *   3. `process.env` (untuk skrip uji yang dijalankan dengan `bun`).
+ *
+ * Versi desktop memakai jalur (1) supaya satu installer bisa dipasang di
+ * sekolah dengan server berbeda tanpa build ulang. Versi web tetap memakai
+ * jalur (2) seperti sebelumnya.
+ */
+const supabaseUrl = runtimeConfig.supabaseUrl || 'https://placeholder.supabase.co';
+const supabaseAnonKey = runtimeConfig.supabaseAnonKey || 'placeholder-anon-key';
 
 /**
  * Klien Supabase dengan sesi persisten.

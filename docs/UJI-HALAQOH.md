@@ -1,150 +1,157 @@
-# Uji Manual — Halaqoh Ummi (Fase 0–4b)
+# Uji Manual — Halaqoh Lintas Kelas (Metode Ummi)
 
-Checklist untuk menguji sendiri seluruh alur halaqoh. Dijalankan **berurutan** —  
-tiap bagian bergantung pada bagian sebelumnya.
+Checklist untuk menguji sendiri seluruh alur halaqoh **lintas kelas**. Dijalankan
+**berurutan** — tiap bagian bergantung pada bagian sebelumnya.
 
-Status kode: **Fase 0/1/1b/2/3 sudah lulus browser. Fase 4 & 4b BELUM pernah dibuka  
-di browser.** Checklist ini terutama untuk memastikan Fase 4 & 4b.
+Latar desain lengkap: `docs/DESAIN-HALAQOH-LINTAS-KELAS.md`.
 
 ---
 
-## 0. Sebelum mulai — periksa database
+## 0. Sebelum mulai — jalankan skema
 
-Jalankan di Supabase SQL Editor:
+Jalankan `supabase/schema.sql` di **Supabase SQL Editor**. File ini idempoten —
+aman dijalankan berulang. Yang penting dipastikan:
 
-| # | Skrip                                                  | Yang dipastikan                                                                       |
-| - | ------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| 1 | `supabase/legacy/stage_10_0_verify_jurnal_halaqoh.sql` | FK `agenda_kbm.halaqoh_id → halaqoh(id)` ada, `mapel.is_halaqoh` ada, RLS halaqoh ada |
+| # | Yang dipastikan                                                                                     |
+| - | --------------------------------------------------------------------------------------------------- |
+| 1 | Tabel `agenda.halaqoh_kelas` ada, dan `agenda.halaqoh` sudah punya kolom `academic_year_id`          |
+| 2 | Kolom `agenda.halaqoh.kelas_id` **sudah hilang**                                                     |
+| 3 | `agenda_header` punya kolom `halaqoh_id`                                                             |
+| 4 | Constraint `uq_halaqoh_nama_per_tahun`, `chk_schedule_kelas_atau_halaqoh`, `chk_agenda_header_kelas_atau_halaqoh` ada |
+| 5 | RLS aktif pada `halaqoh`, `halaqoh_kelas`, dan `siswa_halaqoh` (lihat §14 bagian Verifikasi)          |
 
-**Kenapa ini wajib:** Fase 4 & 4b menambah join `halaqoh:halaqoh_id (nama)` di  
-6 query (`agendaService`, `scheduleService`, `reportQuery`). PostgREST **menolak**  
-join yang tidak punya FK. Kalau FK hilang, Log Jurnal dan Rekap Harian akan error —  
-bukan sekadar kolomnya kosong.
-
-Di hasil skrip itu, perhatikan `kesimpulan`:
-
-- Uji 3 `Relasi FK … ada` harus **OK**. Kalau `MASALAH` → **berhenti**, lapor dulu.
-- Uji 7 `mapel.is_halaqoh ada` harus **OK**. Kalau tidak → jalankan  
-  `supabase/legacy/stage_9_1_mapel_halaqoh.sql`.
-- Uji 6 menyebut berapa baris jadwal Ummi yang `halaqoh_id`-nya masih kosong.  
-  Kalau > 0, itu yang perlu diisi di langkah 2 di bawah.
+Query pemeriksanya ada di bagian **15. VERIFIKASI** di akhir `schema.sql`.
 
 ---
 
 ## 1. Pastikan ada siswa
 
-Menu **Data Siswa** harus berisi siswa. Kalau tadi semua siswa terhapus, isi ulang  
-dulu (pilih salah satu):
-
-- `supabase/import_siswa_2026_2027_kelas_1A_6A.sql` — 112 siswa nyata, kelas 1A..6A
-- `supabase/legacy/stage_9_0_seed_siswa_uji.sql` — 60 siswa uji `ZZ*` di 1A/1B/2A/2B
+Menu **Data Siswa** harus berisi siswa, minimal di **dua kelas** berbeda (mis. 3A
+dan 4A) — uji lintas kelas membutuhkannya.
 
 ---
 
-## 2. Fase 2 — buat halaqoh & isi anggotanya
+## 2. Master Halaqoh — buat halaqoh lintas kelas
 
 Menu **Master Data → Halaqoh**.
 
-- [x] Pilih kelas **1A** (atau kelas yang mapelnya Ummi).
-- [x] Buat 2 kelompok, mis. **Kelompok A** dan **Kelompok B**.
-- [x] Masukkan siswa ke masing-masing kelompok.
-- [x] Panel "belum masuk kelompok" harus menyusut sampai kosong.
+- [ ] Klik **Tambah Halaqoh**. Isi nama **"Halaqoh A"**, centang kelas sumber **3A dan 4A**.
+- [ ] Simpan. Kartu "Halaqoh A" muncul dengan keterangan `kelas 3A, 4A` dan jumlah anggota 0.
+- [ ] Buat **"Halaqoh B"**, kelas sumber **4A** saja.
+- [ ] Klik **Anggota** pada Halaqoh A. Daftar kandidat harus berisi **siswa 3A dan 4A** yang belum masuk halaqoh.
+- [ ] Pilih **sebagian** siswa (bukan semua), lalu **Masukkan terpilih**.
 
-**Perhatikan:** kalau ada siswa yang belum masuk kelompok, ia akan tampil di panel  
-peringatan. Itu memang penjaganya — bukan error.
+**Yang harus benar:**
+
+- [ ] Siswa yang tidak dipilih tetap tersedia sebagai kandidat di Halaqoh B (kelas 4A yang belum masuk).
+- [ ] Anggota tiap kelompok menampilkan **kelasnya masing-masing** (3A atau 4A) — bukan kelas halaqoh.
+- [ ] Coba masukkan siswa kelas lain (di luar kelas sumber) lewat jalur mana pun → harus ditolak.
 
 ---
 
-## 3. Fase 3 — jadwal Ummi per kelompok
+## 3. Jadwal Ummi
 
 Menu **Jadwal → Tambah Jadwal**.
 
-- [x] Pilih kelas **1A** + mapel **Ummi**.
-- [x] Pilihan guru tunggal harus **berubah** menjadi daftar per kelompok.
-- [x] Isi guru **berbeda** untuk Kelompok A dan Kelompok B.
-- [x] Simpan → harus berhasil (ini sudah lulus sebelumnya, tapi pastikan masih).
-- [x] Cek di daftar jadwal: muncul **dua baris** pada jam yang sama, satu per kelompok.
+- [ ] Pilih kelas **3A** + mapel **Ummi**. Pilihan guru tunggal berubah menjadi daftar per kelompok.
+- [ ] Isi guru **berbeda** untuk tiap kelompok (guru **diisi manual**, tidak otomatis).
+- [ ] Simpan → harus berhasil. Di daftar jadwal muncul baris per kelompok pada jam yang sama.
 
 **Yang harus GAGAL (uji batas):**
 
-- [x] Coba isi **guru yang sama** untuk kedua kelompok pada jam yang sama →  
-  harus ditolak (satu guru tidak bisa di dua tempat).
-- [x] Coba buat jadwal Ummi **tanpa** memilih kelompok → harus ditolak.
+- [ ] Guru yang **sama** untuk dua kelompok pada jam yang sama → ditolak (satu guru di dua tempat).
+- [ ] Sesi halaqoh bertumpuk dengan pelajaran **seluruh kelas** dari kelas sumbernya
+      (mis. Halaqoh A mencakup 4A, lalu ada jadwal Matematika 4A pada jam yang sama) → **ditolak**
+      dengan pesan "Bentrok Kelas".
+- [ ] Dua **halaqoh berbeda** pada jam yang sama → **SAH** (bukan bentrok). Ini bentuk Ummi
+      yang benar: satu kelas dipecah jadi beberapa kelompok.
 
 ---
 
-## 4. Fase 4 — jurnal per kelompok  ⚠️ BELUM PERNAH DIUJI
+## 4. Agenda per kelompok
 
-Ini inti pengujian. Login sebagai **guru Kelompok A**.
+Login sebagai guru salah satu kelompok.
 
-- [x] Halaman utama guru menampilkan slot Ummi kelas 1A.
-- [x] **Buka kartu jadwalnya** — harus ada penanda nama kelompok (mis. "Kelompok A").
-- [x] Buka formulir agenda → kartu "Kelas" harus menampilkan lencana kelompok.
-- [x] **Daftar absensi HANYA berisi siswa Kelompok A** — bukan seluruh kelas.  
-  Ini pemeriksaan terpenting: kalau berisi seluruh kelas, Fase 4 tidak jalan.
-- [x] Isi materi + absensi → Simpan → berhasil.
+- [ ] Buka kartu jadwal Ummi → formulir agenda muncul dengan penanda kelompok.
+- [ ] **Daftar absensi hanya berisi anggota kelompok itu** (bukan seluruh kelas), dan tiap baris
+      menampilkan kelas siswanya.
+- [ ] **Daftar absensi benar-benar termuat** — tulisan "Memuat data siswa…" hilang dan diganti
+      daftar nama. Kalau tulisan itu berputar terus, berarti bug kelas-kosong kambuh: baris halaqoh
+      tidak punya `kelas_id`, jadi penjaga `if (!kelas)` di formulir tidak boleh menghentikan
+      pemuatan.
+- [ ] Kartu **Kelas** di formulir menampilkan seluruh kelas sumbernya (mis. `3A, 4A`), bukan kosong.
+- [ ] Isi materi + absensi → Simpan → berhasil.
 
-Lalu **login sebagai guru Kelompok B** pada tanggal & jam yang sama.
+Lalu login sebagai guru kelompok lain pada tanggal & jam yang sama:
 
-- [x] Buka slot Ummi yang sama → **daftar absensi harus berisi siswa Kelompok B**.
-- [x] Materi yang tampil harus **kosong** (belum diisi), **bukan** materi Kelompok A.  
-  Kalau materi Kelompok A muncul di sini → bug pencocokan agenda.
-- [x] Isi materi berbeda → Simpan.
-
-**Verifikasi pemisahan:**
-
-- [x] Buka lagi sebagai guru A → materinya **tetap** materi A, tidak tertimpa B.
+- [ ] Absensinya berisi anggota kelompok yang lain.
+- [ ] Materinya **kosong** (belum diisi), bukan materi kelompok pertama.
 
 ---
 
-## 5. Fase 4b — nama kelompok di rekap  ⚠️ BELUM PERNAH DIUJI
+## 4b. Jadwal & agenda di sisi admin
+
+Baris halaqoh tidak punya satu kelas, jadi kelasnya dibaca dari kelas sumber. Yang diuji di sini:
+baris itu **tetap muncul** dan **tetap terbaca** — jangan sampai hilang saat difilter kelas.
+
+### Admin → Jadwal Pembelajaran
+
+- [ ] Tanpa filter, baris halaqoh muncul dan kolom **Kelas** menampilkan `3A, 4A` (bukan kosong).
+- [ ] Filter kelas **3A** → baris halaqoh **tetap muncul**.
+- [ ] Filter kelas **4A** → baris halaqoh **tetap muncul**.
+- [ ] Filter kelas **5A** → baris halaqoh **hilang** (5A bukan kelas sumbernya).
+- [ ] Cari dengan kata kunci `3A` → baris halaqoh ikut ketemu.
+- [ ] Buka **Ubah** pada baris halaqoh, lalu simpan tanpa mengubah apa pun → **tidak** muncul baris
+      ganda pada jam yang sama.
+
+### Admin → Agenda
+
+- [ ] Filter kelas **3A** / **4A** → sesi halaqoh tetap muncul.
+- [ ] Kolom kelas menampilkan `3A, 4A · <nama kelompok>`.
+
+---
+
+## 5. Rekap — sesi masuk ke tiap kelas sumber
 
 Menu **Rekap**, untuk tanggal yang barusan diisi.
 
 ### Log Jurnal (`Rekap → Jurnal`)
 
-- [x] Kolom **"Kelas / Kelompok"** menampilkan `1A` + nama kelompok di bawahnya.
-- [x] Dua baris Ummi (Kelompok A & B) pada jam sama **terbaca berbeda**.
-- [x] Klik **Unduh PDF** → PDF punya kolom **Kelompok** yang terisi.
-- [x] Di PDF, baris non-Ummi (mapel seluruh kelas) kolom Kelompok-nya `—`.
+- [ ] Filter kelas **3A** → sesi "Halaqoh A" **muncul** (meski halaqohnya lintas kelas).
+- [ ] Filter kelas **4A** → sesi yang **sama** juga muncul.
+- [ ] Kolom kelas menampilkan kelas sumbernya (mis. `3A, 4A`) + nama kelompok.
+- [ ] Unduh PDF → kolom kelompok terisi.
 
 ### Rekap Harian (`Rekap → Harian`)
 
-- [x] Nama kelompok muncul di bawah lencana kelas.
-- [x] **Unduh PDF** → ada kolom **Kelompok**.
-
-### Riwayat guru (`/riwayat`)
-
-- [x] Lencana ringkas menampilkan `1A · Kelompok A`.
-- [x] Buka detail agenda → tabel KBM punya kolom **Kelompok**.
-- [x] Di HP (sempitkan jendela), baris KBM bertumpuk dan label "KELOMPOK" muncul.
-
-### Dashboard admin
-
-- [x] Kartu "sedang berlangsung" menyebut kelompok bila Ummi.
-- [x] Kartu "agenda terbaru" menyebut kelompok bila Ummi.
-
-### Monitoring agenda admin (`Agenda`)
-
-- [x] Kolom Kelas menampilkan `1A · Kelompok A`.
+- [ ] Pilih tanggal + kelas 3A → baris Ummi muncul.
+- [ ] Ganti ke kelas 4A → baris yang sama muncul (satu sesi, dua rekap kelas).
+- [ ] Unduh PDF → ada kolom Kelompok.
 
 ---
 
-## 6. Yang MEMANG belum ditangani (jangan dilaporkan sebagai bug)
+## 6. Tahun ajaran baru (halaqoh dibuat dari nol)
 
-| Layar                             | Alasan                                                                                                           |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| **Export Excel jadwal** (`.xlsx`) | Belum menyertakan kelompok — saya batasi ke rekap saja sesuai permintaan. Bilang saja kalau mau ditambahkan.     |
-| **Rekap Mingguan & Bulanan**      | Agregat per guru (tidak punya kolom kelas/mapel), jadi tidak ada tempat untuk kelompok. Memang begitu desainnya. |
-| **Kelas kecil (1 halaqoh)**       | Kelompok yang namanya sama dengan kelasnya tidak ditampilkan — `1A · 1A` hanya menambah kebisingan.              |
+Setelah kenaikan kelas (menu **Pengaturan → Kenaikan Kelas**):
+
+- [ ] Buka **Master Data → Halaqoh** pada tahun ajaran baru. Daftarnya kosong.
+- [ ] **Tidak ada** tombol salin/impor dari tahun lalu — halaqoh harus dibuat manual.
+- [ ] Tambah halaqoh baru + pilih kelas sumbernya, lalu isi anggotanya dari daftar kandidat.
+
+---
+
+## 7. Yang memang belum ditangani (jangan dilaporkan sebagai bug)
+
+| Layar | Alasan |
+| --- | --- |
+| **Export Excel jadwal** (`.xlsx`) | Belum menyertakan kelompok — dibatasi ke rekap saja. |
+| **Rekap Mingguan & Bulanan** | Agregat per guru (tidak punya kolom kelas/mapel), jadi tidak ada tempat untuk kelompok. |
+| **Kuota anggota halaqoh** | Memang tidak dibatasi — guru yang mengatur komposisi. |
 
 ---
 
 ## Kalau ada yang gagal
 
-Catat: **menu apa, kelas apa, tanggal apa, akun guru mana**, dan apa yang tampil vs  
-yang diharapkan. Untuk masalah rekap, sebutkan juga apakah di **layar** atau di **PDF**  
-— keduanya jalur kode yang berbeda.
-
-Kalau Log Jurnal / Rekap Harian **error total** (bukan kolom kosong), kemungkinan  
-besar FK `agenda_kbm.halaqoh_id` tidak ada — kembali ke langkah 0, uji 3.
+Catat: **menu apa, kelas apa, halaqoh apa, tanggal apa, akun guru mana**, dan apa yang tampil
+vs yang diharapkan. Untuk masalah rekap, sebutkan juga apakah di **layar** atau di **PDF** —
+keduanya jalur kode yang berbeda.
