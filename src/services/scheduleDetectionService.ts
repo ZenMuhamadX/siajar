@@ -1,4 +1,4 @@
-import { getAcademicYears, getSchedules } from './scheduleService';
+import { getAcademicYears, getSchedules, kelasDariJadwal } from './scheduleService';
 import { localDateString } from '../utils/date';
 import { getRekapAgenda } from './agendaService';
 import type { ScheduleItem, ScheduleDay } from '../types/schedule';
@@ -236,7 +236,11 @@ export async function getTeacherDailyTimeline(
 
       if (Math.max(start1, start2) < Math.min(end1, end2)) {
         conflictDetected = true;
-        conflictMessage = `Terdapat jadwal yang bertabrakan pada waktu ini (${s1.kelas} ${s1.subject_name} & ${s2.kelas} ${s2.subject_name}). Hubungi administrator.`;
+        // Kelas ditampilkan lewat daftar kelasnya: baris halaqoh lintas kelas
+        // tidak punya `kelas` tunggal, jadi pesannya akan berlubang tanpa ini.
+        const k1 = kelasDariJadwal(s1).join(', ');
+        const k2 = kelasDariJadwal(s2).join(', ');
+        conflictMessage = `Terdapat jadwal yang bertabrakan pada waktu ini (${k1} ${s1.subject_name} & ${k2} ${s2.subject_name}). Hubungi administrator.`;
         break;
       }
     }

@@ -75,12 +75,39 @@ Login sebagai guru salah satu kelompok.
 - [ ] Buka kartu jadwal Ummi → formulir agenda muncul dengan penanda kelompok.
 - [ ] **Daftar absensi hanya berisi anggota kelompok itu** (bukan seluruh kelas), dan tiap baris
       menampilkan kelas siswanya.
+- [ ] **Daftar absensi benar-benar termuat** — tulisan "Memuat data siswa…" hilang dan diganti
+      daftar nama. Kalau tulisan itu berputar terus, berarti bug kelas-kosong kambuh: baris halaqoh
+      tidak punya `kelas_id`, jadi penjaga `if (!kelas)` di formulir tidak boleh menghentikan
+      pemuatan.
+- [ ] Kartu **Kelas** di formulir menampilkan seluruh kelas sumbernya (mis. `3A, 4A`), bukan kosong.
 - [ ] Isi materi + absensi → Simpan → berhasil.
 
 Lalu login sebagai guru kelompok lain pada tanggal & jam yang sama:
 
 - [ ] Absensinya berisi anggota kelompok yang lain.
 - [ ] Materinya **kosong** (belum diisi), bukan materi kelompok pertama.
+
+---
+
+## 4b. Jadwal & agenda di sisi admin
+
+Baris halaqoh tidak punya satu kelas, jadi kelasnya dibaca dari kelas sumber. Yang diuji di sini:
+baris itu **tetap muncul** dan **tetap terbaca** — jangan sampai hilang saat difilter kelas.
+
+### Admin → Jadwal Pembelajaran
+
+- [ ] Tanpa filter, baris halaqoh muncul dan kolom **Kelas** menampilkan `3A, 4A` (bukan kosong).
+- [ ] Filter kelas **3A** → baris halaqoh **tetap muncul**.
+- [ ] Filter kelas **4A** → baris halaqoh **tetap muncul**.
+- [ ] Filter kelas **5A** → baris halaqoh **hilang** (5A bukan kelas sumbernya).
+- [ ] Cari dengan kata kunci `3A` → baris halaqoh ikut ketemu.
+- [ ] Buka **Ubah** pada baris halaqoh, lalu simpan tanpa mengubah apa pun → **tidak** muncul baris
+      ganda pada jam yang sama.
+
+### Admin → Agenda
+
+- [ ] Filter kelas **3A** / **4A** → sesi halaqoh tetap muncul.
+- [ ] Kolom kelas menampilkan `3A, 4A · <nama kelompok>`.
 
 ---
 

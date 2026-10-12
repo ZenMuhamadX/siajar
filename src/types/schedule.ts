@@ -65,6 +65,21 @@ export interface ScheduleItem {
   halaqoh_id?: string | null;
   /** Nama halaqoh untuk tampilan (diturunkan saat membaca, bukan disimpan). */
   halaqoh?: string;
+  /**
+   * SELURUH label kelas yang dicakup baris ini. Diturunkan saat membaca, bukan
+   * disimpan.
+   *
+   * Kenapa perlu, padahal sudah ada `kelas`: baris halaqoh lintas kelas sengaja
+   * tidak punya satu kelas (`kelas_id` NULL), sehingga `kelas`-nya KOSONG.
+   * Kelasnya ada di `halaqoh_kelas` dan bisa lebih dari satu. Tanpa daftar ini,
+   * setiap layar yang menyaring/menampilkan kelas akan membuang baris halaqoh —
+   * itulah akar bug "jadwal halaqoh tidak muncul saat difilter kelas".
+   *
+   * Isinya: label kelas sumber untuk baris halaqoh, atau `[kelas]` untuk baris
+   * biasa. `kelas` sengaja TIDAK diubah artinya supaya pencocokan data lama
+   * (yang membandingkan label kelas) tetap bekerja.
+   */
+  kelasList?: string[];
   activity_type?: ActivityType;
   status: ScheduleStatus;
   period_template_id?: string | null; // Stage 2.3: soft reference to period_templates

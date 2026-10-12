@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { TimelineSlot } from '../../services/scheduleDetectionService';
+import { kelasDariJadwal } from '../../services/scheduleService';
 import { SUBSTITUTION_REASONS, type SubstitutionReason } from '../../types';
 import { AlertTriangle } from 'lucide-react';
 import {
@@ -80,7 +81,9 @@ export const SubstitutionConfirmModal: React.FC<SubstitutionConfirmModalProps> =
           <div className="grid grid-cols-2 gap-2">
             <div>
               <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Kelas</p>
-              <p className="font-bold text-slate-900">{schedule.kelas}</p>
+              <p className="font-bold text-slate-900">
+                {kelasDariJadwal(schedule).join(', ') || '—'}
+              </p>
             </div>
             <div>
               <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Mata Pelajaran</p>

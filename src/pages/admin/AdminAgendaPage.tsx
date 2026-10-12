@@ -5,6 +5,7 @@ import { useAgendaDateParam, useAgendaSlotParam } from '../../routes/useAgendaQu
 import { type FullAgenda, type Guru } from '../../types';
 import { useClassLabels } from '../../contexts/ClassContext';
 import { getDaftarGuru } from '../../services/agendaService';
+import { jadwalMencakupKelas, kelasDariJadwal } from '../../services/scheduleService';
 import {
   getSchoolDailyTimelineForDate,
   type TimelineSlot,
@@ -174,7 +175,9 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
   const filteredSlots = useMemo(() => {
     return slots.filter((slot) => {
       if (filterGuru !== 'SEMUA' && slot.schedule.teacher_name !== filterGuru) return false;
-      if (filterKelas !== 'SEMUA' && slot.schedule.kelas !== filterKelas) return false;
+      // Sesi halaqoh lintas kelas tidak punya satu `kelas`; penyaringnya memakai
+      // daftar kelas sumber, kalau tidak baris itu hilang saat difilter kelas.
+      if (filterKelas !== 'SEMUA' && !jadwalMencakupKelas(slot.schedule, filterKelas)) return false;
       if (filterStatus === 'SUDAH' && slot.status !== 'COMPLETED') return false;
       if (filterStatus === 'BELUM' && slot.status === 'COMPLETED') return false;
       return true;
@@ -250,7 +253,10 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
         // Kelompok ikut disebut: dua guru Ummi pada kelas & jam yang sama
         // menghasilkan baris yang tampak identik tanpa itu.
         <span className="font-semibold text-slate-900 whitespace-nowrap">
-          {labelKelasKelompok(slot.schedule.kelas, slot.schedule.halaqoh)}
+          {labelKelasKelompok(
+            kelasDariJadwal(slot.schedule).join(', '),
+            slot.schedule.halaqoh,
+          )}
         </span>
       ),
     },
@@ -308,7 +314,10 @@ export const AdminAgendaPage: React.FC<AdminAgendaPageProps> = ({
               Mengisi / mengoreksi agenda atas nama{' '}
               <strong>{teacherNameForForm}</strong>
               {selectedSlot
-                ? ` · ${labelKelasKelompok(selectedSlot.schedule.kelas, selectedSlot.schedule.halaqoh)}`
+                ? ` · ${labelKelasKelompok(
+                    kelasDariJadwal(selectedSlot.schedule).join(', '),
+                    selectedSlot.schedule.halaqoh,
+                  )}`
                 : directEdit
                   ? ` · ${labelKelasKelompok(
                       directEdit.header.kelas,
