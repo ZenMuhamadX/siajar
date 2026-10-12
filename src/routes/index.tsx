@@ -25,6 +25,7 @@ import type { ReportView } from './useReportQueryParam';
 import { AuthLoading, RequireAdmin, RequireAuth, RequireTabAccess, staffHomePath } from './guards';
 import { useEditAgendaParam } from './useEditAgenda';
 import { isAgendaFormOpen } from './useAgendaQuery';
+import { PanduanPenggunaanPage } from '../pages/PanduanPenggunaanPage';
 
 /* -------------------------------------------------------------------------- */
 /* Lazy imports — tiap halaman jadi chunk sendiri (sebelumnya 1 bundle ~729 kB) */
@@ -344,6 +345,8 @@ export function AppRoutes() {
         <Route path="/login" element={<LoginRoute />} />
         {/* Setup sekali-jalan: hanya berguna selama belum ada admin. */}
         <Route path="/setup" element={<SetupPage />} />
+
+        <Route path="/panduan" element={<PanduanPenggunaanPage />} />
 
         <Route element={<RequireAuth />}>
           {/* ---------------- SISI GURU ---------------- */}

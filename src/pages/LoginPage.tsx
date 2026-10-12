@@ -14,6 +14,7 @@ import {
   Eye,
   EyeOff,
   ShieldAlert,
+  BookOpen,
 } from 'lucide-react';
 
 type GuruOption = { id: string; nama_guru: string };
@@ -314,10 +315,17 @@ export const LoginPage: React.FC = () => {
             </button>
           </form>
 
-          <div className="pt-2 text-center border-t border-slate-100">
+          <div className="pt-2 text-center border-t border-slate-100 space-y-2">
             <p className="text-xs text-slate-600">
               Akses khusus Guru & Pengembang {schoolName}
             </p>
+            <Link
+              to="/panduan"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-primary-600 hover:text-primary-700 hover:underline transition"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              Panduan Penggunaan
+            </Link>
           </div>
         </div>
       </div>
