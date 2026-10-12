@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { ShieldCheck, Loader2, AlertCircle, Check, Lock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { bootstrapAdmin, getBuildAuthDomain, getSetupStatus } from '../services/userAdminService';
+import { runtimeConfig } from '../lib/runtimeConfig';
 
 const MIN_LENGTH = 6;
 
@@ -24,7 +25,7 @@ export const SetupPage: React.FC = () => {
   // Email admin yang benar-benar dipakai server, plus peringatan bila domain
   // di server berbeda dengan yang tertanam di frontend.
   const [adminEmail, setAdminEmail] = useState(
-    (import.meta.env?.VITE_ADMIN_EMAIL as string) || 'admin@siajar.local'
+    runtimeConfig.adminEmail || `admin@${runtimeConfig.authDomain}`
   );
   const [domainMismatch, setDomainMismatch] = useState<string | null>(null);
 

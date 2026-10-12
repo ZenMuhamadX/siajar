@@ -1,0 +1,19 @@
+{
+  "_petunjuk": [
+    "Salin berkas ini menjadi `siajar-config.json` untuk mengarahkan aplikasi",
+    "desktop ke server Supabase sekolah, tanpa perlu build ulang.",
+    "",
+    "Letak yang dicari (yang pertama ditemukan dipakai):",
+    "  1. jalur pada variabel lingkungan SIAJAR_CONFIG",
+    "  2. siajar-config.json di sebelah SIAJAR.exe  (versi portable)",
+    "  3. siajar-config.json di %APPDATA%/SIAJAR/   (versi NSIS)",
+    "",
+    "Kosongkan atau hapus berkas ini untuk kembali memakai nilai yang",
+    "tertanam saat build (VITE_* dari .env). Nilai di sini BUKAN rahasia:",
+    "anon key memang publik, keamanan dijaga RLS di server."
+  ],
+  "supabaseUrl": "https://supabase.sekolah.sch.id",
+  "supabaseAnonKey": "<anon-public-key>",
+  "authDomain": "siajar.local",
+  "adminEmail": "admin@siajar.local"
+}

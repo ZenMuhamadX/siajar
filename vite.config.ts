@@ -9,6 +9,11 @@ const host = process.env.HOST || '127.0.0.1'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Path aset dibuat relatif ('./assets/...') supaya bundle yang sama bisa
+  // dilayani dari root domain (web) maupun dari protokol kustom `app://local`
+  // di SIAJAR Desktop. Tanpa ini, aset absolut `/assets/...` gagal dimuat
+  // ketika aplikasi tidak berada tepat di root.
+  base: './',
   plugins: [
     react(),
     tailwindcss(),

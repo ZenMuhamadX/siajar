@@ -1,4 +1,4 @@
-import { BrowserRouter } from 'react-router';
+import { HashRouter } from 'react-router';
 import { AuthProvider } from './contexts/AuthContext';
 import { ClassProvider } from './contexts/ClassContext';
 import { SettingsProvider } from './contexts/SettingsContext';
@@ -23,6 +23,13 @@ import { AppRoutes } from './routes';
  *
  * Konsol navigasi lama (`currentView`, `adminSubTab`, `?tab=`, DevPanel) sudah
  * dilepas — lihat `src/routes/index.tsx` untuk peta rute.
+ *
+ * **HashRouter, bukan BrowserRouter.** Di SIAJAR Desktop bundle dimuat dari
+ * protokol `app://local`, dan URL-nya tidak punya server yang bisa menuliskan
+ * ulang rute tak dikenal menjadi `index.html`. Dengan hash, seluruh rute hidup
+ * di belakang `#` sehingga memuat ulang di halaman mana pun selalu aman —
+ * sekaligus membuat path aset relatif (`base: './'`) tetap benar. Di web
+ * perilakunya identik; hanya bentuk URL-nya yang berubah menjadi `#/admin/...`.
  */
 export function App() {
   return (
@@ -30,9 +37,9 @@ export function App() {
       <SettingsProvider>
         <ClassProvider>
           <ToastProvider>
-            <BrowserRouter>
+            <HashRouter>
               <AppRoutes />
-            </BrowserRouter>
+            </HashRouter>
           </ToastProvider>
         </ClassProvider>
       </SettingsProvider>
