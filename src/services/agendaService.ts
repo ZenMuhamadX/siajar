@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { getSettingsSync } from './settings/settingsService';
 import { findKelasId, resolveKelasId } from './classService';
+import { getHalaqohIdsByKelas } from './halaqohService';
 import type {
   Siswa,
   SiswaStatus,
@@ -771,7 +772,14 @@ export async function getRekapAgenda(filters?: {
     const kelasId = await findKelasId(filters.kelas);
     // Label yang tidak ada di master kelas berarti tidak ada agenda yang cocok.
     if (!kelasId) return [];
-    query = query.eq('kelas_id', kelasId);
+    // Agenda sesi halaqoh lintas kelas tidak punya `kelas_id`; ia harus ikut
+    // muncul saat disaring ke salah satu kelas sumbernya. Tanpa ini, riwayat
+    // agenda Ummi hilang begitu difilter kelas.
+    const halaqohIds = await getHalaqohIdsByKelas(kelasId);
+    query =
+      halaqohIds.length > 0
+        ? query.or(`kelas_id.eq.${kelasId},halaqoh_id.in.(${halaqohIds.join(',')})`)
+        : query.eq('kelas_id', kelasId);
   }
   if (filters?.tanggal) {
     query = query.eq('tanggal', filters.tanggal);

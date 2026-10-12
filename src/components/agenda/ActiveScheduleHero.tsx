@@ -1,5 +1,6 @@
 import React from 'react';
 import type { TimelineSlot } from '../../services/scheduleDetectionService';
+import { kelasDariJadwal } from '../../services/scheduleService';
 import { Clock, Edit3, ArrowRight } from 'lucide-react';
 
 interface ActiveScheduleHeroProps {
@@ -55,7 +56,9 @@ export const ActiveScheduleHero: React.FC<ActiveScheduleHeroProps> = ({
               {schedule.subject_name}
             </h2>
             <p className="text-sm text-blue-50/90">
-              <strong className="text-white">{schedule.kelas}</strong>
+              <strong className="text-white">
+                {kelasDariJadwal(schedule).join(', ') || '—'}
+              </strong>
               <span aria-hidden="true"> &bull; </span>
               {schedule.teacher_name}
             </p>

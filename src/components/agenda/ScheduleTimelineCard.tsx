@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { TimelineSlot } from '../../services/scheduleDetectionService';
+import { kelasDariJadwal } from '../../services/scheduleService';
 import type { Substitution } from '../../types';
 import { CheckCircle2, ChevronDown, ChevronRight, Lock, Play, AlertCircle } from 'lucide-react';
 
@@ -132,7 +133,7 @@ export const ScheduleTimelineCard: React.FC<ScheduleTimelineCardProps> = ({
 
       <div className="mt-1 flex items-center justify-between gap-3">
         <p className="min-w-0 truncate text-xs text-slate-500">
-          {schedule.kelas}
+          {kelasDariJadwal(schedule).join(', ') || '—'}
           <span aria-hidden="true"> · </span>
           JP {schedule.period_number}
           {substitution && (
@@ -175,7 +176,7 @@ export const ScheduleTimelineCard: React.FC<ScheduleTimelineCardProps> = ({
           onClick={() => onSelectSlot(slot)}
           aria-label={`${isCompleted ? 'Lihat atau edit' : 'Isi'} agenda ${
             schedule.subject_name
-          } kelas ${schedule.kelas} pukul ${startTime}`}
+          } kelas ${kelasDariJadwal(schedule).join(', ')} pukul ${startTime}`}
           className="card-hit block w-full text-left rounded-lg focus-visible:outline-none"
         >
           {summaryRows}

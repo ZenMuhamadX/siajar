@@ -142,7 +142,11 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
           const matchActual = item.actualTeacherName.trim().toLowerCase() === teacher;
           if (!matchScheduled && !matchActual) return false;
         }
-        if (selectedClass !== 'SEMUA' && item.classId !== selectedClass) return false;
+        // Sesi halaqoh lintas kelas muncul di tiap kelas sumbernya. Perbandingan
+        // WAJIB memakai `classIds` (daftar), bukan `classId` — yang untuk baris
+        // halaqoh berisi gabungan "1A, 2A" sehingga tidak pernah sama dengan
+        // satu label kelas.
+        if (selectedClass !== 'SEMUA' && !item.classIds.includes(selectedClass)) return false;
         if (
           selectedSubject !== 'SEMUA' &&
           item.subjectName.trim().toLowerCase() !== selectedSubject.trim().toLowerCase()
