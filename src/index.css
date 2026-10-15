@@ -418,6 +418,25 @@ button.card-hit:active:not(:disabled) {
   animation: card-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
+/* Panel detail inline (mis. daftar anggota halaqoh) yang dibuka dari sebuah
+ * baris tabel. Animasi MASUK saja — waktu baris di-expand panel muncul dengan
+ * fade + geser halus. Mengikuti easing yang sama dengan animasi lain di atas.
+ * Saat ditutup, baris panel dilepas dari DOM sehingga tidak ada animasi keluar;
+ * itu disengaja agar tidak menambah baris kosong yang memecah pemisah tabel. */
+@keyframes panel-expand {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.panel-expand {
+  animation: panel-expand 0.18s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
 /* Pointer cursor on all clickable elements */
 button,
 a,

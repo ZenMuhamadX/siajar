@@ -2,9 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Check,
+  ChevronRight,
   Edit2,
   Layers,
   Plus,
+  Search,
   Trash2,
   UserPlus,
   Users,
@@ -27,13 +29,7 @@ import {
 import { resolveAcademicYearId } from '../../services/agendaService';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { PageHeader } from '../../components/admin/PageHeader';
-import {
-  EmptyState,
-  ErrorState,
-  FormModal,
-  LoadingState,
-  formStyles,
-} from '../../components/common';
+import { DataTable, FilterBar, FormModal, formStyles, type Column } from '../../components/common';
 
 interface HalaqohPageProps {
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
@@ -45,7 +41,12 @@ interface HalaqohPageProps {
  * Sejak revisi "halaqoh lintas kelas", satu halaqoh TIDAK lagi milik satu kelas:
  * ia punya DAFTAR KELAS SUMBER (kolam) dan milik satu tahun ajaran. Alur layar:
  *   1. buat halaqoh + pilih kelas sumbernya,
- *   2. isi anggotanya dari kandidat (siswa kelas sumber yang belum berhalaqoh).
+ *   2. klik barisnya untuk membuka panel anggota, lalu isi dari kandidat
+ *      (siswa kelas sumber yang belum berhalaqoh).
+ *
+ * Tampilan memakai TABEL (bukan kartu) agar ringkas dan mudah dipindai. Daftar
+ * anggota muncul sebagai PANEL INLINE tepat di bawah baris yang diklik — bukan
+ * modal — supaya pengguna tetap melihat konteks daftar saat mengelola.
  *
  * Kenapa kelas sumber penting: ia menyaring siapa yang boleh dipilih jadi
  * anggota. Satu kelas boleh menyuplai beberapa halaqoh, dan satu halaqoh boleh
@@ -61,6 +62,11 @@ export const HalaqohPage: React.FC<HalaqohPageProps> = ({ showToast }) => {
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  /** Pencarian daftar halaqoh (nama / kelas sumber). */
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  /** Baris yang panel anggotanya sedang terbuka. */
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,6 +112,20 @@ export const HalaqohPage: React.FC<HalaqohPageProps> = ({ showToast }) => {
     () => Object.values(anggotaPerHalaqoh).reduce((n, arr) => n + arr.length, 0),
     [anggotaPerHalaqoh],
   );
+
+  const filteredHalaqoh = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return halaqohList;
+    return halaqohList.filter(
+      (h) =>
+        h.nama.toLowerCase().includes(q) ||
+        h.kelas.some((k) => k.toLowerCase().includes(q)),
+    );
+  }, [halaqohList, searchQuery]);
+
+  const toggleExpanded = (h: HalaqohTerdaftar) => {
+    setExpandedId((prev) => (prev === h.id ? null : h.id));
+  };
 
   // ----------------- Kelola kelompok (buat / ubah / hapus) -----------------
 
@@ -191,6 +211,7 @@ export const HalaqohPage: React.FC<HalaqohPageProps> = ({ showToast }) => {
     try {
       await deleteHalaqoh(deleteTarget.halaqoh.id);
       showToast('success', `Halaqoh "${deleteTarget.halaqoh.nama}" dihapus.`);
+      if (expandedId === deleteTarget.halaqoh.id) setExpandedId(null);
       setDeleteTarget(null);
       await loadData();
     } catch (err) {
@@ -204,6 +225,7 @@ export const HalaqohPage: React.FC<HalaqohPageProps> = ({ showToast }) => {
 
   const [addTarget, setAddTarget] = useState<HalaqohTerdaftar | null>(null);
   const [kandidat, setKandidat] = useState<SiswaTerdaftar[]>([]);
+  const [kandidatQuery, setKandidatQuery] = useState('');
   const [selectedSiswa, setSelectedSiswa] = useState<string[]>([]);
   const [isLoadingKandidat, setIsLoadingKandidat] = useState(false);
   const [isSavingAnggota, setIsSavingAnggota] = useState(false);
@@ -212,6 +234,7 @@ export const HalaqohPage: React.FC<HalaqohPageProps> = ({ showToast }) => {
     setAddTarget(h);
     setSelectedSiswa([]);
     setKandidat([]);
+    setKandidatQuery('');
     setIsLoadingKandidat(true);
     try {
       const list = await getKandidatAnggota(h.id, academicYearId);
@@ -222,6 +245,23 @@ export const HalaqohPage: React.FC<HalaqohPageProps> = ({ showToast }) => {
       setIsLoadingKandidat(false);
     }
   };
+
+  const closeAddMembers = () => {
+    setAddTarget(null);
+    setKandidatQuery('');
+  };
+
+  /** Saring kandidat di sisi klien: nama, NIS, atau kelas. */
+  const filteredKandidat = useMemo(() => {
+    const q = kandidatQuery.trim().toLowerCase();
+    if (!q) return kandidat;
+    return kandidat.filter(
+      (s) =>
+        s.nama_siswa.toLowerCase().includes(q) ||
+        (s.nis ?? '').toLowerCase().includes(q) ||
+        (s.kelas ?? '').toLowerCase().includes(q),
+    );
+  }, [kandidat, kandidatQuery]);
 
   const toggleSiswa = (siswaId: string) => {
     setSelectedSiswa((prev) =>
@@ -235,7 +275,8 @@ export const HalaqohPage: React.FC<HalaqohPageProps> = ({ showToast }) => {
     try {
       await setBanyakSiswaHalaqoh(selectedSiswa, addTarget.id, academicYearId);
       showToast('success', `${selectedSiswa.length} siswa dimasukkan ke ${addTarget.nama}.`);
-      setAddTarget(null);
+      setExpandedId(addTarget.id);
+      closeAddMembers();
       await loadData();
     } catch (err) {
       showToast('error', err instanceof Error ? err.message : 'Gagal menambah anggota.');
@@ -267,79 +308,229 @@ export const HalaqohPage: React.FC<HalaqohPageProps> = ({ showToast }) => {
 
   const isSiap = Boolean(academicYearId);
 
+  const columns: Column<HalaqohTerdaftar>[] = [
+    {
+      key: 'no',
+      header: 'No',
+      width: '56px',
+      align: 'center',
+      accessor: (_h, idx) => <span className="text-slate-600 font-medium">{idx + 1}</span>,
+    },
+    {
+      key: 'nama',
+      header: 'Nama Halaqoh',
+      align: 'left',
+      accessor: (h) => (
+        <span className="flex items-center gap-2 min-w-0">
+          <ChevronRight
+            aria-hidden="true"
+            className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${
+              expandedId === h.id ? 'rotate-90' : ''
+            }`}
+          />
+          <span className="font-semibold text-slate-900 truncate">{h.nama}</span>
+        </span>
+      ),
+    },
+    {
+      key: 'kelas',
+      header: 'Kelas Sumber',
+      align: 'left',
+      accessor: (h) =>
+        h.kelas.length === 0 ? (
+          <span className="text-2xs text-amber-700 italic">tanpa kelas sumber</span>
+        ) : (
+          <span className="flex flex-wrap gap-1">
+            {h.kelas.map((k) => (
+              <span
+                key={k}
+                className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200/80 text-2xs font-semibold"
+              >
+                {k}
+              </span>
+            ))}
+          </span>
+        ),
+    },
+    {
+      key: 'jumlah',
+      header: 'Jumlah Anggota',
+      width: '150px',
+      align: 'center',
+      accessor: (h) => {
+        const n = (anggotaPerHalaqoh[h.id] ?? []).length;
+        return (
+          <span className="inline-flex items-center gap-1 text-2xs font-bold px-2 py-0.5 rounded-md bg-primary-50 text-primary-700 border border-primary-100">
+            <Users className="w-3 h-3" aria-hidden="true" />
+            {n}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'actions',
+      header: 'Aksi',
+      width: '150px',
+      align: 'right',
+      accessor: (h) => (
+        <div className="flex items-center justify-end gap-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openAddMembers(h);
+            }}
+            aria-label={`Tambah anggota ke ${h.nama}`}
+            title="Tambah anggota"
+            className="p-1.5 text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded-md transition"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openEdit(h);
+            }}
+            aria-label={`Ubah ${h.nama}`}
+            title="Ubah halaqoh"
+            className="p-1.5 text-slate-600 hover:text-amber-600 hover:bg-amber-50 rounded-md transition"
+          >
+            <Edit2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteClick(h);
+            }}
+            aria-label={`Hapus ${h.nama}`}
+            title="Hapus halaqoh"
+            className="p-1.5 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-md transition"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  /** Panel anggota inline untuk baris yang sedang terbuka. */
+  const renderMembers = (h: HalaqohTerdaftar) => {
+    const anggota = anggotaPerHalaqoh[h.id] ?? [];
+    return (
+      <div
+        role="region"
+        aria-label={`Anggota ${h.nama}`}
+        className="panel-expand px-4 py-3 space-y-3 bg-white border-l-2 border-primary-400"
+      >
+        <p className="text-2xs font-bold uppercase tracking-wider text-slate-600">
+          Anggota {h.nama} · {anggota.length} siswa
+        </p>
+
+        {anggota.length === 0 ? (
+          <p className="text-2xs text-slate-500 flex items-center gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            Belum ada anggota. Klik tombol + di kolom Aksi untuk memilih dari kelas sumber.
+          </p>
+        ) : (
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            {anggota.map((a) => (
+              <li
+                key={a.id}
+                className="flex items-center justify-between gap-2 px-3 py-2 bg-white rounded-lg border border-slate-200"
+              >
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-slate-900 truncate">{a.nama_siswa}</p>
+                  <p className="text-2xs font-mono text-slate-500">
+                    {a.kelas || '—'} · {a.nis || '—'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAnggota(a)}
+                  aria-label={`Keluarkan ${a.nama_siswa}`}
+                  title="Keluarkan dari kelompok"
+                  className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-md transition shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
       <PageHeader
         title="Halaqoh Ummi"
-        description="Buat kelompok belajar lintas kelas untuk mapel berkelompok. Kelas sumber menentukan siapa yang boleh jadi anggota; guru tiap kelompok ditentukan di baris jadwal."
+        description="Buat kelompok belajar lintas kelas untuk mapel berkelompok. Klik barisnya untuk melihat daftar anggotanya; tambah anggota lewat kolom Aksi. Guru tiap kelompok ditentukan di baris jadwal."
       />
 
-      {/* Ringkasan + tambah */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-2xs text-slate-600 font-semibold min-h-11">
-            <Users className="w-4 h-4 text-primary-600" />
-            <span>
-              {halaqohList.length} halaqoh · {totalAnggota} siswa berhalaqoh
-            </span>
+      {!academicYearId && !classesLoading && (
+        <p className="text-2xs text-amber-700 bg-amber-50 border border-amber-200/80 rounded-lg px-3 py-2">
+          Belum ada tahun ajaran aktif. Halaqoh dibuat per tahun ajaran — aktifkan tahun ajaran dulu
+          di menu Tahun Ajaran.
+        </p>
+      )}
+
+      <FilterBar
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Cari halaqoh / kelas..."
+        searchLabel="Cari halaqoh"
+        isFiltered={Boolean(searchQuery.trim())}
+        onResetFilters={() => setSearchQuery('')}
+        actions={
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold">
+              <Users className="w-4 h-4 text-primary-600" />
+              <span>
+                {halaqohList.length} halaqoh · {totalAnggota} siswa
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={openCreate}
+              disabled={!isSiap}
+              className={formStyles.primaryBtn}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Tambah Halaqoh
+            </button>
           </div>
+        }
+      />
 
-          <button
-            type="button"
-            onClick={openCreate}
-            disabled={!isSiap}
-            className={formStyles.primaryBtn}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Tambah Halaqoh
-          </button>
-        </div>
-
-        {!academicYearId && !classesLoading && (
-          <p className="mt-3 text-2xs text-amber-700 bg-amber-50 border border-amber-200/80 rounded-lg px-3 py-2">
-            Belum ada tahun ajaran aktif. Halaqoh dibuat per tahun ajaran — aktifkan tahun ajaran
-            dulu di menu Tahun Ajaran.
-          </p>
-        )}
-      </div>
-
-      {isLoading ? (
-        <LoadingState message="Memuat halaqoh…" />
-      ) : loadError ? (
-        <ErrorState message={loadError} onRetry={loadData} />
-      ) : halaqohList.length === 0 ? (
-        <EmptyState
-          title="Belum ada halaqoh"
-          description={
-            isSiap
+      <DataTable
+        columns={columns}
+        data={filteredHalaqoh}
+        keyExtractor={(h) => h.id}
+        isLoading={isLoading}
+        isError={Boolean(loadError)}
+        errorMessage={loadError ?? undefined}
+        onRetry={loadData}
+        isFiltered={Boolean(searchQuery.trim())}
+        onResetFilter={() => setSearchQuery('')}
+        emptyTitle="Belum ada halaqoh"
+        emptyDescription={
+          searchQuery.trim()
+            ? 'Tidak ada halaqoh yang sesuai pencarian.'
+            : isSiap
               ? 'Klik "Tambah Halaqoh" untuk membuat kelompok pertama, lalu pilih kelas sumbernya.'
               : 'Aktifkan tahun ajaran terlebih dahulu.'
-          }
-          icon={<Layers className="w-5 h-5" />}
-          action={
-            isSiap ? (
-              <button type="button" onClick={openCreate} className={formStyles.primaryBtn}>
-                <Plus className="w-3.5 h-3.5" />
-                Tambah Halaqoh
-              </button>
-            ) : undefined
-          }
-        />
-      ) : (
-        <div className="space-y-3">
-          {halaqohList.map((h) => (
-            <HalaqohCard
-              key={h.id}
-              halaqoh={h}
-              anggota={anggotaPerHalaqoh[h.id] ?? []}
-              onEdit={() => openEdit(h)}
-              onDelete={() => handleDeleteClick(h)}
-              onAddMembers={() => openAddMembers(h)}
-              onRemoveAnggota={setSelectedAnggota}
-            />
-          ))}
-        </div>
-      )}
+        }
+        emptyIcon={<Layers className="w-5 h-5" />}
+        onRowClick={toggleExpanded}
+        isRowExpanded={(h) => expandedId === h.id}
+        renderExpandedRow={renderMembers}
+        rowClassName={(h) => (expandedId === h.id ? 'bg-slate-50/80' : '')}
+        enablePagination={true}
+        defaultPageSize={25}
+      />
 
       {/* Modal: buat / ubah halaqoh (nama + kelas sumber) */}
       <FormModal
@@ -432,7 +623,7 @@ export const HalaqohPage: React.FC<HalaqohPageProps> = ({ showToast }) => {
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleKelas(k.id)}
-                        className="accent-primary-600"
+                        className={formStyles.checkbox}
                       />
                       <span className="text-xs font-semibold text-slate-800">{k.label}</span>
                     </label>
@@ -444,11 +635,14 @@ export const HalaqohPage: React.FC<HalaqohPageProps> = ({ showToast }) => {
         </div>
       </FormModal>
 
-      {/* Modal: tambah anggota dari kandidat */}
+      {/* Modal: tambah anggota dari kandidat (dengan pencarian) */}
       <FormModal
         isOpen={Boolean(addTarget)}
-        onClose={() => setAddTarget(null)}
+        onClose={closeAddMembers}
         title="Tambah anggota"
+        /* Cegah implicit submission saat Enter di kotak pencarian — tanpa ini,
+           Enter di input akan me-reload halaman. Aksi nyata pakai tombol. */
+        onSubmit={(e) => e.preventDefault()}
         subtitle={
           addTarget
             ? `Pilih siswa dari kelas sumber ${addTarget.kelas.join(', ') || '—'} untuk ${addTarget.nama}.`
@@ -462,7 +656,7 @@ export const HalaqohPage: React.FC<HalaqohPageProps> = ({ showToast }) => {
               {selectedSiswa.length > 0 ? `${selectedSiswa.length} dipilih` : ''}
             </span>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setAddTarget(null)} className={formStyles.ghostBtn}>
+              <button type="button" onClick={closeAddMembers} className={formStyles.ghostBtn}>
                 Batal
               </button>
               <button
@@ -481,38 +675,62 @@ export const HalaqohPage: React.FC<HalaqohPageProps> = ({ showToast }) => {
       >
         <div className="p-5">
           {isLoadingKandidat ? (
-            <LoadingState message="Memuat kandidat…" />
+            <p className="text-xs text-slate-600 py-4 text-center">Memuat kandidat…</p>
           ) : kandidat.length === 0 ? (
             <p className="text-xs text-slate-600">
               Tidak ada kandidat. Semua siswa aktif dari kelas sumber sudah masuk halaqoh, atau
               kelas sumber belum diisi.
             </p>
           ) : (
-            <ul className="divide-y divide-slate-100 max-h-[420px] overflow-y-auto -mx-1">
-              {kandidat.map((s) => {
-                const checked = selectedSiswa.includes(s.id);
-                return (
-                  <li key={s.id}>
-                    <label className="flex items-center gap-3 px-1 py-2.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleSiswa(s.id)}
-                        className="accent-primary-600"
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-xs font-semibold text-slate-900 truncate">
-                          {s.nama_siswa}
-                        </span>
-                        <span className="block text-2xs font-mono text-slate-500">
-                          {s.kelas || '—'} · {s.nis || '—'}
-                        </span>
-                      </span>
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
+            <>
+              <div className="relative mb-3">
+                <Search
+                  aria-hidden="true"
+                  className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                />
+                <input
+                  type="text"
+                  autoFocus
+                  value={kandidatQuery}
+                  onChange={(e) => setKandidatQuery(e.target.value)}
+                  placeholder="Cari nama / NIS / kelas..."
+                  aria-label="Cari siswa kandidat"
+                  className={`${formStyles.input} pl-8`}
+                />
+              </div>
+
+              {filteredKandidat.length === 0 ? (
+                <p className="text-xs text-slate-600 py-4 text-center">
+                  Tidak ada siswa yang cocok dengan pencarian.
+                </p>
+              ) : (
+                <ul className="divide-y divide-slate-100 max-h-[420px] overflow-y-auto -mx-1">
+                  {filteredKandidat.map((s) => {
+                    const checked = selectedSiswa.includes(s.id);
+                    return (
+                      <li key={s.id}>
+                        <label className="flex items-center gap-3 px-1 py-2.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleSiswa(s.id)}
+                            className={formStyles.checkbox}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-xs font-semibold text-slate-900 truncate">
+                              {s.nama_siswa}
+                            </span>
+                            <span className="block text-2xs font-mono text-slate-500">
+                              {s.kelas || '—'} · {s.nis || '—'}
+                            </span>
+                          </span>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </>
           )}
         </div>
       </FormModal>
@@ -548,108 +766,6 @@ export const HalaqohPage: React.FC<HalaqohPageProps> = ({ showToast }) => {
         }
         confirmText="Hapus"
       />
-    </div>
-  );
-};
-
-/**
- * Satu kartu kelompok beserta anggotanya.
- *
- * Dipisah jadi komponen sendiri supaya daftar kelompok dengan anggotanya tidak
- * membuat fungsi halaman ini sulit dibaca.
- */
-const HalaqohCard: React.FC<{
-  halaqoh: HalaqohTerdaftar;
-  anggota: AnggotaHalaqoh[];
-  onEdit: () => void;
-  onDelete: () => void;
-  onAddMembers: () => void;
-  onRemoveAnggota: (a: AnggotaHalaqoh) => void;
-}> = ({ halaqoh, anggota, onEdit, onDelete, onAddMembers, onRemoveAnggota }) => {
-  const [expanded, setExpanded] = useState<boolean>(true);
-
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="flex items-center gap-2 min-h-11 text-left"
-          aria-expanded={expanded}
-        >
-          <Layers className="w-4 h-4 text-primary-600 shrink-0" />
-          <span className="text-sm font-bold text-slate-900">{halaqoh.nama}</span>
-          <span className="text-2xs font-bold px-2 py-0.5 rounded-md bg-slate-200 text-slate-700">
-            {anggota.length}
-          </span>
-          <span className="text-2xs font-semibold text-slate-500">
-            {halaqoh.kelas.length > 0 ? `kelas ${halaqoh.kelas.join(', ')}` : 'tanpa kelas sumber'}
-          </span>
-        </button>
-
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onAddMembers}
-            className={`${formStyles.ghostBtn} shrink-0`}
-            title="Tambah anggota"
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            Anggota
-          </button>
-          <button
-            type="button"
-            onClick={onEdit}
-            aria-label={`Ubah ${halaqoh.nama}`}
-            title="Ubah halaqoh"
-            className="p-2 min-h-11 min-w-11 flex items-center justify-center text-slate-600 hover:text-amber-600 hover:bg-amber-50 rounded-md transition"
-          >
-            <Edit2 className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            aria-label={`Hapus ${halaqoh.nama}`}
-            title="Hapus halaqoh"
-            className="p-2 min-h-11 min-w-11 flex items-center justify-center text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-md transition"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {expanded && (
-        <div>
-          {anggota.length === 0 ? (
-            <p className="px-4 py-4 text-2xs text-slate-500 flex items-center gap-2">
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-              Belum ada anggota. Klik &ldquo;Anggota&rdquo; untuk memilih dari kelas sumber.
-            </p>
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {anggota.map((a) => (
-                <li key={a.id} className="flex items-center justify-between gap-2 px-4 py-2.5">
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-slate-900 truncate">{a.nama_siswa}</p>
-                    <p className="text-2xs font-mono text-slate-500">
-                      {a.kelas || '—'} · {a.nis || '—'}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => onRemoveAnggota(a)}
-                    aria-label={`Keluarkan ${a.nama_siswa}`}
-                    title="Keluarkan dari kelompok"
-                    className="p-2 min-h-11 min-w-11 flex items-center justify-center text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-md transition shrink-0"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
     </div>
   );
 };

@@ -47,6 +47,14 @@ export interface DataTableProps<T> {
   };
   rowClassName?: (item: T, index: number) => string;
   onRowClick?: (item: T) => void;
+  /**
+   * Baris mana yang sedang melebar. Dipakai bersama `renderExpandedRow` untuk
+   * menampilkan panel detail inline (mis. daftar anggota halaqoh) tepat di
+   * bawah barisnya, bukan di modal terpisah.
+   */
+  isRowExpanded?: (item: T) => boolean;
+  /** Isi baris tambahan di bawah item yang melebar. */
+  renderExpandedRow?: (item: T, index: number) => React.ReactNode;
   className?: string;
   headerRightContent?: React.ReactNode;
   tableClassName?: string;
@@ -77,6 +85,8 @@ export function DataTable<T>({
   serverPagination,
   rowClassName,
   onRowClick,
+  isRowExpanded,
+  renderExpandedRow,
   className = '',
   headerRightContent,
   tableClassName = '',
@@ -200,11 +210,16 @@ export function DataTable<T>({
                 const rowKey = keyExtractor(item, index);
                 const extraClass = rowClassName ? rowClassName(item, index) : '';
                 const isClickable = Boolean(onRowClick);
+                const expandable = Boolean(renderExpandedRow);
+                const expanded = expandable ? Boolean(isRowExpanded?.(item)) : false;
+                const panelId = expandable ? `dt-panel-${rowKey}` : undefined;
 
                 return (
+                  <React.Fragment key={rowKey}>
                   <tr
-                    key={rowKey}
                     onClick={() => onRowClick?.(item)}
+                    aria-expanded={expandable ? expanded : undefined}
+                    aria-controls={expandable ? panelId : undefined}
                     /* Aksesibilitas keyboard: baris yang bisa diklik sebelumnya
                      * hanya punya `onClick`, sehingga pengguna keyboard tidak
                      * bisa mencapainya sama sekali. Ditambahkan `tabIndex` +
@@ -247,6 +262,17 @@ export function DataTable<T>({
                       );
                     })}
                   </tr>
+                  {renderExpandedRow && isRowExpanded?.(item) && (
+                    <tr className="bg-white">
+                      <td id={panelId} colSpan={columns.length} className="p-0">
+                        {renderExpandedRow(
+                          item,
+                          (safeCurrentPage - 1) * activePageSize + index,
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
