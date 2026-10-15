@@ -38,6 +38,8 @@ siajar-config.json
 # Catatan kerja asisten AI (memori proyek, artefak) — bukan bagian dari kode
 # aplikasi, jangan ikut ke repo tim.
 .workbuddy-ai/
+.claude/
+.playwright-mcp/
 
 # Skrip uji/ukur manual & berkas debug sekali pakai — sengaja TIDAK di repo.
 # Skrip-skrip ini dijalankan dengan `bun <berkas>.ts` untuk memeriksa perilaku
