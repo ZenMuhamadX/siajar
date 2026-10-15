@@ -422,38 +422,64 @@ export const HalaqohPage: React.FC<HalaqohPageProps> = ({ showToast }) => {
       <div
         role="region"
         aria-label={`Anggota ${h.nama}`}
-        className="panel-expand px-4 py-3 space-y-3 bg-white border-l-2 border-primary-400"
+        /* Batas lebar mencegah panel mewarisi lebar tabel induk (≈600px karena
+         * kolom Aksi & Jumlah Anggota), sehingga tombol keluarkan tidak
+         * terdorong ke luar layar di HP. Underscore = spasi di nilai arbitrary
+         * Tailwind. */
+        className="panel-expand bg-white border-l-2 border-primary-400 px-4 py-3 space-y-2.5 max-w-[calc(100vw_-_2rem)] sm:max-w-none"
       >
-        <p className="text-2xs font-bold uppercase tracking-wider text-slate-600">
-          Anggota {h.nama} · {anggota.length} siswa
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-2xs font-bold uppercase tracking-wider text-slate-600">
+            Anggota {h.nama} · {anggota.length} siswa
+          </p>
+          <button
+            type="button"
+            onClick={() => openAddMembers(h)}
+            className={`${formStyles.ghostBtn} min-h-11 sm:min-h-0 shrink-0`}
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            Tambah anggota
+          </button>
+        </div>
 
         {anggota.length === 0 ? (
-          <p className="text-2xs text-slate-500 flex items-center gap-2">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-            Belum ada anggota. Klik tombol + di kolom Aksi untuk memilih dari kelas sumber.
+          <p className="text-xs text-slate-600 flex items-start gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+            <span>
+              Belum ada anggota. Pilih dari siswa kelas sumber {h.kelas.join(', ') || '—'}.
+            </span>
           </p>
         ) : (
-          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+          <ul className="divide-y divide-slate-100">
             {anggota.map((a) => (
               <li
                 key={a.id}
-                className="flex items-center justify-between gap-2 px-3 py-2 bg-white rounded-lg border border-slate-200"
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 py-2 sm:grid-cols-[minmax(0,1fr)_4.5rem_6.5rem_2.25rem]"
               >
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-slate-900 truncate">{a.nama_siswa}</p>
-                  <p className="text-2xs font-mono text-slate-500">
+                <span className="min-w-0">
+                  <span className="block text-xs font-semibold text-slate-900 truncate">
+                    {a.nama_siswa}
+                  </span>
+                  <span className="sm:hidden block text-2xs font-mono text-slate-500">
                     {a.kelas || '—'} · {a.nis || '—'}
-                  </p>
-                </div>
+                  </span>
+                </span>
+                <span className="hidden sm:block">
+                  <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200/80 text-2xs font-semibold">
+                    {a.kelas || '—'}
+                  </span>
+                </span>
+                <span className="hidden sm:block text-2xs font-mono tabular-nums text-slate-500">
+                  {a.nis || '—'}
+                </span>
                 <button
                   type="button"
                   onClick={() => setSelectedAnggota(a)}
                   aria-label={`Keluarkan ${a.nama_siswa}`}
                   title="Keluarkan dari kelompok"
-                  className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-md transition shrink-0"
+                  className="justify-self-end p-2 -mr-1 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-md transition"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" />
                 </button>
               </li>
             ))}
@@ -467,7 +493,7 @@ export const HalaqohPage: React.FC<HalaqohPageProps> = ({ showToast }) => {
     <div className="space-y-4">
       <PageHeader
         title="Halaqoh Ummi"
-        description="Buat kelompok belajar lintas kelas untuk mapel berkelompok. Klik barisnya untuk melihat daftar anggotanya; tambah anggota lewat kolom Aksi. Guru tiap kelompok ditentukan di baris jadwal."
+        description="Buat kelompok belajar lintas kelas untuk mapel berkelompok. Klik barisnya untuk melihat anggotanya, lalu tambah atau keluarkan siswa dari panel yang muncul. Guru tiap kelompok ditentukan di baris jadwal."
       />
 
       {!academicYearId && !classesLoading && (
