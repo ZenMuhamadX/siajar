@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   type AcademicYear,
   type ScheduleItem,
@@ -23,8 +23,13 @@ import {
 } from '../../services/scheduleService';
 import { getPeriodTemplates } from '../../services/periodTemplateService';
 import { getDaftarGuru, getDaftarMapel } from '../../services/agendaService';
-import { getHalaqohByKelas } from '../../services/halaqohService';
+import { getHalaqohByKelas, getHalaqohUrutanMap } from '../../services/halaqohService';
 import { findKelasId } from '../../services/classService';
+import { buildClassRank } from '../../utils/classOrder';
+import {
+  compareSchedulesDefault,
+  type ScheduleSortContext,
+} from '../../utils/scheduleOrder';
 import type { HalaqohTerdaftar } from '../../types';
 import { PageHeader } from '../../components/admin/PageHeader';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -69,6 +74,19 @@ const STATUS_LABEL: Record<string, string> = {
 };
 const statusLabel = (s: string) => STATUS_LABEL[s] ?? s;
 
+/**
+ * Urutan hari jadwal (konstanta, di luar komponen supaya referensinya stabil —
+ * bila dibuat ulang tiap render, `useMemo` konteks sortir akan dihitung ulang
+ * terus dan cache comparator-per-`ctx` jadi tak berguna).
+ */
+const DAY_ORDER: Record<string, number> = {
+  MONDAY: 1,
+  TUESDAY: 2,
+  WEDNESDAY: 3,
+  THURSDAY: 4,
+  FRIDAY: 5,
+};
+
 export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
   showToast,
   onNavigateTab,
@@ -83,6 +101,27 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
   const [subjects, setSubjects] = useState<MataPelajaran[]>([]);
   const [periodTemplates, setPeriodTemplates] = useState<PeriodTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  /**
+   * Nomor urut tiap halaqoh (Ummi) untuk menstabilkan urutan baris pada jam
+   * yang sama. Hanya PENENTU SERI — bila gagal dimuat, sortir tetap jalan
+   * memakai rantai sekunder yang lain.
+   */
+  const [halaqohUrutan, setHalaqohUrutan] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    let alive = true;
+    getHalaqohUrutanMap()
+      .then((m) => {
+        if (alive) setHalaqohUrutan(m);
+      })
+      .catch(() => {
+        /* urutan halaqoh hanya penentu seri; kegagalan tidak fatal */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // Tampilan tunggal: satu tabel daftar (flat) + filter. Tidak ada mode
   //elompokan Per Hari / Per Guru / Per Kelas — semua itu cukup dijawab filter.
@@ -664,13 +703,22 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
   //   }
   // };
 
-  const DAY_ORDER: Record<string, number> = {
-    MONDAY: 1,
-    TUESDAY: 2,
-    WEDNESDAY: 3,
-    THURSDAY: 4,
-    FRIDAY: 5,
-  };
+  /**
+   * Konteks sortir jadwal. Rank kelas dibangun dari master (tingkat → rombel)
+   * dan `labelsOf` memakai `kelasDariJadwal` — keduanya yang membuat baris
+   * halaqah (berkelas kosong) menempel di kelas sumbernya, bukan meloncat ke
+   * atas 1A. Di-`useMemo` supaya referensinya stabil dan aman dipakai sebagai
+   * kunci cache di `compareSchedulesDefault`.
+   */
+  const sortCtx: ScheduleSortContext = useMemo(
+    () => ({
+      dayOrder: DAY_ORDER,
+      kelasRank: buildClassRank(kelasLabels),
+      halaqohUrutan,
+      labelsOf: kelasDariJadwal,
+    }),
+    [kelasLabels, halaqohUrutan],
+  );
 
   const isFiltered =
     filterDay !== 'ALL' ||
@@ -706,14 +754,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
       }
       return true;
     })
-    .sort((a, b) => {
-      const dayDiff = (DAY_ORDER[a.day] || 99) - (DAY_ORDER[b.day] || 99);
-      if (dayDiff !== 0) return dayDiff;
-      if (a.period_number !== b.period_number) return a.period_number - b.period_number;
-      const timeDiff = a.start_time.localeCompare(b.start_time);
-      if (timeDiff !== 0) return timeDiff;
-      return a.kelas.localeCompare(b.kelas);
-    });
+    .sort((a, b) => compareSchedulesDefault(a, b, sortCtx));
 
   // KPI mengikuti filter yang sedang aktif, supaya angka == baris yang terlihat
   const kpiSource = isFiltered ? filteredSchedules : schedules;

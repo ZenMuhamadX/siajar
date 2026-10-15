@@ -162,6 +162,25 @@ export async function getKelasSumberMap(): Promise<Record<string, string[]>> {
 }
 
 /**
+ * Peta halaqoh id → `urutan`, untuk SELURUH halaqoh.
+ *
+ * Dipakai pengurutan baris rekap: pada kelas & jam yang sama bisa ada beberapa
+ * halaqoh (Ummi lintas kelas) yang tampil sebagai baris identik — urutan
+ * pembacanya harus mengikuti nomor urut halaqoh, bukan urutan abjad nama.
+ * View-model laporan murni, jadi peta ini disiapkan di sini lalu diteruskan
+ * sebagai data. Hanya halaqoh yang `urutan`-nya terisi yang masuk peta.
+ */
+export async function getHalaqohUrutanMap(): Promise<Record<string, number>> {
+  const { data, error } = await supabase.from('halaqoh').select('id, urutan');
+  if (error) throw error;
+  const map: Record<string, number> = {};
+  for (const r of (data ?? []) as { id: string; urutan: number | null }[]) {
+    if (r.urutan !== null && r.urutan !== undefined) map[r.id] = r.urutan;
+  }
+  return map;
+}
+
+/**
  * Buat halaqoh baru di sebuah tahun ajaran, beserta kelas sumbernya.
  *
  * `urutan` dihitung otomatis (setelah yang terakhir) — nomor urut bukan

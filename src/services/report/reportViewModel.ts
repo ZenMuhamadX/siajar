@@ -2,6 +2,7 @@ import type { FullAgenda, Substitution } from '../../types';
 import type { ScheduleItem } from '../../types/schedule';
 import { computeSlotStatus, getScheduleDayFromDate } from '../scheduleDetectionService';
 import { timeToMinutes } from '../../utils/scheduleValidation';
+import { buildClassRank, sessionClassRank } from '../../utils/classOrder';
 import type { ReportStatus } from './reportStatus';
 
 /**
@@ -42,6 +43,12 @@ export interface SlotRow {
    * kelas & jam yang sama menghasilkan dua baris rekap yang identik.
    */
   kelompok: string | null;
+  /**
+   * Id halaqoh bila baris ini milik sesi kelompok, `null` bila seluruh kelas.
+   * Dipakai pengurutan: beberapa halaqoh pada kelas & jam yang sama diurutkan
+   * berdasarkan `urutan` halaqohnya, bukan urutan abjad label.
+   */
+  halaqohId: string | null;
   scheduledTeacherName: string;
   actualTeacherName: string;
   isBadal: boolean;
@@ -73,6 +80,16 @@ export interface BuildSlotRowsInput {
    * ada halaqoh lintas kelas (perilaku lama).
    */
   halaqohKelas?: Record<string, string[]>;
+  /**
+   * Label kelas master terurut tingkat → rombel (dari ClassContext).
+   * Dipakai untuk mengurutkan baris.
+   */
+  kelasOrder?: string[];
+  /**
+   * Peta halaqoh id → nomor urut, penentu urutan saat beberapa halaqah berada
+   * di kelas & jam yang sama.
+   */
+  halaqohUrutan?: Record<string, number>;
   /** "Sekarang" untuk menentukan status slot yang belum Terisi. */
   now?: Date;
 }
@@ -184,6 +201,11 @@ export function buildSlotRows(input: BuildSlotRowsInput): SlotRow[] {
   const { dates, schedules, agendas, substitutions } = input;
   const now = input.now ?? new Date();
   const halaqohKelas = input.halaqohKelas ?? {};
+  // Urutan kelas master & urutan halaqoh hanya dipakai saat membandingkan
+  // baris (lihat `tieBreak` di bawah) — keduanya opsional agar pemanggil lama
+  // (Rekap Mingguan) tidak berubah perilakunya.
+  const kelasRank = buildClassRank(input.kelasOrder ?? []);
+  const halaqohUrutan = input.halaqohUrutan ?? {};
 
   /**
    * Kelas-kelas yang dicakup sebuah baris. Sesi halaqoh mengambil SELURUH kelas
@@ -258,6 +280,7 @@ export function buildSlotRows(input: BuildSlotRowsInput): SlotRow[] {
         // halaqoh-nya pun pasti. Cadangan ke KBM hanya untuk agenda lama yang
         // dibuat sebelum kolom `halaqoh_id` dipakai.
         kelompok: schedule.halaqoh || findKbmHalaqoh(agenda) || null,
+        halaqohId: schedule.halaqoh_id ?? null,
         scheduledTeacherName: schedule.teacher_name,
         actualTeacherName,
         isBadal,
@@ -293,6 +316,7 @@ export function buildSlotRows(input: BuildSlotRowsInput): SlotRow[] {
       subjectName: kbmFirst?.mapel || 'Pembelajaran',
       // Agenda tanpa slot: satu-satunya sumber halaqoh adalah baris KBM-nya.
       kelompok: kbmFirst?.halaqoh || null,
+      halaqohId: agenda.header.halaqoh_id ?? null,
       scheduledTeacherName:
         agenda.header.actual_teacher_name || kbmFirst?.nama_guru || 'Guru',
       actualTeacherName: agenda.header.actual_teacher_name || kbmFirst?.nama_guru || 'Guru',
@@ -309,17 +333,51 @@ export function buildSlotRows(input: BuildSlotRowsInput): SlotRow[] {
     });
   }
 
+  /**
+   * Pemecah seri setelah tanggal & jam: kelas → halaqoh → kelompok → label → key.
+   *
+   * 1. Posisi kelas memakai urutan master (tingkat → rombel), bukan string
+   *    mentah — dan sesi halaqoh duduk di posisi kelas sumbernya yang paling
+   *    kecil, sehingga tidak "meloncat" di atas 1A hanya karena labelnya
+   *    digabung (atau kosong saat peta sumber belum terisi).
+   * 2. Beberapa halaqoh pada kelas & jam yang sama diurutkan `urutan`-nya
+   *    (yang terdefinisi dulu; baris non-halaqoh/tanpa urutan belakangan).
+   * 3-5. Pembanding terakhir yang selalu terdefinisi → urutan total & deterministik.
+   */
+  const tieBreak = (a: SlotRow, b: SlotRow): number => {
+    const rankDiff = sessionClassRank(a.classIds, kelasRank) - sessionClassRank(b.classIds, kelasRank);
+    if (rankDiff !== 0) return rankDiff;
+
+    const ua = a.halaqohId ? halaqohUrutan[a.halaqohId] : undefined;
+    const ub = b.halaqohId ? halaqohUrutan[b.halaqohId] : undefined;
+    if (ua !== undefined && ub !== undefined) {
+      if (ua !== ub) return ua - ub;
+    } else if (ua !== undefined) {
+      return -1;
+    } else if (ub !== undefined) {
+      return 1;
+    }
+
+    const kelompokCmp = (a.kelompok ?? '').localeCompare(b.kelompok ?? '');
+    if (kelompokCmp !== 0) return kelompokCmp;
+
+    const classCmp = a.classId.localeCompare(b.classId);
+    if (classCmp !== 0) return classCmp;
+
+    return a.key.localeCompare(b.key);
+  };
+
   // Urut: tanggal → jam mulai (baris tanpa jam selalu di akhir) → kelas.
   rows.sort((a, b) => {
     if (a.date !== b.date) return a.date.localeCompare(b.date);
     if (!a.startTime || !b.startTime) {
       if (a.startTime && !b.startTime) return -1;
       if (!a.startTime && b.startTime) return 1;
-      return a.classId.localeCompare(b.classId);
+      return tieBreak(a, b);
     }
     const timeCmp = a.startTime.localeCompare(b.startTime);
     if (timeCmp !== 0) return timeCmp;
-    return a.classId.localeCompare(b.classId);
+    return tieBreak(a, b);
   });
 
   return rows;

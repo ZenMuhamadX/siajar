@@ -106,6 +106,7 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
       const data = await getDailyReport({
         date: selectedDate,
         academicYearId: selectedAYId || undefined,
+        kelasOrder: kelasLabels,
       });
       setReportItems(data);
     } catch (err: any) {
@@ -117,7 +118,7 @@ export const RekapHarianPage: React.FC<RekapHarianPageProps> = ({ showToast }) =
     } finally {
       setIsLoading(false);
     }
-  }, [selectedDate, selectedAYId, showToast]);
+  }, [selectedDate, selectedAYId, kelasLabels, showToast]);
 
   useEffect(() => {
     fetchReport();

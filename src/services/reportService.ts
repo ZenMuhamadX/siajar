@@ -4,7 +4,7 @@ import type { FullAgenda, Guru, Substitution } from '../types';
 import type { AcademicYear, ScheduleItem } from '../types/schedule';
 import { getAcademicYears, getSchedules } from './scheduleService';
 import { getRekapAgenda } from './agendaService';
-import { getKelasSumberMap } from './halaqohService';
+import { getKelasSumberMap, getHalaqohUrutanMap } from './halaqohService';
 import { getSubstitutionsForDate, getSubstitutionHistory } from './substitutionService';
 import { getEvidenceSignedUrls } from './evidenceService';
 import { getScheduleDayFromDate } from './scheduleDetectionService';
@@ -232,6 +232,8 @@ export async function getDailyReport(options: {
   classId?: string;
   subjectName?: string;
   statusFilter?: string; // 'ALL' | ReportStatus
+  /** Label kelas master terurut tingkat → rombel (dari ClassContext). */
+  kelasOrder?: string[];
 }): Promise<DailyReportItem[]> {
   const { date, academicYearId, teacherName, classId, subjectName, statusFilter } = options;
   const now = new Date();
@@ -260,12 +262,15 @@ export async function getDailyReport(options: {
   //    dikenali kelas mana saja yang menerima rekapnya.
   const scheduleById = new Map(schedules.map((s) => [s.id, s]));
   const halaqohKelas = await getKelasSumberMap();
+  const halaqohUrutan = await getHalaqohUrutanMap();
   const rows = buildSlotRows({
     dates: [date],
     schedules,
     agendas,
     substitutions,
     halaqohKelas,
+    kelasOrder: options.kelasOrder,
+    halaqohUrutan,
     now,
   });
 

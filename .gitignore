@@ -54,3 +54,5 @@ supabase/legacy/cleanup_*.sql
 # Keluaran antara generator jadwal — dihasilkan ulang dari Excel, tidak perlu
 # di repo (skripnya: parse-jadwal-excel.ts lalu build-seed-jadwal-sql.ts).
 jadwal-parsed.json
+# Playwright CLI output (may contain credentials)
+.playwright-cli/
