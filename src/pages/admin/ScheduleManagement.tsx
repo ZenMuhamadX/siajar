@@ -778,32 +778,62 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
     // Baris halaqoh lintas kelas tidak punya satu `kelas` — selnya akan kosong
     // dan baris tampak anonim. Labelnya digabung dari kelas sumbernya.
     const labels = kelasDariJadwal(item);
+    const teks = labels.length > 0 ? labels.join(', ') : '—';
     return (
-      <span className="font-bold text-slate-900">
-        {labels.length > 0 ? labels.join(', ') : '—'}
+      <span className="block truncate font-bold text-slate-900" title={teks}>
+        {teks}
       </span>
     );
   };
-  const cellSubject = (item: ScheduleItem) => (
-    <div className="flex flex-col gap-0.5">
-      <span className="font-semibold text-slate-900">{item.subject_name}</span>
-      {/* Baris berkelompok tanpa nama kelompok berarti data lama dari sebelum
-          Fase 2 — ditandai supaya kelihatan dan bisa diperbaiki. */}
-      {item.halaqoh ? (
-        <span className="inline-flex w-fit items-center gap-1 rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">
-          <Users className="w-2.5 h-2.5" />
-          {item.halaqoh}
+  /* Nama kelompok sengaja SEBARIS dengan nama mapel, bukan ditumpuk di
+   * bawahnya. Versi bertumpuk membuat sel jadi dua baris, dan karena tinggi
+   * baris tabel ditentukan isi, setiap baris halaqoh tampil ~20px lebih tinggi
+   * daripada baris biasa — daftar jadi bergerigi. Dengan sebaris, tinggi semua
+   * baris tetap sama tanpa perlu memaksa tinggi px (yang berisiko memotong
+   * teks saat browser di-zoom).
+   *
+   * `min-w-0` + `truncate` wajib berpasangan dengan `table-fixed`: tanpa itu
+   * nama kelompok yang panjang akan melebarkan kolom, bukan terpotong.
+   *
+   * Saat ada chip, nama mapel diberi `shrink-0` + `max-w-[55%]`. Tanpa itu
+   * flex membagi penyusutan menurut lebar konten, sehingga "Ummi" (34px) ikut
+   * menyusut jadi "Umm…" hanya karena nama kelompoknya panjang. Dengan cara
+   * ini yang terpotong selalu chip-nya, dan nama mapel tetap utuh. */
+  const cellSubject = (item: ScheduleItem) => {
+    const adaChip = Boolean(item.halaqoh || item.halaqoh_id);
+    return (
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span
+          className={`min-w-0 truncate font-semibold text-slate-900 ${
+            adaChip ? 'max-w-[55%] shrink-0' : ''
+          }`}
+          title={item.subject_name}
+        >
+          {item.subject_name}
         </span>
-      ) : item.halaqoh_id ? (
-        <span className="inline-flex w-fit items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-          <Users className="w-2.5 h-2.5" />
-          Kelompok
-        </span>
-      ) : null}
-    </div>
-  );
+        {/* Baris berkelompok tanpa nama kelompok berarti data lama dari sebelum
+            Fase 2 — ditandai supaya kelihatan dan bisa diperbaiki. */}
+        {item.halaqoh ? (
+          <span
+            className="inline-flex min-w-0 shrink items-center gap-1 rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700"
+            title={item.halaqoh}
+          >
+            <Users className="w-2.5 h-2.5 shrink-0" />
+            <span className="truncate">{item.halaqoh}</span>
+          </span>
+        ) : item.halaqoh_id ? (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+            <Users className="w-2.5 h-2.5 shrink-0" />
+            Kelompok
+          </span>
+        ) : null}
+      </div>
+    );
+  };
   const cellTeacher = (item: ScheduleItem) => (
-    <span className="text-slate-700">{item.teacher_name}</span>
+    <span className="block truncate text-slate-700" title={item.teacher_name}>
+      {item.teacher_name}
+    </span>
   );
   const cellStatus = (item: ScheduleItem) => <StatusBadge status={item.status} />;
   const cellActions = (item: ScheduleItem) => {
@@ -844,6 +874,14 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
     );
   };
 
+  /* Lebar kolom: begitu tabel memakai `table-fixed` (lihat `tableClassName`
+   * di bawah), semua kolom WAJIB punya `width` — kolom tanpa width akan dibagi
+   * rata sisa ruang dan hasilnya bisa lebih sempit dari isinya. Kolom yang
+   * isinya dinamis (mapel, guru) memakai persen supaya ikut menyesuaikan lebar
+   * layar; sisanya px karena isinya berukuran tetap (jam, angka, badge, ikon).
+   *
+   * Angka px di sini sudah memperhitungkan padding sel `px-4` (32px): kolom
+   * Aksi butuh 3 tombol x 26px + 2 gap x 4px = 86px isi, jadi 120px. */
   const COL_DAY: Column<ScheduleItem> = {
     key: 'day',
     header: 'Hari',
@@ -869,19 +907,21 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
     key: 'kelas',
     header: 'Kelas',
     align: 'center',
-    width: '90px',
+    width: '96px',
     accessor: cellClass,
   };
   const COL_SUBJECT: Column<ScheduleItem> = {
     key: 'subject_name',
     header: 'Mata Pelajaran',
     align: 'left',
+    width: '26%',
     accessor: cellSubject,
   };
   const COL_TEACHER: Column<ScheduleItem> = {
     key: 'teacher_name',
     header: 'Guru Pengampu',
     align: 'left',
+    width: '18%',
     accessor: cellTeacher,
   };
   const COL_STATUS: Column<ScheduleItem> = {
@@ -895,7 +935,7 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
     key: 'actions',
     header: 'Aksi',
     align: 'right',
-    width: '110px',
+    width: '120px',
     accessor: cellActions,
   };
 
@@ -1075,12 +1115,21 @@ export const ScheduleManagement: React.FC<ScheduleManagementProps> = ({
 
       {/* Tampilan tunggal: satu tabel daftar (flat) + paginasi.
           formerly ada mode Per Hari / Per Guru / Per Kelas — sekarang cukup
-          dijawab oleh filter hari/kelas/guru/status di FilterBar di atas. */}
+          dijawab oleh filter hari/kelas/guru/status di FilterBar di atas.
+
+          `table-fixed` = lebar kolom diambil dari `width` tiap kolom dan TIDAK
+          lagi terpengaruh panjang isi. Pada layout `auto` bawaan browser,
+          `width` hanya saran: nama kelompok/guru yang panjang melebarkan
+          kolomnya sendiri sehingga kolom lain bergeser. Konsekuensinya semua
+          isi sel dinamis harus `truncate` — lihat `cellSubject`/`cellTeacher`.
+          `min-w` menjaga kolom ber-px tidak ikut terjepit di layar sempit;
+          tabel lalu digeser ke samping lewat ScrollArea, bukan dipadatkan. */}
       <DataTable
         columns={listColumns}
         data={filteredSchedules}
         keyExtractor={(item) => item.id}
         {...sharedTableProps}
+        tableClassName="table-fixed min-w-[1000px]"
         headerRightContent={
           <span className="text-xs font-semibold text-slate-500">
             {filteredSchedules.length}
